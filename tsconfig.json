@@ -13,5 +13,5 @@
         "allowJs": false,
         "noEmit": true
     },
-    "include": ["src", "tests"]
+    "include": ["src", "tests", "tools"]
 }

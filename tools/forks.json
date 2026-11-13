@@ -1,0 +1,5 @@
+[
+    { "id": "frontier", "name": "Frontier Station 14", "repo": "https://github.com/new-frontiers-14/frontier-station-14", "branch": "master" },
+    { "id": "upstream", "name": "Space Station 14", "repo": "https://github.com/space-wizards/space-station-14", "branch": "master" },
+    { "id": "goob", "name": "Goob Station", "repo": "https://github.com/Goob-Station/Goob-Station", "branch": "master" }
+]

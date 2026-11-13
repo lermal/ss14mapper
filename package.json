@@ -14,10 +14,14 @@
     "preview": "vite preview",
     "test": "vitest run",
     "corpus": "node tools/corpus.mjs",
-    "test-map": "rolldown tools/ci-test-map.ts --format esm --platform node -o node_modules/.cache/ci-test-map.mjs && node node_modules/.cache/ci-test-map.mjs"
+    "test-map": "rolldown tools/ci-test-map.ts --format esm --platform node -o node_modules/.cache/ci-test-map.mjs && node node_modules/.cache/ci-test-map.mjs",
+    "build-pack": "rolldown tools/build-pack.ts --format esm --platform node --external sharp --external js-yaml -o node_modules/.cache/build-pack.mjs && node node_modules/.cache/build-pack.mjs"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.6.6",
+    "js-yaml": "4.3.2",
+    "sharp": "^0.35.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
