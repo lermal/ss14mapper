@@ -56,6 +56,8 @@ export interface AccountHooks {
     beforeSignIn(): Promise<boolean>;
     signedIn(me: Me): void;
     signedOut(): void;
+    /** After Manage builds closes: the public build list may have changed. */
+    buildsChanged(): void;
 }
 
 function field(label: string, control: HTMLElement, cls = ""): HTMLElement {
@@ -459,5 +461,6 @@ export class Account {
             list.replaceChildren(h("div", "fb-error", messageOf(e)));
         }
         await shown;
+        this.hooks.buildsChanged();
     }
 }

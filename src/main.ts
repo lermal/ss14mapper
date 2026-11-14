@@ -233,6 +233,7 @@ const account = api
           beforeSignIn: async () => (controller.leaving = await leaveCurrent()),
           signedIn: (me) => void sync?.start(me.id),
           signedOut: () => sync?.stop(),
+          buildsChanged: () => void refreshForks(),
       })
     : null;
 if (account) {
@@ -592,8 +593,34 @@ document.addEventListener("drop", (e) => {
     void openFile(e.dataTransfer?.files[0]);
 });
 new ResizeObserver(() => map.paintNow()).observe($("view"));
-// another tab may have changed the library
-window.addEventListener("focus", () => void refreshLibrary());
+/**
+ * Reads the build list again (builds are added, hidden and rebuilt on the server). The open map's build stays
+ * listed even when it is gone from the server; a build whose pack moved to a new version loads it next time.
+ */
+async function refreshForks(): Promise<void> {
+    let fresh: Fork[];
+    try {
+        fresh = await loadForks();
+    } catch {
+        return;
+    }
+    const selected = fork();
+    for (const f of fresh) {
+        const old = forks.find((o) => o.id === f.id);
+        if (old && old.pack !== f.pack) packs.delete(f.id);
+    }
+    const kept = current && !fresh.some((f) => f.id === selected) ? forks.filter((f) => f.id === selected) : [];
+    forks = [...fresh, ...kept];
+    const pick = forks.some((f) => f.id === selected) ? selected : forks[0]?.id ?? "";
+    shell.setForks(forks, pick);
+    start.setForks(forks, pick);
+}
+
+// another tab, or the server, may have changed the library and the build list
+window.addEventListener("focus", () => {
+    void refreshLibrary();
+    void refreshForks();
+});
 
 // ---- start
 try {
