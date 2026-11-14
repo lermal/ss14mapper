@@ -12,6 +12,8 @@ export interface Fork {
     name: string;
     /** The build's repository, for the link to its source. */
     repo?: string;
+    /** URL of the pack's directory, ending with a slash. */
+    pack: string;
 }
 
 export interface ShellHooks {

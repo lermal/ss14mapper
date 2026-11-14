@@ -5,6 +5,7 @@ import { browserStorage, Keymap } from "./editor/keymap";
 import { SettingsWindow } from "./editor/settings";
 import { MapDocument } from "./map/document";
 import { mapEntity, mapParallax, ownParallax, setMapParallax } from "./map/map-props";
+import { loadForks } from "./pack/forks";
 import { Pack } from "./pack/loader";
 import { MapCanvas } from "./render/canvas";
 import { ParallaxBackground } from "./render/parallax";
@@ -200,7 +201,7 @@ const start = new StartScreen($("start"), {
 const loadPack = (id: string) => {
     let p = packs.get(id);
     if (!p) {
-        packs.set(id, (p = Pack.load(`/packs/${id}/`)));
+        packs.set(id, (p = Pack.load(forks.find((f) => f.id === id)?.pack ?? `/packs/${id}/`)));
         // a failed load is tried again next time
         p.catch(() => packs.delete(id));
     }
@@ -544,7 +545,11 @@ new ResizeObserver(() => map.paintNow()).observe($("view"));
 window.addEventListener("focus", () => void refreshLibrary());
 
 // ---- start
-forks = (await (await fetch("/packs/index.json")).json()) as Fork[];
+try {
+    forks = await loadForks();
+} catch (e) {
+    showToast((e as Error).message);
+}
 const initial = forks.some((f) => f.id === params.get("fork")) ? params.get("fork")! : forks[0]?.id ?? "";
 shell.setForks(forks, initial);
 start.setForks(forks, initial);
