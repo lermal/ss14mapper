@@ -45,10 +45,10 @@ describe("generator parts", () => {
         expect(new NetRandom(0).nextFloat()).toBe(Math.fround(Math.fround(1559595546) * Math.fround(4.6566128752458e-10)));
     });
 
-    it("uses FastNoiseLite's gradient table", () => {
-        const src = "/home/SERVERS/frontier-station-14/RobustToolbox/Robust.Shared/Noise/FastNoiseLite.cs";
-        const text = fs.existsSync(src) ? fs.readFileSync(src, "utf8") : null;
-        if (!text) return;
+    // SS14MAPPER_ENGINE: a RobustToolbox checkout to compare the port with
+    const engine = process.env.SS14MAPPER_ENGINE;
+    it.runIf(!!engine)("uses FastNoiseLite's gradient table", () => {
+        const text = fs.readFileSync(path.join(engine!, "Robust.Shared/Noise/FastNoiseLite.cs"), "utf8");
         const values = /Gradients2D =\s*\{([^}]*)\}/.exec(text)![1]!.split(",").map((v) => v.trim().replace(/f$/, "")).filter(Boolean).map(Number);
         expect(values.length).toBe(256);
         expect([...GRADIENTS_2D]).toEqual(values.map(Math.fround));

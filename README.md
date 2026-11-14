@@ -15,7 +15,7 @@ npm test         # tests
 npm run build    # static site in dist/
 ```
 
-Tests that read real maps use a corpus outside the repository; see `tools/corpus.mjs`.
+Tests that read real maps use a corpus outside the repository; see `tools/corpus.mjs`. Set `SS14MAPPER_ENGINE` to a RobustToolbox checkout to also compare the noise port with the engine's source.
 
 ## Asset packs
 
