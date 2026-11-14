@@ -1,14 +1,20 @@
 // Builds the asset pack of one SS14 fork from a checkout.
 //
-//   build-pack --checkout <dir> --out <dir> --id <fork id> [--repo <url>] [--branch <name>] [--commit <sha>]
+//   build-pack --checkout <dir> --out <dir> --id <fork id> [--repo <url>] [--branch <name>] [--commit <sha>] [--engine <dir>]
 //
 // The checkout needs Resources/{Prototypes,Textures,Locale/en-US} and, from the RobustToolbox submodule,
-// Resources/EnginePrototypes and Robust.Shared.Maths/Color.cs. Nothing in it is executed.
+// Resources/EnginePrototypes and Robust.Shared.Maths/Color.cs. Engine components' fields come from the submodule's
+// `Robust.*` sources, or from another engine checkout given with --engine. Nothing in either is executed.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PACK_FORMAT, type DecalDefinition, type EntityPrototype, type PackManifest, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
+import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type PackManifest, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
+import { ContainerData } from "./pack/containers";
+import { DeviceData } from "./pack/devices";
 import { Checkout, truthy, type Raw } from "./pack/game";
+import { ParallaxPacker } from "./pack/parallax";
+import { bodyMass, gridPhysics } from "./pack/physics";
+import { componentSchemas } from "./pack/schemas";
 import { hashName, packTextures } from "./pack/textures";
 
 /** Components whose data drawing and placing need; everything else stays out of the pack. */
@@ -34,7 +40,14 @@ const KEPT_COMPONENTS: Record<string, ((c: Raw) => Raw) | true> = {
     Foldable: (c) => pick(c, ["folded"]),
     Thruster: (c) => pick(c, ["enabled", "requireSpace"]),
     VendingMachine: (c) => pick(c, ["offState", "normalState", "screenState"]),
+    // placing an entity deletes the anchored entities on its tile with the same key (PlacementManager)
+    PlacementReplacement: (c) => pick(c, ["key"]),
     Door: (c) => pick(c, ["state", "openSpriteState", "closedSpriteState", "openDrawDepth", "closedDrawDepth"]),
+    // device linking: which entities are sources, sinks, configurators (device lists) and networked devices
+    DeviceLinkSource: (c) => pick(c, ["ports", "range"]),
+    DeviceLinkSink: (c) => pick(c, ["ports"]),
+    DeviceList: (c) => pick(c, ["deviceLimit", "isAllowList"]),
+    DeviceNetwork: (c) => pick(c, ["deviceNetId", "savableAddress", "receiveFrequencyId", "transmitFrequencyId"]),
     Paper: (c) => ({ ...pick(c, ["stampState"]), ...(String(c.content ?? "").trim() ? { content: "…" } : {}) }),
     NodeContainer: (c) => {
         // only pipe nodes matter for drawing (pipe connectors)
@@ -47,6 +60,9 @@ const KEPT_COMPONENTS: Record<string, ((c: Raw) => Raw) | true> = {
         return Object.keys(nodes).length ? { nodes } : {};
     },
 };
+
+/** Rounds a mass to 6 significant digits, so float noise does not change the pack between builds. */
+const round = (v: number) => Number(v.toPrecision(6));
 
 function pick(c: Raw, keys: string[]): Raw {
     const out: Raw = {};
@@ -73,15 +89,18 @@ function git(dir: string, ...a: string[]): string | null {
 async function main(): Promise<void> {
     const opt = args(process.argv.slice(2));
     if (!opt.checkout || !opt.out || !opt.id) {
-        throw new Error("usage: build-pack --checkout <dir> --out <dir> --id <fork id> [--repo <url>] [--branch <name>] [--commit <sha>]");
+        throw new Error("usage: build-pack --checkout <dir> --out <dir> --id <fork id> [--repo <url>] [--branch <name>] [--commit <sha>] [--engine <dir>]");
     }
     const t0 = Date.now();
-    const game = new Checkout(path.resolve(opt.checkout));
+    const game = new Checkout(path.resolve(opt.checkout), opt.engine ? { engine: path.resolve(opt.engine) } : {});
     const outDir = path.resolve(opt.out);
     fs.mkdirSync(outDir, { recursive: true });
     const problems = game.problems;
 
     // ---- prototypes
+    const devices = new DeviceData(game);
+    const physics = gridPhysics(game);
+    const containers = new ContainerData(game);
     const entities: Record<string, EntityPrototype> = {};
     const plain = new Map<string, number>();
     let placeable = 0;
@@ -101,6 +120,23 @@ async function main(): Promise<void> {
         if (game.hidden(id)) proto.hidden = true;
         else placeable++;
         if (e.placement) proto.placement = e.placement;
+        const ports = devices.ports(e);
+        if (ports.source.length || ports.sink.length) {
+            proto.ports = {};
+            if (ports.source.length) proto.ports.source = ports.source;
+            if (ports.sink.length) proto.ports.sink = ports.sink;
+        }
+        const body = bodyMass(game, id);
+        if (body) {
+            proto.mass = round(body.mass);
+            const centre = body.centre.map((v) => Math.round(v * 1e6) / 1e6 || 0) as [number, number];
+            if (centre[0] || centre[1]) proto.massCentre = centre;
+        }
+        const fill = containers.fills(id);
+        if (fill.fills) {
+            proto.fills = true;
+            if (fill.plainBase) proto.plainBase = fill.plainBase;
+        }
         entities[id] = proto;
 
         // sprite layers may use plain textures instead of RSI states
@@ -117,6 +153,10 @@ async function main(): Promise<void> {
         if (sprite) plain.set(sprite, variants);
         const name = t.name === undefined ? undefined : game.localize(String(t.name));
         tiles[id] = { name: name ?? id, sprite, variants, isSubfloor: truthy(t.isSubfloor ?? false) };
+        // ContentTileDefinition.MapAtmosphere: the game treats such tiles (space, lattice) as open space
+        if (truthy(t.isSpace ?? false)) tiles[id].isSpace = true;
+        const mass = t.mass !== undefined ? Number(t.mass) : physics.tileMass;
+        if (mass !== null && !Number.isNaN(mass)) tiles[id].mass = mass;
     }
 
     const decals: Record<string, DecalDefinition> = {};
@@ -128,7 +168,13 @@ async function main(): Promise<void> {
             sprite = { texture: game.texturePath(s) };
             plain.set(sprite.texture, 1);
         }
-        decals[id] = { sprite, ...(String(d.showMenu ?? true).toLowerCase() === "false" ? { hidden: true as const } : {}) };
+        decals[id] = {
+            sprite,
+            ...(String(d.showMenu ?? true).toLowerCase() === "false" ? { hidden: true as const } : {}),
+            ...(String(d.defaultSnap ?? true).toLowerCase() === "false" ? { defaultSnap: false as const } : {}),
+            ...(truthy(d.defaultCleanable ?? false) ? { defaultCleanable: true as const } : {}),
+            ...(truthy(d.defaultCustomColor ?? false) ? { defaultCustomColor: true as const } : {}),
+        };
     }
 
     const stacks: Record<string, number> = {};
@@ -144,10 +190,50 @@ async function main(): Promise<void> {
         tileAliases: Object.fromEntries(
             [...game.all("tileAlias")].filter(([, a]) => a.target !== undefined).map(([id, a]) => [id, String(a.target)]).sort(),
         ),
+        ports: { source: devices.portPrototypes("sourcePort"), sink: devices.portPrototypes("sinkPort") },
+        devices: devices.storage,
+        componentNames: game.componentNames(),
+        ...(physics.tileDensity !== null ? { tileDensity: physics.tileDensity } : {}),
     };
     const prototypesJson = JSON.stringify(prototypes);
     const prototypesName = hashName("prototypes", "json", prototypesJson);
     fs.writeFileSync(path.join(outDir, prototypesName), prototypesJson);
+
+    // ---- full prototype data and component fields, loaded by the editor on demand
+    const full: PrototypeData = { entities: {} };
+    for (const [id, p] of [...game.all("entity")].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+        const def: PrototypeDefinition = { components: {} };
+        const parents = p.parent === undefined || p.parent === null ? [] : Array.isArray(p.parent) ? p.parent.map(String) : [String(p.parent)];
+        if (parents.length) def.parents = parents;
+        if (truthy(p.abstract ?? false)) def.abstract = true;
+        else {
+            const description = game.displayDescription(id);
+            if (description) def.description = description;
+        }
+        for (const c of (p.components as unknown[]) ?? []) {
+            if (!c || typeof c !== "object" || !(c as Raw).type) continue;
+            const { type, ...fields } = c as Raw;
+            def.components[String(type)] = { ...(def.components[String(type)] ?? {}), ...fields };
+        }
+        full.entities[id] = def;
+    }
+    const fullJson = JSON.stringify(full);
+    const fullName = hashName("prototype-data", "json", fullJson);
+    fs.writeFileSync(path.join(outDir, fullName), fullJson);
+
+    const { schemas, stats: schemaStats } = componentSchemas([...game.csharp(), ...game.engineCsharp()], game.colors);
+    for (const type of schemaStats.protoTypes) {
+        const ids = [...game.all(type).keys()].sort();
+        if (ids.length) schemas.prototypeIds[type] = ids;
+    }
+    const schemasJson = JSON.stringify(schemas);
+    const schemasName = hashName("components", "json", schemasJson);
+    fs.writeFileSync(path.join(outDir, schemasName), schemasJson);
+    if (!game.engineCsharp().length) problems.push("no engine sources: fields of engine components (MetaData, Transform, PointLight...) are unknown");
+    const rules: ContainerRules = containers.rules();
+    const rulesJson = JSON.stringify(rules);
+    const rulesName = hashName("container-rules", "json", rulesJson);
+    fs.writeFileSync(path.join(outDir, rulesName), rulesJson);
     const tProtos = Date.now();
 
     // ---- textures
@@ -155,6 +241,14 @@ async function main(): Promise<void> {
     const texturesJson = JSON.stringify(index);
     const texturesName = hashName("textures", "json", texturesJson);
     fs.writeFileSync(path.join(outDir, texturesName), texturesJson);
+
+    // ---- parallax backgrounds, loaded by the editor when shown
+    const tParallax = Date.now();
+    const parallax = new ParallaxPacker(game, outDir, problems);
+    const parallaxData = await parallax.build();
+    const parallaxJson = JSON.stringify(parallaxData);
+    const parallaxName = hashName("parallax", "json", parallaxJson);
+    fs.writeFileSync(path.join(outDir, parallaxName), parallaxJson);
 
     const checkoutDir = path.resolve(opt.checkout);
     const manifest: PackManifest = {
@@ -167,7 +261,7 @@ async function main(): Promise<void> {
             engineCommit: git(checkoutDir, "ls-tree", "HEAD", "RobustToolbox")?.split(/\s+/)[2] ?? null,
         },
         builtAt: new Date().toISOString(),
-        files: { prototypes: prototypesName, textures: texturesName },
+        files: { prototypes: prototypesName, textures: texturesName, componentSchemas: schemasName, prototypeData: fullName, parallax: parallaxName, containerRules: rulesName },
         stats: {
             entities: Object.keys(entities).length,
             placeable,
@@ -180,8 +274,8 @@ async function main(): Promise<void> {
     };
 
     // remove files of earlier builds that this pack no longer references
-    const keep = new Set(["manifest.json", prototypesName, texturesName, ...index.pages]);
-    for (const f of fs.readdirSync(outDir)) if (!keep.has(f) && /^(page|prototypes|textures)\.[0-9a-f]{12}\./.test(f)) fs.unlinkSync(path.join(outDir, f));
+    const keep = new Set(["manifest.json", prototypesName, texturesName, schemasName, fullName, parallaxName, rulesName, ...index.pages, ...parallax.files]);
+    for (const f of fs.readdirSync(outDir)) if (!keep.has(f) && /^(page|prototypes|textures|components|prototype-data|container-rules|parallax|parallax-thumb)\.[0-9a-f]{12}\./.test(f)) fs.unlinkSync(path.join(outDir, f));
     const tmp = path.join(outDir, `.manifest.${process.pid}.json`);
     fs.writeFileSync(tmp, JSON.stringify(manifest, null, 2));
     fs.renameSync(tmp, path.join(outDir, "manifest.json"));
@@ -191,6 +285,16 @@ async function main(): Promise<void> {
         `${opt.id}: ${manifest.stats.entities} entities (${placeable} placeable), ${manifest.stats.tiles} tiles, ` +
             `${manifest.stats.decals} decals, ${manifest.stats.rsi} RSI, ${frames} frames in ${index.pages.length} pages, ` +
             `${(size / 1048576).toFixed(1)} MB; prototypes ${((tProtos - t0) / 1000).toFixed(1)} s, total ${((Date.now() - t0) / 1000).toFixed(1)} s`,
+    );
+    const kb = (s: string) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
+    console.log(
+        `prototypes ${kb(prototypesJson)}, full prototype data ${kb(fullJson)}, container rules ${kb(rulesJson)} (${Object.keys(rules.bounds).length} bounds, ${Object.values(entities).filter((e) => e.fills).length} filling, ${Object.values(entities).filter((e) => e.plainBase).length} with a plain base), component fields ${kb(schemasJson)}: ` +
+            `${schemaStats.components} components (${schemaStats.withFields} with fields), ${schemaStats.fields} fields, ` +
+            `kinds ${JSON.stringify(schemaStats.kinds)}; base classes not found: ${schemaStats.unresolvedBases.length ? schemaStats.unresolvedBases.join(", ") : "none"}`,
+    );
+    console.log(
+        `parallax: ${Object.keys(parallaxData.parallaxes).length} prototypes (default ${parallaxData.default}), ${parallax.files.size} images ` +
+            `(${parallax.generated} generated in ${(parallax.generateMs / 1000).toFixed(1)} s), ${(parallax.bytes / 1048576).toFixed(2)} MB; ${((Date.now() - tParallax) / 1000).toFixed(1)} s`,
     );
     if (problems.length) console.log(`${problems.length} problem(s), first: ${problems.slice(0, 5).join("; ")}`);
 }

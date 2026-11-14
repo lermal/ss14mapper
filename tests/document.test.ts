@@ -116,9 +116,12 @@ describe.skipIf(SAMPLES.length === 0).each(SAMPLES)("edits of %s", (file) => {
         expect(reread.proto(b)).toBe("SS14MapperTestProto");
         expect(reread.transform(b)).toEqual({ x: -1.5, y: 0.5, rotation: Math.PI, parent: grid });
         expect(new MapDocument(out).serialize(NOW)).toBe(out);
-        expect(out).toContain(
-            ["- proto: SS14MapperTestProto", "  entities:", `  - uid: ${b}`, "    components:", "    - type: Transform", "      rot: 3.141592653589793 rad", "      pos: -1.5,0.5", `      parent: ${grid}`].join("\n"),
-        );
+        // in the Transform field order of the map's engine: newer ones write the parent first
+        const parentFirst = /- type: Transform\n {6}parent: /.test(original) && !/- type: Transform\n( {6}rot: .*\n)? {6}pos: .*\n {6}parent: /.test(original);
+        const fields = parentFirst
+            ? [`      parent: ${grid}`, "      rot: 3.141592653589793 rad", "      pos: -1.5,0.5"]
+            : ["      rot: 3.141592653589793 rad", "      pos: -1.5,0.5", `      parent: ${grid}`];
+        expect(out).toContain(["- proto: SS14MapperTestProto", "  entities:", `  - uid: ${b}`, "    components:", "    - type: Transform", ...fields].join("\n"));
         const count = /^  entityCount: (\d+)$/m.exec(original);
         if (count) expect(out).toContain(`  entityCount: ${Number(count[1]) + 2}`);
     });

@@ -15,6 +15,7 @@
     "test": "vitest run",
     "corpus": "node tools/corpus.mjs",
     "test-map": "rolldown tools/ci-test-map.ts --format esm --platform node -o node_modules/.cache/ci-test-map.mjs && node node_modules/.cache/ci-test-map.mjs",
+    "new-map": "rolldown tools/new-map.ts --format esm --platform node -o node_modules/.cache/new-map.mjs && node node_modules/.cache/new-map.mjs",
     "build-pack": "rolldown tools/build-pack.ts --format esm --platform node --external sharp --external js-yaml -o node_modules/.cache/build-pack.mjs && node node_modules/.cache/build-pack.mjs"
   },
   "devDependencies": {

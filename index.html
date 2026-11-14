@@ -4,9 +4,32 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SS14 Mapper</title>
+    <style>
+        [hidden] { display: none !important; }
+    </style>
 </head>
 <body>
-    <div id="app"></div>
+    <div id="start" hidden></div>
+    <div id="app" class="app" hidden>
+        <header id="topbar"></header>
+        <div id="optionsbar"></div>
+        <div class="workspace">
+            <nav id="rail" aria-label="Tools"></nav>
+            <aside id="palette" class="palette-col" aria-label="Palette"></aside>
+            <main id="view" class="view" aria-label="Map">
+                <canvas id="parallax"></canvas>
+                <canvas id="map"></canvas>
+                <canvas id="overlay"></canvas>
+                <div id="map-controls"></div>
+            </main>
+            <aside id="properties" class="properties" aria-label="Properties" hidden>
+                <div id="link-panel"></div>
+                <div id="inspector"></div>
+            </aside>
+        </div>
+        <footer id="statusbar"></footer>
+    </div>
+    <input type="file" id="file" accept=".yml,.yaml" hidden>
     <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

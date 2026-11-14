@@ -1,0 +1,361 @@
+// Dialogs of the map library and new maps: New map, Save as (a name), and Manage library (open, rename and delete
+// maps kept in this browser).
+import { MAX_FLOOR_SIDE, newMapText, startingFloors, type NewMapKind } from "../map/new-map";
+import type { Pack } from "../pack/loader";
+import { dialog } from "./dialog";
+import { button, h } from "./icons";
+import { formatSize, formatWhen, mapFileName, usedBytes, type LibraryEntry, type MapLibrary } from "./library";
+import type { Fork } from "./shell";
+import { showToast } from "./toast";
+
+const STYLE = `
+.dlg .md-seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; align-self: flex-start; }
+.dlg .md-seg button { height: 26px; padding: 0 14px; border: 0; background: var(--raised); color: var(--text); }
+.dlg .md-seg button + button { border-left: 1px solid var(--border); }
+.dlg .md-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.dlg .md-hint { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.dlg .md-floor { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text-2); }
+.dlg .md-floor-fields { display: flex; gap: 8px; align-items: flex-end; }
+.dlg .md-floor-fields .dlg-field { margin-top: 6px; }
+.dlg .md-floor-fields .md-tile { flex: 1; min-width: 0; }
+.dlg .md-floor-fields input[type=number] { width: 72px; }
+.dlg .md-floor-fields.off { opacity: 0.5; }
+.dlg .lib-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; margin-top: 8px; }
+.dlg .lib-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
+.dlg .lib-row .lib-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dlg .lib-row .lib-name { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dlg .lib-row .lib-meta { color: var(--muted); font-size: 12px; }
+.dlg .lib-row .lib-badge { margin-left: 6px; padding: 0 6px; border-radius: var(--radius-s); background: var(--accent-soft); color: var(--accent-text); font-size: 11px; font-weight: 600; }
+.dlg .lib-row input[type=text] { height: 26px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--focus); border-radius: var(--radius-s); background: var(--input); color: var(--text); }
+.dlg .lib-row .lib-error { color: var(--danger-text); font-size: 12px; }
+.dlg .lib-row button.btn { height: 26px; padding: 0 10px; }
+.dlg .lib-empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); }
+.dlg .lib-foot { margin-top: 10px; color: var(--muted); font-size: 12px; }
+`;
+
+let styleAdded = false;
+function addStyle(): void {
+    if (styleAdded) return;
+    styleAdded = true;
+    const el = document.createElement("style");
+    el.textContent = STYLE;
+    document.head.append(el);
+}
+
+function field(label: string, control: HTMLElement, cls = ""): HTMLElement {
+    const l = h("label", `dlg-field${cls ? ` ${cls}` : ""}`);
+    l.append(label, control);
+    return l;
+}
+
+function textInput(value: string): HTMLInputElement {
+    const i = h("input");
+    i.type = "text";
+    i.value = value;
+    i.spellcheck = false;
+    i.autocomplete = "off";
+    return i;
+}
+
+function numberInput(value: number, min: number, max: number): HTMLInputElement {
+    const i = h("input");
+    i.type = "number";
+    i.value = String(value);
+    i.min = String(min);
+    i.max = String(max);
+    i.step = "1";
+    return i;
+}
+
+/** Why a typed map name cannot be used, or "" when it can; `taken` tells names already in the library. */
+export function nameProblem(typed: string, taken: (file: string) => boolean): string {
+    const file = mapFileName(typed);
+    if (!file) return "Enter a name";
+    if (taken(file)) return `${file} already exists`;
+    return "";
+}
+
+/** Asks for a map name (Save as); resolves with the file name, or null when cancelled. */
+export function askMapName(title: string, initial: string, confirm: string, taken: (file: string) => boolean): Promise<string | null> {
+    addStyle();
+    const input = textInput(initial);
+    input.dataset.autofocus = "";
+    const error = h("p", "dlg-error");
+    input.addEventListener("input", () => (error.textContent = ""));
+    return dialog<string | null>(
+        title,
+        [field("Name", input), error],
+        [
+            { label: "Cancel", value: null, spaceAfter: true },
+            { label: confirm, value: "ok", kind: "primary" },
+        ],
+        null,
+        {
+            check: () => {
+                error.textContent = nameProblem(input.value, taken);
+                return !error.textContent;
+            },
+        },
+    ).then((v) => (v === null ? null : mapFileName(input.value)));
+}
+
+export interface NewMapResult {
+    /** File name, e.g. "Tug.yml". */
+    file: string;
+    build: string;
+    text: string;
+}
+
+export interface NewMapSetup {
+    forks: Fork[];
+    build: string;
+    loadPack(build: string): Promise<Pack>;
+    taken(file: string): boolean;
+}
+
+const KINDS: ReadonlyArray<[NewMapKind, string, string, string]> = [
+    ["shuttle", "Shuttle", "", "New shuttle"],
+    ["map", "Map", "", "New map"],
+];
+const MAX_SIDE = MAX_FLOOR_SIDE;
+
+/** New map: type, name, build and a starting floor; resolves with the new file's text, or null when cancelled. */
+export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
+    addStyle();
+    let kind: NewMapKind = "shuttle";
+    const seg = h("div", "md-seg");
+    seg.setAttribute("role", "group");
+    seg.setAttribute("aria-label", "Type");
+    const hint = h("p", "md-hint");
+    const name = textInput(KINDS[0]![3]);
+    name.dataset.autofocus = "";
+    let named = false;
+    name.addEventListener("input", () => {
+        named = true;
+        error.textContent = "";
+    });
+    const kindButtons = KINDS.map(([k, label]) => {
+        const b = button("", label, "", () => setKind(k));
+        b.dataset.kind = k;
+        seg.append(b);
+        return b;
+    });
+    const setKind = (k: NewMapKind) => {
+        kind = k;
+        const def = KINDS.find((d) => d[0] === k)!;
+        kindButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === k)));
+        hint.textContent = def[2];
+        if (!named) name.value = def[3];
+    };
+    setKind("shuttle");
+
+    const build = h("select");
+    for (const f of setup.forks) build.add(new Option(f.name, f.id));
+    build.value = setup.build;
+
+    const floorOn = h("input");
+    floorOn.type = "checkbox";
+    floorOn.checked = true;
+    const floorLabel = h("label", "md-floor");
+    floorLabel.append(floorOn, "Floor");
+    const tile = h("select");
+    const width = numberInput(5, 1, MAX_SIDE), height = numberInput(5, 1, MAX_SIDE);
+    const floorFields = h("div", "md-floor-fields");
+    floorFields.append(field("Tile", tile, "md-tile"), field("Width", width), field("Height", height));
+    floorOn.addEventListener("change", () => {
+        floorFields.classList.toggle("off", !floorOn.checked);
+        for (const c of [tile, width, height]) c.disabled = !floorOn.checked;
+    });
+
+    const error = h("p", "dlg-error");
+    let pack: Pack | null = null;
+    let packFor = "";
+    const loadTiles = async () => {
+        const id = build.value;
+        packFor = id;
+        pack = null;
+        tile.replaceChildren(new Option("Loading…", ""));
+        tile.disabled = true;
+        try {
+            const p = await setup.loadPack(id);
+            if (packFor !== id) return;
+            pack = p;
+            // the usual floors first, then every other tile of the build
+            const usual = startingFloors(p);
+            const rest = Object.keys(p.prototypes.tiles).filter((t) => t !== "Space" && !usual.includes(t)).sort((a, b) => a.localeCompare(b));
+            const ids = [...usual, ...rest];
+            const keep = tile.dataset.chosen;
+            const others = h("optgroup");
+            others.label = "Other";
+            others.append(...rest.map((t) => new Option(t, t)));
+            tile.replaceChildren(...usual.map((t) => new Option(t, t)), ...(rest.length ? [others] : []));
+            tile.value = keep && ids.includes(keep) ? keep : ids.includes("Plating") ? "Plating" : ids[0] ?? "";
+            tile.disabled = !floorOn.checked;
+        } catch (e) {
+            if (packFor !== id) return;
+            tile.replaceChildren(new Option("Not available", ""));
+            error.textContent = `Could not load ${build.selectedOptions[0]?.text ?? id}: ${(e as Error).message}`;
+        }
+    };
+    tile.addEventListener("change", () => (tile.dataset.chosen = tile.value));
+    build.addEventListener("change", () => {
+        error.textContent = "";
+        void loadTiles();
+    });
+    void loadTiles();
+
+    let result: NewMapResult | null = null;
+    const check = (): boolean => {
+        error.textContent = nameProblem(name.value, setup.taken);
+        if (error.textContent) return false;
+        if (!pack) {
+            error.textContent = "Build is loading";
+            return false;
+        }
+        let floor: { tile: string; width: number; height: number } | undefined;
+        if (floorOn.checked) {
+            const w = Number(width.value), hgt = Number(height.value);
+            const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= MAX_SIDE;
+            if (!ok(w) || !ok(hgt)) {
+                error.textContent = `Width and height must be 1 to ${MAX_SIDE}`;
+                return false;
+            }
+            if (!tile.value) {
+                error.textContent = "Choose a floor tile";
+                return false;
+            }
+            floor = { tile: tile.value, width: w, height: hgt };
+        }
+        const file = mapFileName(name.value);
+        try {
+            const text = newMapText({ kind, name: name.value.trim().replace(/\.ya?ml$/i, ""), pack, ...(floor ? { floor } : {}) });
+            result = { file, build: build.value, text };
+            return true;
+        } catch (e) {
+            error.textContent = `Could not create map: ${(e as Error).message}`;
+            return false;
+        }
+    };
+    const typeField = h("div", "dlg-field");
+    typeField.append("Type", seg, hint);
+    return dialog<"create" | null>(
+        "New map",
+        [typeField, field("Name", name), field("Build", build), floorLabel, floorFields, error],
+        [
+            { label: "Cancel", value: null, spaceAfter: true },
+            { label: "Create", value: "create", kind: "primary" },
+        ],
+        null,
+        { check, width: 460 },
+    ).then((v) => (v === "create" ? result : null));
+}
+
+export interface LibraryDialogHooks {
+    library: MapLibrary;
+    /** The library record of the open map (it cannot be deleted while open). */
+    openId: string | null;
+    forkName(id: string): string;
+    open(id: string): void;
+    /** A record was renamed, deleted or restored. */
+    changed(entry: { id: string; name?: string }): void;
+}
+
+/** Manage library: every map kept in this browser with its size, date and build; open, rename, delete. */
+export async function manageLibrary(hooks: LibraryDialogHooks): Promise<void> {
+    addStyle();
+    const { library } = hooks;
+    const list = h("div", "lib-list");
+    const foot = h("p", "lib-foot");
+    let entries: LibraryEntry[] = [];
+    let close: (v: void) => void = () => {};
+
+    const render = async () => {
+        entries = await library.list();
+        if (!entries.length) list.replaceChildren(h("div", "lib-empty", "No maps"));
+        else list.replaceChildren(...entries.map(row));
+        const maps = `${entries.length} ${entries.length === 1 ? "map" : "maps"}, ${formatSize(usedBytes(entries))}`;
+        foot.textContent = `${maps}`;
+        try {
+            const est = await navigator.storage?.estimate?.();
+            if (est?.usage !== undefined && est.quota) foot.textContent += `. Storage: ${formatSize(est.usage)} of ${formatSize(est.quota)}`;
+        } catch {
+            // no estimate
+        }
+    };
+
+    const row = (e: LibraryEntry): HTMLElement => {
+        const r = h("div", "lib-row");
+        r.dataset.id = e.id;
+        const text = h("div", "lib-text");
+        const nameEl = h("span", "lib-name", e.name);
+        nameEl.title = e.name;
+        if (e.id === hooks.openId) nameEl.append(h("span", "lib-badge", "Open"));
+        text.append(nameEl, h("span", "lib-meta", `${hooks.forkName(e.build)} · ${formatWhen(e.savedAt)} · ${formatSize(e.size)}`));
+        const openBtn = button("btn", "Open", `Open ${e.name}`, () => {
+            close();
+            hooks.open(e.id);
+        });
+        const renameBtn = button("btn", "Rename", "", () => rename(e, r, text));
+        const del = button("btn danger", "Delete", e.id === hooks.openId ? "Open in the editor" : "Delete", () => void remove(e));
+        del.disabled = e.id === hooks.openId;
+        r.append(text, openBtn, renameBtn, del);
+        return r;
+    };
+
+    const rename = (e: LibraryEntry, r: HTMLElement, text: HTMLElement) => {
+        const input = textInput(e.name);
+        const err = h("span", "lib-error");
+        const box = h("div", "lib-text");
+        box.append(input, err);
+        text.replaceWith(box);
+        for (const b of r.querySelectorAll("button")) b.hidden = true;
+        const save = button("btn primary", "Save", "", () => void commit());
+        const cancel = button("btn", "Cancel", "", () => void render());
+        r.append(save, cancel);
+        input.focus();
+        input.select();
+        const commit = async () => {
+            const problem = nameProblem(input.value, (f) => f !== e.name && entries.some((o) => o.name === f));
+            if (problem) {
+                err.textContent = problem;
+                return;
+            }
+            const file = mapFileName(input.value);
+            if (file !== e.name && (await library.update(e.id, { name: file }))) hooks.changed({ id: e.id, name: file });
+            await render();
+        };
+        input.addEventListener("keydown", (k) => {
+            if (k.key === "Enter") {
+                k.preventDefault();
+                void commit();
+            } else if (k.key === "Escape") {
+                // ends the rename, not the dialog
+                k.preventDefault();
+                k.stopPropagation();
+                void render();
+            }
+        });
+    };
+
+    const remove = async (e: LibraryEntry) => {
+        const gone = await library.remove(e.id);
+        if (!gone) return showToast(`Could not delete ${e.name}`);
+        hooks.changed({ id: e.id });
+        await render();
+        showToast(`Deleted ${e.name}`, {
+            label: "Undo",
+            run: () =>
+                void library.restore(gone).then(async (ok) => {
+                    if (!ok) return showToast(`Could not restore ${e.name}`);
+                    hooks.changed({ id: e.id, name: gone.name });
+                    if (list.isConnected) await render();
+                }),
+        }, 8000);
+    };
+
+    await render();
+    await dialog<void>("Library", [list, foot], [{ label: "Close", value: undefined, kind: "primary" }], undefined, {
+        width: 620,
+        bind: (c) => (close = c),
+    });
+}

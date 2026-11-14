@@ -4,17 +4,28 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 
-// Polymorphic data is tagged `!type:Name`; the tag carries nothing needed here, so any `!type:*` node is read
-// as plain data. The default schema is YAML 1.2 like the engine's parser: `on`/`off`/`yes` stay strings.
+// Polymorphic data is tagged `!type:Name`; a tagged mapping keeps its type in `!type` (so do the container kinds
+// written without fields), any other `!type:*` node is read as plain data. The default schema is YAML 1.2 like
+// the engine's parser: `on`/`off`/`yes` stay strings.
 // `!type:CreateVariants` is kept as a marker: one prototype definition stands for several prototypes.
 const VARIANTS = "__createVariants";
+/** Field holding the C# type of a tagged mapping (`!type:CornerSpriteSmoothing`), for polymorphic data drawing needs. */
+export const TYPE_FIELD = "!type";
+/** Container kinds a prototype's ContainerContainer lists, often written without fields (`entity_storage: !type:Container`). */
+const FIELDLESS_KINDS = new Set(["!type:Container", "!type:ContainerSlot"]);
 const SCHEMA = yaml.DEFAULT_SCHEMA.extend(
     (["scalar", "sequence", "mapping"] as const).map(
         (kind) =>
             new yaml.Type("!type:", {
                 kind,
                 multi: true,
-                construct: (data: unknown, tag?: string) => (tag === "!type:CreateVariants" ? { [VARIANTS]: data } : data === "" ? null : data),
+                construct: (data: unknown, tag?: string) => {
+                    if (tag === "!type:CreateVariants") return { [VARIANTS]: data };
+                    if (kind === "mapping" && data && typeof data === "object" && tag) return { [TYPE_FIELD]: tag.slice("!type:".length), ...(data as object) };
+                    // containers differ by their kind, which no field tells
+                    if (kind === "scalar" && (data === "" || data === null) && tag && FIELDLESS_KINDS.has(tag)) return { [TYPE_FIELD]: tag.slice("!type:".length) };
+                    return data === "" ? null : data;
+                },
             }),
     ),
 );
@@ -75,6 +86,7 @@ export interface ResolvedEntity {
     abstract: boolean;
     name: string | null;
     suffix: string | null;
+    description: string | null;
     placement: Raw | null;
     categories: Set<string>;
     components: Record<string, Raw>;
@@ -91,7 +103,14 @@ export class Checkout {
     readonly componentCategories = new Map<string, string[]>();
     readonly problems: string[] = [];
 
-    constructor(readonly root: string) {
+    /** RobustToolbox sources (`Robust.*` projects): the checkout's submodule, or another checkout of the engine. */
+    readonly engine: string;
+
+    constructor(
+        readonly root: string,
+        options: { engine?: string } = {},
+    ) {
+        this.engine = options.engine ?? path.join(root, "RobustToolbox");
         this.resources = path.join(root, "Resources");
         this.textures = path.join(this.resources, "Textures");
         if (!fs.existsSync(path.join(this.resources, "Prototypes"))) throw new Error(`${root} is not an SS14 checkout (no Resources/Prototypes)`);
@@ -108,23 +127,76 @@ export class Checkout {
      * `[RegisterComponent, EntityCategory("Actions")] public sealed partial class ActionComponent`.
      */
     private loadComponentCategories(): void {
-        const dirs = fs.readdirSync(this.root).filter((d) => d.startsWith("Content.") && fs.statSync(path.join(this.root, d)).isDirectory());
-        if (!dirs.length) {
+        const sources = this.csharp();
+        if (!sources.length) {
             this.problems.push("no Content.* sources: categories declared on components are unknown (actions etc. stay visible)");
             return;
         }
         const attribute = /\[([^\[\]]*\bEntityCategory\(([^)]*)\)[^\[\]]*)\]((?:\s*\[[^\[\]]*\])*)\s*(?:(?:public|internal|sealed|abstract|partial|virtual)\s+)*class\s+(\w+)/g;
-        for (const dir of dirs) {
-            for (const file of walk(path.join(this.root, dir), ".cs")) {
-                const src = fs.readFileSync(file, "utf8");
-                if (!src.includes("EntityCategory(")) continue;
-                for (const m of src.matchAll(attribute)) {
-                    const component = m[4]!.replace(/Component$/, "");
-                    const categories = [...m[2]!.matchAll(/"([^"]+)"/g)].map((c) => c[1]!);
-                    if (categories.length) this.componentCategories.set(component, [...(this.componentCategories.get(component) ?? []), ...categories]);
-                }
+        for (const { text: src } of sources) {
+            if (!src.includes("EntityCategory(")) continue;
+            for (const m of src.matchAll(attribute)) {
+                const component = m[4]!.replace(/Component$/, "");
+                const categories = [...m[2]!.matchAll(/"([^"]+)"/g)].map((c) => c[1]!);
+                if (categories.length) this.componentCategories.set(component, [...(this.componentCategories.get(component) ?? []), ...categories]);
             }
         }
+    }
+
+    private sources: Array<{ file: string; text: string }> | null = null;
+
+    /**
+     * Names of every component the game can put on an entity: component types used by any entity prototype
+     * (abstract ones too, before filtering) plus classes marked `[RegisterComponent]` in `Content.*` and
+     * `RobustToolbox/Robust.*` sources, read as text. As in the engine's ComponentFactory the name is the class
+     * name without the `Component` suffix, unless `[ComponentProtoName("Name")]` overrides it. Sorted.
+     */
+    componentNames(): string[] {
+        const names = new Set<string>();
+        for (const proto of this.all("entity").values()) {
+            for (const c of (proto.components as unknown[]) ?? []) {
+                if (c && typeof c === "object" && (c as Raw).type) names.add(String((c as Raw).type));
+            }
+        }
+        const files = [...this.csharp(), ...this.engineCsharp()];
+        const klass = /((?:\[[^\]\n]*\]\s*)+)(?:(?:public|internal|sealed|abstract|partial|virtual|static)\s+)*class\s+(\w+)/g;
+        for (const { text } of files) {
+            if (!text.includes("RegisterComponent")) continue;
+            for (const m of text.matchAll(klass)) {
+                if (!/\bRegisterComponent\b/.test(m[1]!)) continue;
+                const override = /\bComponentProtoName\(\s*"([^"]+)"/.exec(m[1]!);
+                names.add(override ? override[1]! : m[2]!.replace(/Component$/, ""));
+            }
+        }
+        return [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    }
+
+    private engineSources: Array<{ file: string; text: string }> | null = null;
+
+    /** Text of every C# file of the engine's `Robust.*` projects (none when the engine's sources are absent), read once. */
+    engineCsharp(): Array<{ file: string; text: string }> {
+        if (!this.engineSources) {
+            const dir = this.engine;
+            const projects = fs.existsSync(dir)
+                ? fs.readdirSync(dir).filter((d) => d.startsWith("Robust.") && !/Test|Benchmark|Analyzer|Generator|Docfx|Packaging|Injectors|Roslyn/.test(d) && fs.statSync(path.join(dir, d)).isDirectory()).sort()
+                : [];
+            this.engineSources = projects.flatMap((p) => walk(path.join(dir, p), ".cs").map((file) => ({ file, text: fs.readFileSync(file, "utf8") })));
+        }
+        return this.engineSources;
+    }
+
+    /** Localised description of an entity prototype (MetaData's `desc`), if it has one. */
+    displayDescription(id: string): string | undefined {
+        return this.localize(`ent-${id}.desc`) ?? this.entity(id).description ?? undefined;
+    }
+
+    /** Text of every C# file of the content projects (`Content.*`, forks' own included), read once. */
+    csharp(): Array<{ file: string; text: string }> {
+        if (!this.sources) {
+            const dirs = fs.readdirSync(this.root).filter((d) => d.startsWith("Content.") && fs.statSync(path.join(this.root, d)).isDirectory()).sort();
+            this.sources = dirs.flatMap((dir) => walk(path.join(this.root, dir), ".cs").map((file) => ({ file, text: fs.readFileSync(file, "utf8") })));
+        }
+        return this.sources;
     }
 
     private loadPrototypes(dir: string): void {
@@ -170,6 +242,7 @@ export class Checkout {
             abstract: truthy(p?.abstract ?? false),
             name: null,
             suffix: null,
+            description: null,
             placement: null,
             categories: new Set(),
             components: {},
@@ -182,6 +255,7 @@ export class Checkout {
             for (const [type, data] of Object.entries(parent.components)) res.components[type] = { ...data, ...(res.components[type] ?? {}) };
             res.name ??= parent.name;
             res.suffix ??= parent.suffix;
+            res.description ??= parent.description;
             if (parent.placement) res.placement = { ...parent.placement, ...(res.placement ?? {}) };
             // only categories marked inheritable pass to children (HideSpawnMenu is not)
             for (const c of parent.categories) if (this.categoryInheritable(c)) res.categories.add(c);
@@ -194,6 +268,7 @@ export class Checkout {
         }
         if (p.name !== undefined) res.name = String(p.name);
         if (p.suffix !== undefined) res.suffix = String(p.suffix);
+        if (p.description !== undefined && p.description !== null) res.description = String(p.description);
         if (p.placement && typeof p.placement === "object") res.placement = { ...(res.placement ?? {}), ...(p.placement as Raw) };
         for (const c of list(p.categories)) res.categories.add(c);
         // categories that apply automatically to entities with certain components (YAML list or C# attribute)

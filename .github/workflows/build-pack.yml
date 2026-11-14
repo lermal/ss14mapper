@@ -1,0 +1,116 @@
+name: Build asset pack
+
+# Started by the API (workflow_dispatch) after a fork is approved. Clones the fork, builds its pack with
+# tools/build-pack.ts and uploads it to the API. Nothing from the fork is executed.
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: Build id in the API (digits)
+        required: true
+        type: string
+      repo:
+        description: Fork repository, https://github.com/owner/name
+        required: true
+        type: string
+      branch:
+        description: Branch of the fork
+        required: true
+        type: string
+      commit:
+        description: Commit to build (40 hex digits)
+        required: true
+        type: string
+      fork_id:
+        description: Fork id (lowercase letters, digits, hyphens)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ inputs.build_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BUILD_ID: ${{ inputs.build_id }}
+      REPO: ${{ inputs.repo }}
+      BRANCH: ${{ inputs.branch }}
+      COMMIT: ${{ inputs.commit }}
+      FORK_ID: ${{ inputs.fork_id }}
+    steps:
+      - name: Validate inputs
+        id: validate
+        env:
+          MAPPER_API_URL: ${{ vars.MAPPER_API_URL }}
+          MAPPER_RUNNER_TOKEN: ${{ secrets.MAPPER_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          # build id and commit are enough to report a failure to the API
+          [[ "$BUILD_ID" =~ ^[0-9]{1,18}$ ]] || { echo "invalid build_id"; exit 1; }
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid commit"; exit 1; }
+          echo "reportable=true" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/build"
+          fail() { echo "invalid workflow inputs: $1" > "$RUNNER_TEMP/build/failure.txt"; echo "$1"; exit 1; }
+          [[ "$REPO" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "repo"
+          [[ "$FORK_ID" =~ ^[a-z0-9][a-z0-9-]{0,40}$ ]] || fail "fork_id"
+          [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ && "$BRANCH" != -* && "$BRANCH" != *..* ]] || fail "branch"
+          [ -n "$MAPPER_API_URL" ] || { echo "MAPPER_API_URL is not set"; exit 1; }
+          [ -n "$MAPPER_RUNNER_TOKEN" ] || { echo "MAPPER_RUNNER_TOKEN is not set"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the pack
+        run: tools/ci/build-fork.sh "$REPO" "$BRANCH" "$COMMIT" "$FORK_ID" "$RUNNER_TEMP/build"
+
+      - name: Upload the pack
+        env:
+          MAPPER_API_URL: ${{ vars.MAPPER_API_URL }}
+          MAPPER_RUNNER_TOKEN: ${{ secrets.MAPPER_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf 'Authorization: Bearer %s\n' "$MAPPER_RUNNER_TOKEN" |
+            curl --silent --show-error --fail-with-body \
+              --retry 5 --retry-delay 10 --retry-all-errors --max-time 600 \
+              --header @- \
+              --form-string "commit=$COMMIT" \
+              --form "pack=@$RUNNER_TEMP/build/pack.tar.gz;type=application/gzip" \
+              "${MAPPER_API_URL%/}/runner/builds/${BUILD_ID}/pack"
+
+      - name: Report the failure
+        if: (failure() || cancelled()) && steps.validate.outputs.reportable == 'true'
+        env:
+          MAPPER_API_URL: ${{ vars.MAPPER_API_URL }}
+          MAPPER_RUNNER_TOKEN: ${{ secrets.MAPPER_RUNNER_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -uo pipefail
+          reason="a build step failed"
+          if [ -s "$RUNNER_TEMP/build/failure.txt" ]; then
+            reason="FAILED: $(head -n 1 "$RUNNER_TEMP/build/failure.txt")"
+          elif [ "$JOB_STATUS" = cancelled ]; then
+            reason="build cancelled or timed out"
+          fi
+          reason="${reason:0:500}"
+          [ -n "$MAPPER_API_URL" ] && [ -n "$MAPPER_RUNNER_TOKEN" ] || exit 0
+          body="$(jq -n --arg commit "$COMMIT" --arg reason "$reason" '{commit: $commit, reason: $reason}')"
+          printf 'Authorization: Bearer %s\n' "$MAPPER_RUNNER_TOKEN" |
+            curl --silent --show-error --fail-with-body \
+              --retry 5 --retry-delay 10 --retry-all-errors --max-time 60 \
+              --header @- --header 'Content-Type: application/json' \
+              --data "$body" \
+              "${MAPPER_API_URL%/}/runner/builds/${BUILD_ID}/failed"

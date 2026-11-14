@@ -27,12 +27,52 @@ npm run build-pack -- --checkout /path/to/fork --out /path/to/packs/<id> --id <i
 ```
 
 The checkout needs `Resources/{Prototypes,Textures,Locale/en-US}`, the root `Resources/*migration*.yml`, the
-`Content.*` sources (read as text for component categories) and, from the `RobustToolbox` submodule,
-`Resources/EnginePrototypes` and `Robust.Shared.Maths/Color.cs`. Nothing in the checkout is executed.
+`Content.*` sources (read as text: component categories, signal ports that systems add, grid and tile masses)
+and, from the `RobustToolbox` submodule, `Resources/EnginePrototypes` and `Robust.Shared.Maths/Color.cs`.
+Nothing in the checkout is executed.
 
 A pack is `manifest.json` plus files named by a hash of their content: prototypes with inheritance applied
-(only the components drawing needs), tiles, decals, entity and tile migrations, and texture pages (WebP,
-first frame of every direction of every RSI state). Rebuilding an unchanged checkout gives the same files.
+(only the components drawing, placing and device linking need), tiles, decals, entity and tile migrations,
+and texture pages (WebP, first frame of every direction of every RSI state). Rebuilding an unchanged checkout
+gives the same files.
+
+For device linking, every entity lists its signal ports (`ports.source`, `ports.sink`: those of its
+`DeviceLinkSource`/`DeviceLinkSink` plus the ones game systems add in C# to entities with certain components,
+such as doors), and keeps its `DeviceList` (configurators: air and fire alarms) and `DeviceNetwork`
+(`deviceNetId`, frequencies). The pack has the port prototypes (localised name, description, `defaultLinks`)
+and how the fork saves links and device lists (`devices`). For the centre of mass, entities with a physics
+body have its `mass` (fixture area × density) and `massCentre`, tiles their `mass` (ContentTileDefinition),
+and the pack the density of grid fixtures (`tileDensity`).
+
+The prototype index also has `componentNames`: every component type that entities of the fork can have (all component
+types used by entity prototypes before the pack drops most of them, plus the `[RegisterComponent]` classes found in the
+`Content.*` and `RobustToolbox/Robust.*` C# sources, read as text; the name is the class name without `Component`, or the
+`[ComponentProtoName]` override). It feeds the inspector's "Add component" list. Checkouts without the engine's C#
+sources lack the components only it registers.
+
+### Building a pack in GitHub Actions
+
+`.github/workflows/build-pack.yml` builds the pack of one fork and uploads it to the API. It is started by the
+API with `workflow_dispatch` after a fork is approved, with the inputs `build_id`, `repo`
+(`https://github.com/owner/name`), `branch`, `commit` (40 hex digits) and `fork_id`; all of them are validated
+before use. The job runs `tools/ci/build-fork.sh`, which does a shallow sparse checkout of the fork
+(and of its pinned RobustToolbox) and runs `build-pack`, with limits of 2 GB for the checkout, 200 MB for the
+pack and 30 minutes for the job. The same script works locally:
+
+```bash
+tools/ci/build-fork.sh https://github.com/space-wizards/space-station-14 master <commit sha> upstream /tmp/build
+```
+
+The result is `/tmp/build/pack.tar.gz`. On success the job posts it to `POST {MAPPER_API_URL}/runner/builds/{build_id}/pack`,
+on failure or cancellation it posts the reason to `.../failed`.
+
+The repository needs:
+
+- the secret `MAPPER_RUNNER_TOKEN`, sent as `Authorization: Bearer ...` to the API;
+- the variable `MAPPER_API_URL`, the API's base URL (no trailing path).
+
+The API starts the workflow with a fine-grained personal access token limited to this repository with the
+repository permission `Actions: read and write`.
 
 ## License
 

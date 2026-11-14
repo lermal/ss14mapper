@@ -56,6 +56,10 @@ export interface YDocument {
     /** Lines after the root mapping, usually the "..." end marker. */
     trailer: string;
     finalNewline: boolean;
+    /** Line ending of the file: "\r\n" for files checked out on Windows (git autocrlf), else "\n". */
+    eol?: "\n" | "\r\n";
+    /** The file starts with a byte order mark (kept on writing). */
+    bom?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -359,7 +363,13 @@ function readSequence(r: Reader, i: number, indent: number): { node: YSeq; next:
     return { node: { kind: "seq", items }, next: pos };
 }
 
-export function parseDocument(text: string): YDocument {
+export function parseDocument(input: string): YDocument {
+    const bom = input.startsWith("﻿");
+    const source = bom ? input.slice(1) : input;
+    // Windows line endings are read as "\n" and written back as they were (by the majority, if mixed)
+    const crlf = source.split("\r\n").length - 1;
+    const eol = crlf > 0 && crlf >= source.split("\n").length - 1 - crlf ? "\r\n" : "\n";
+    const text = eol === "\r\n" ? source.replaceAll("\r\n", "\n") : source;
     const finalNewline = text.endsWith("\n");
     const lines = (finalNewline ? text.slice(0, -1) : text).split("\n");
     const r = new Reader(lines);
@@ -371,7 +381,7 @@ export function parseDocument(text: string): YDocument {
             throw new Error(`Unsupported YAML at line ${next + 1}: ${lines[next]}`);
         }
     }
-    return { root: node, trailer: lines.slice(next).join("\n"), finalNewline };
+    return { root: node, trailer: lines.slice(next).join("\n"), finalNewline, eol, ...(bom ? { bom } : {}) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -463,10 +473,21 @@ function emitItems(items: YItem[], indent: number): string {
     return items.map((it) => emitItem(it, indent)).join("\n");
 }
 
+/** Text of one mapping entry as it is written at `indent` (its source text while unchanged). */
+export function entryText(entry: YEntry, indent: number): string {
+    return emitEntry(entry, indent);
+}
+
+/** Text of one sequence item as it is written at `indent` (its source text while unchanged). */
+export function itemText(item: YItem, indent: number): string {
+    return emitItem(item, indent);
+}
+
 export function serializeDocument(doc: YDocument): string {
     const parts = [emitEntries(doc.root.entries, 0)];
     if (doc.trailer !== "") parts.push(doc.trailer);
-    return parts.join("\n") + (doc.finalNewline ? "\n" : "");
+    const out = parts.join("\n") + (doc.finalNewline ? "\n" : "");
+    return (doc.bom ? "﻿" : "") + (doc.eol === "\r\n" ? out.replaceAll("\n", "\r\n") : out);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -526,4 +547,29 @@ export function get(node: YNode | undefined, key: string): YNode | undefined {
 
 export function entryOf(node: YMap, key: string): YEntry | undefined {
     return node.entries.find((e) => e.key.value === key);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Plain values
+
+/**
+ * The value of a node as plain data, typed like the YAML 1.2 core schema the game reads with:
+ * plain `true`/`false`/numbers/`null` become booleans, numbers and null; `!type:` tags are dropped.
+ */
+export function toPlain(node: YNode): unknown {
+    if (node.kind === "map") return Object.fromEntries(node.entries.map((e) => [e.key.value, toPlain(e.value)]));
+    if (node.kind === "seq") return node.items.map((i) => toPlain(i.value));
+    if (node.style === "flow") {
+        const t = node.value.trim();
+        if (t === "{}") return {};
+        if (t === "[]") return [];
+        return t;
+    }
+    if (node.style !== "plain") return node.value;
+    const v = node.value;
+    if (v === "" || v === "~" || /^(null|Null|NULL)$/.test(v)) return node.tag ? {} : null;
+    if (/^(true|True|TRUE)$/.test(v)) return true;
+    if (/^(false|False|FALSE)$/.test(v)) return false;
+    if (/^[-+]?(\d+|\d+\.\d*|\.\d+)([eE][-+]?\d+)?$/.test(v)) return Number(v);
+    return v;
 }
