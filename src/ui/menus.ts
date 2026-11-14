@@ -66,7 +66,7 @@ class Popup {
     };
     onClose: (() => void) | null = null;
 
-    constructor(items: MenuItem[], x: number, y: number, private readonly keep?: (t: Node) => boolean) {
+    constructor(items: MenuItem[], x: number, y: number, private readonly keep?: (t: Node) => boolean, private readonly alignRight = false) {
         addStyle();
         this.roots.push(this.build(items, x, y));
         window.addEventListener("pointerdown", this.away, true);
@@ -123,6 +123,8 @@ class Popup {
         }
         document.body.append(menu);
         const r = menu.getBoundingClientRect();
+        // a menu under a control at the right edge ends where the control ends
+        if (!level && this.alignRight) x -= r.width;
         const left = x + r.width > window.innerWidth ? (level ? x - r.width - 4 - (this.roots[level - 1]?.offsetWidth ?? 0) : window.innerWidth - r.width - 4) : x;
         menu.style.left = `${Math.max(4, left)}px`;
         menu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - r.height - 4))}px`;
@@ -146,10 +148,10 @@ class Popup {
 
 let current: Popup | null = null;
 
-/** Opens a pop-up menu at a viewport point (one at a time). */
-export function popupMenu(items: MenuItem[], x: number, y: number, keep?: (t: Node) => boolean): Popup {
+/** Opens a pop-up menu at a viewport point (one at a time); `alignRight` puts its right edge at `x`. */
+export function popupMenu(items: MenuItem[], x: number, y: number, keep?: (t: Node) => boolean, alignRight = false): Popup {
     current?.close();
-    const p = (current = new Popup(items, x, y, keep));
+    const p = (current = new Popup(items, x, y, keep, alignRight));
     p.onClose = () => {
         if (current === p) current = null;
     };

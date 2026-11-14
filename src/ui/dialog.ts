@@ -24,6 +24,9 @@ const STYLE = `
 .dlg .dlg-error { min-height: 1.45em; margin: 8px 0 0; color: var(--danger-text); }
 `;
 
+/** Open dialogs, the topmost last (a confirmation over a list): keys aimed nowhere belong to the topmost. */
+const open: HTMLElement[] = [];
+
 let styleAdded = false;
 function addStyle(): void {
     if (styleAdded) return;
@@ -70,6 +73,7 @@ export function dialog<T>(title: string, body: Array<string | Node>, buttons: Di
             if (closed) return;
             closed = true;
             window.removeEventListener("keydown", outside, true);
+            open.splice(open.indexOf(back), 1);
             back.remove();
             resolve(v);
         };
@@ -114,7 +118,7 @@ export function dialog<T>(title: string, body: Array<string | Node>, buttons: Di
         });
         // keys aimed elsewhere (nothing focused) stop before the editor
         const outside = (e: KeyboardEvent) => {
-            if (back.contains(e.target as Node)) return;
+            if (back.contains(e.target as Node) || open.at(-1) !== back) return;
             e.stopPropagation();
             if (e.key === "Escape") {
                 e.preventDefault();
@@ -124,6 +128,7 @@ export function dialog<T>(title: string, body: Array<string | Node>, buttons: Di
         window.addEventListener("keydown", outside, true);
         options.bind?.(done);
         document.body.append(back);
+        open.push(back);
         const first = box.querySelector<HTMLElement>("[data-autofocus]") ?? row.querySelector<HTMLButtonElement>(".primary") ?? (onlyClose ? box.querySelector<HTMLElement>(".dlg-x") : null);
         first?.focus();
         if (first instanceof HTMLInputElement) first.select();

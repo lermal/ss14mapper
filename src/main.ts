@@ -1,5 +1,7 @@
 // Editor: open a map file or make a new one, draw it with the asset pack of a build, edit it, keep it in the
 // browser's map library (Save) or download it as a file.
+import { api } from "./api/client";
+import { SettingsSync } from "./api/settings-sync";
 import { EditorController } from "./editor/controller";
 import { browserStorage, Keymap } from "./editor/keymap";
 import { SettingsWindow } from "./editor/settings";
@@ -24,6 +26,7 @@ import { ParallaxPicker } from "./ui/parallax-picker";
 import { Shell, type Fork } from "./ui/shell";
 import { ShortcutsOverlay } from "./ui/shortcuts";
 import { StartScreen } from "./ui/start-screen";
+import { Account } from "./ui/account";
 import { installTheme } from "./ui/theme";
 import { showToast } from "./ui/toast";
 
@@ -180,6 +183,7 @@ const shell = new Shell(
             const f = controller.current?.pack.manifest.fork;
             void showAbout(f ? `${forkName(f.id)}, ${f.branch} at ${f.commit.slice(0, 7)}` : "");
         },
+        ...(api ? { addBuild: () => void account?.addBuild() } : {}),
     },
 );
 controller.onRefresh = () => shell.update();
@@ -196,7 +200,54 @@ const start = new StartScreen($("start"), {
     reopen: (m) => void reopen(m),
     manage: () => void manage(),
     shortcuts: () => shortcuts.open(),
+    ...(api ? { addBuild: () => void account?.addBuild() } : {}),
 });
+
+// ---- account (only with the API; local development has none)
+
+/** Key bindings and palette categories kept in the account while signed in. */
+const sync = api
+    ? new SettingsSync({
+          api,
+          // the same localStorage, with its listing of keys (categories are stored per build)
+          storage: storage as Storage | null,
+          keys: {
+              known: (id) => !!keymap.action(id),
+              get: () => keymap.overridesById(),
+              set: (bindings) => keymap.replaceOverrides(bindings),
+          },
+          categoriesChanged: (forks) => palette.reloadCategories(forks),
+      })
+    : null;
+if (sync) {
+    keymap.onChange(() => sync.changed("keys"));
+    palette.onCategoriesSaved = () => sync.changed("categories");
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") sync.flush();
+    });
+}
+
+const account = api
+    ? new Account(api, {
+          // the page is left for GitHub: unsaved edits are saved to the browser first, or the sign-in is cancelled
+          beforeSignIn: async () => (controller.leaving = await leaveCurrent()),
+          signedIn: (me) => void sync?.start(me.id),
+          signedOut: () => sync?.stop(),
+      })
+    : null;
+if (account) {
+    account.mount(start.header);
+    account.mount($("topbar"));
+    // read in the background: opening maps does not wait for it
+    void account.load();
+}
+// back from a failed sign-in
+if (params.get("signin") === "failed") {
+    showToast("Sign-in failed.", undefined, 6000);
+    const url = new URL(location.href);
+    url.searchParams.delete("signin");
+    history.replaceState(null, "", url);
+}
 
 const loadPack = (id: string) => {
     let p = packs.get(id);

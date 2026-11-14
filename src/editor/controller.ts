@@ -243,6 +243,8 @@ export class EditorController {
     private filter: SelectFilter = "all";
     /** Called after every refresh (the shell redraws what changed). */
     onRefresh: (() => void) | null = null;
+    /** The page is being left after the user chose what to do with unsaved edits: no leave prompt. */
+    leaving = false;
     /** The status hint and the tile under the cursor, as of the last refresh. */
     hint = "";
     cursorText = "";
@@ -368,7 +370,7 @@ export class EditorController {
             this.held.clear();
         });
         window.addEventListener("beforeunload", (e) => {
-            if (!this.session?.doc.modified) return;
+            if (!this.session?.doc.modified || this.leaving) return;
             e.preventDefault();
             e.returnValue = "";
         });

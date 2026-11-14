@@ -62,7 +62,9 @@ export function showToast(message: string, action?: ToastAction, ms = 5000): voi
     }
     el.hidden = false;
     // inside the map area, so it stays centred on it whatever the side panels do
-    const host = document.getElementById("view") ?? document.body;
+    // (the page itself while the editor is hidden: the start screen)
+    const view = document.getElementById("view");
+    const host = view && view.getClientRects().length ? view : document.body;
     if (el.parentElement !== host) host.append(el);
     el.classList.toggle("has-action", !!action);
     timer = window.setTimeout(dismiss, ms);

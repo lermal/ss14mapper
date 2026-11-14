@@ -25,6 +25,8 @@ export interface ShellHooks {
     settings(): void;
     shortcuts(): void;
     about(): void;
+    /** File > Add a build…; absent without accounts. */
+    addBuild?(): void;
 }
 
 const LAYER_DEFS: ReadonlyArray<[Layer, string, string]> = [
@@ -165,6 +167,7 @@ export class Shell {
                     "-",
                     { label: "Manage library…", run: () => hooks.library() },
                     { label: "Change build", disabled: !c.status.open, sub: () => this.forks.map((f) => ({ label: f.name, checked: f.id === this.forkSelect.value, run: () => this.chooseFork(f.id) })) },
+                    ...(hooks.addBuild ? [{ label: "Add a build…", run: () => hooks.addBuild?.() }] : []),
                 ],
             },
             {

@@ -11,6 +11,8 @@ export interface StartHooks {
     reopen(m: LibraryEntry): void;
     manage(): void;
     shortcuts(): void;
+    /** Add a build (a link under the build list); absent without accounts. */
+    addBuild?(): void;
 }
 
 /** Maps listed; the rest are in Manage library. */
@@ -31,6 +33,8 @@ const STYLE = `
 .start .st-build { display: flex; flex-direction: column; gap: 6px; }
 .start .st-build span { color: var(--muted); font-size: 13px; }
 .start .st-build select { height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); color: var(--text); font: inherit; }
+.start .st-add { align-self: flex-start; margin-top: 2px; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 13px; cursor: pointer; }
+.start .st-add:hover { text-decoration: underline; }
 .start .st-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 240px; border: 2px dashed var(--border-strong); border-radius: 12px; background: var(--panel-2); }
 .start .st-drop.over { border-color: var(--accent); background: var(--accent-soft); }
 .start .st-drop svg { color: #6f7a8b; }
@@ -62,6 +66,8 @@ function addStyle(): void {
 }
 
 export class StartScreen {
+    /** The header bar (the account control goes at its end). */
+    readonly header: HTMLElement;
     private readonly fork: HTMLSelectElement;
     private readonly recent: HTMLElement;
     private readonly error: HTMLElement;
@@ -70,7 +76,7 @@ export class StartScreen {
     constructor(readonly container: HTMLElement, private readonly hooks: StartHooks) {
         addStyle();
         container.classList.add("start");
-        const top = h("header", "st-top");
+        const top = (this.header = h("header", "st-top"));
         top.append("SS14 Mapper");
 
         const main = h("main");
@@ -80,6 +86,7 @@ export class StartScreen {
         this.fork = h("select");
         this.fork.addEventListener("change", () => hooks.setFork(this.fork.value));
         build.append(h("span", "", "Build"), this.fork);
+        if (hooks.addBuild) build.append(button("st-add", "Add a build…", "", () => hooks.addBuild?.()));
         const drop = h("div", "st-drop");
         const open = button("st-open", "Open file…", "", () => hooks.open());
         open.id = "start-open";

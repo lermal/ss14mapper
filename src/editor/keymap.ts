@@ -217,6 +217,20 @@ export class Keymap {
         this.changed();
     }
 
+    /** The overrides by action id (actions left at their defaults are absent), for the settings sync. */
+    overridesById(): Record<string, string[]> {
+        return Object.fromEntries([...this.overrides].map(([id, list]) => [id, [...list]]));
+    }
+
+    /** Replaces every override at once (synced settings); unknown actions and invalid bindings are dropped. */
+    replaceOverrides(data: Record<string, string[]>): void {
+        this.overrides.clear();
+        for (const [id, list] of Object.entries(data)) {
+            if (this.byId.has(id) && Array.isArray(list)) this.overrides.set(id, list.filter((b) => typeof b === "string" && !!parseChord(b)));
+        }
+        this.changed();
+    }
+
     /** The action a chord triggers; a held action also answers to its chord with Shift (faster). */
     lookup(chord: Chord): Found | null {
         const index = this.buildIndex();

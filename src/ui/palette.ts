@@ -147,6 +147,8 @@ const categoryLabel = (name: string) => (name === FAVOURITES ? "Favorites" : nam
 export class Palette {
     /** Called whenever the choice changes (picked, cleared, or the pack changed). */
     onChange: ((choice: PaletteChoice) => void) | null = null;
+    /** Called after the categories were edited and stored. */
+    onCategoriesSaved: (() => void) | null = null;
     private current: PaletteChoice = null;
 
     private pack: Pack | null = null;
@@ -534,6 +536,16 @@ export class Palette {
 
     private changed(): void {
         saveCategories(this.fork, this.cats);
+        this.drawCats();
+        this.reload();
+        this.onCategoriesSaved?.();
+    }
+
+    /** Categories of these builds were replaced in storage (synced from the account): shows the new ones. */
+    reloadCategories(forks: readonly string[]): void {
+        if (!this.fork || !forks.includes(this.fork)) return;
+        this.cats = loadCategories(this.fork);
+        this.editing = null;
         this.drawCats();
         this.reload();
     }
