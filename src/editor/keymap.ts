@@ -157,7 +157,7 @@ export function browserStorage(): KeyStorage | null {
     }
 }
 
-const STORAGE_KEY = "ss14mapper.keys";
+export const STORAGE_KEY = "ss14mapper.keys";
 
 export interface Found {
     action: ActionDef;
@@ -229,6 +229,14 @@ export class Keymap {
             if (this.byId.has(id) && Array.isArray(list)) this.overrides.set(id, list.filter((b) => typeof b === "string" && !!parseChord(b)));
         }
         this.changed();
+    }
+
+    /** Another tab changed the stored overrides: reads them again (not saved back) and tells the listeners. */
+    reload(): void {
+        this.overrides.clear();
+        this.load();
+        this.index = null;
+        for (const fn of this.listeners) fn();
     }
 
     /** The action a chord triggers; a held action also answers to its chord with Shift (faster). */

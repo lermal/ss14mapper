@@ -204,6 +204,7 @@ export class Shell {
                 label: "View",
                 items: () => [
                     ...LAYER_DEFS.map(([l, label, id]): MenuItem => ({ label, keys: keys(id), checked: c.layer(l), run: () => c.setLayer(l, !c.layer(l)) })),
+                    { label: "Animate parallax", checked: c.parallaxAnimated, run: () => c.setParallaxAnimated(!c.parallaxAnimated) },
                     "-",
                     cmd("Fit map", "view.fit", !c.status.open),
                     cmd("Zoom in", "view.zoomIn", !c.status.open),

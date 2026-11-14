@@ -301,3 +301,34 @@ describe.skipIf(!upstream)("decals in the selection", () => {
         });
     }
 });
+
+describe("pasting entities onto space", () => {
+    const small = ["meta:", "  format: 7", "tilemap:", "  0: Space", "  1: Floor", "entities:", '- proto: ""', "  entities:", "  - uid: 1", "    components:", "    - type: MapGrid", "      chunks: {}", "..."].join("\n") + "\n";
+    const thing = (x: number, children: Clip["entities"] = []) => ({ uid: 100 + x, proto: "Thing", x, y: 0, rot: 0, transform: "", components: [], children });
+    const clipOf = (tiles: Clip["tiles"]): Clip => ({
+        format: "ss14mapper.clipboard", version: 1, lattice: "half", tiles, decals: [],
+        entities: [thing(0, [thing(5)]), thing(1)],
+    });
+    const floor = (x: number) => ({ x, y: 0, name: "Floor", variant: 0, rot: 0 });
+
+    it("skips root entities with no tile under them, children with their parent", () => {
+        const doc = new MapDocument(small);
+        doc.setTiles(1, [{ x: 0, y: 0, name: "Floor", variant: 0, rotationMirroring: 0 }]);
+        const before = doc.serialize(NOW);
+        // anchor on the floor tile: the first root lands on it, the second is one tile over space
+        const r = pasteClip(doc, clipOf([]), { grid: 1, anchor: [0.5, 0.5], turns: 0 });
+        expect(r.roots.length).toBe(1);
+        expect(r.entities.length).toBe(2);
+        expect(r.entitiesOnSpace).toBe(1);
+        doc.undo();
+        expect(doc.serialize(NOW)).toBe(before);
+    });
+
+    it("places them when the clip brings its tiles", () => {
+        const doc = new MapDocument(small);
+        const r = pasteClip(doc, clipOf([floor(0), floor(1)]), { grid: 1, anchor: [0.5, 0.5], turns: 0 });
+        expect(r.roots.length).toBe(2);
+        expect(r.entities.length).toBe(3);
+        expect(r.entitiesOnSpace).toBe(0);
+    });
+});

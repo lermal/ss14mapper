@@ -3,12 +3,14 @@
 import { api } from "./api/client";
 import { SettingsSync } from "./api/settings-sync";
 import { EditorController } from "./editor/controller";
+import { watchOtherTabs } from "./editor/cross-tab";
 import { browserStorage, Keymap } from "./editor/keymap";
 import { SettingsWindow } from "./editor/settings";
 import { MapDocument } from "./map/document";
 import { mapEntity, mapParallax, ownParallax, setMapParallax } from "./map/map-props";
 import { loadForks } from "./pack/forks";
-import { Pack } from "./pack/loader";
+import { Pack, indexOf, loadBuildIndex } from "./pack/loader";
+import { pickBuild } from "./pack/pick";
 import { MapCanvas } from "./render/canvas";
 import { ParallaxBackground } from "./render/parallax";
 import { Scene } from "./render/scene";
@@ -20,7 +22,7 @@ import { LinkPanel } from "./ui/link-panel";
 import { Loading } from "./ui/loading";
 import type { MenuItem } from "./ui/menus";
 import type { Session } from "./editor/controller";
-import type { ParallaxData } from "./pack/format";
+import type { BuildIndex, ParallaxData } from "./pack/format";
 import { Palette } from "./ui/palette";
 import { ParallaxPicker } from "./ui/parallax-picker";
 import { Shell, type Fork } from "./ui/shell";
@@ -219,8 +221,24 @@ const sync = api
           categoriesChanged: (forks) => palette.reloadCategories(forks),
       })
     : null;
+// Settings changed in another tab of this browser are applied live; they are not pushed from here
+// (the tab that made the change syncs them).
+let fromOtherTab = false;
+watchOtherTabs({
+    keysChanged: () => {
+        fromOtherTab = true;
+        try {
+            keymap.reload();
+        } finally {
+            fromOtherTab = false;
+        }
+    },
+    categoriesChanged: (forks) => palette.reloadCategories(forks),
+});
 if (sync) {
-    keymap.onChange(() => sync.changed("keys"));
+    keymap.onChange(() => {
+        if (!fromOtherTab) sync.changed("keys");
+    });
     palette.onCategoriesSaved = () => sync.changed("categories");
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") sync.flush();
@@ -357,13 +375,28 @@ function missingPrototypes(doc: MapDocument, pack: Pack): number {
     return n;
 }
 
+/** The small index of a build; a pack built without one is loaded in full. */
+const buildIndexes = new Map<string, Promise<BuildIndex>>();
+function buildIndex(id: string): Promise<BuildIndex> {
+    let p = buildIndexes.get(id);
+    if (!p) {
+        const loaded = packs.get(id);
+        p = loaded ? loaded.then(indexOf) : loadBuildIndex(forks.find((f) => f.id === id)?.pack ?? `/packs/${id}/`).then((x) => x ?? loadPack(id).then(indexOf));
+        buildIndexes.set(id, p);
+        p.catch(() => buildIndexes.delete(id));
+    }
+    return p;
+}
+
 /** The build whose prototypes cover the map best, when it beats the current one; null to keep the current. */
 async function betterBuild(doc: MapDocument): Promise<{ id: string; missing: number; was: number } | null> {
     try {
-        const scored = await Promise.all(forks.map(async (f) => ({ id: f.id, missing: missingPrototypes(doc, await loadPack(f.id)) })));
-        const was = scored.find((x) => x.id === fork())?.missing ?? 0;
-        const best = scored.reduce((a, b) => (b.missing < a.missing ? b : a));
-        return best.id !== fork() && best.missing < was ? { ...best, was } : null;
+        const used: string[] = [];
+        for (const uid of doc.uids()) {
+            const proto = doc.proto(uid);
+            if (proto) used.push(proto);
+        }
+        return await pickBuild(used, forks.map((f) => f.id), fork(), buildIndex);
     } catch {
         return null;
     }

@@ -57,8 +57,8 @@ describe("ApiClient", () => {
         expect(s.calls[0]!.headers["X-XSRF-TOKEN"]).toBeUndefined();
     });
 
-    it("treats 401 on /me as signed out", async () => {
-        const s = server([json(401, { message: "Unauthenticated." })]);
+    it("treats a null answer on /me as signed out", async () => {
+        const s = server([json(200, null)]);
         expect(await s.api.me()).toBeNull();
     });
 

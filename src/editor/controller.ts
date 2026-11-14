@@ -84,7 +84,7 @@ export interface ControllerElements {
     /** Where tool choices that outlast a reload are kept (decal snap, Defaults). */
     prefs?: KeyStorage | null;
     /** The parallax background behind the map (the Parallax view layer). */
-    parallax?: { readonly enabled: boolean; setEnabled(on: boolean): void };
+    parallax?: { readonly enabled: boolean; setEnabled(on: boolean): void; readonly animated: boolean; setAnimated(on: boolean): void };
     /** What goes above the components when the Properties column shows an entity (the parallax picker of the map). */
     propertiesTop?: (session: Session, uid: number) => HTMLElement | null;
 }
@@ -684,6 +684,16 @@ export class EditorController {
         this.refresh();
     }
 
+    /** Whether scrolling parallax layers drift (View > Animate parallax). */
+    get parallaxAnimated(): boolean {
+        return this.el.parallax?.animated ?? false;
+    }
+
+    setParallaxAnimated(on: boolean): void {
+        this.el.parallax?.setAnimated(on);
+        this.refresh();
+    }
+
     /** CSS px per texture px. */
     get zoom(): number {
         return this.el.map.view.scale;
@@ -1117,6 +1127,7 @@ export class EditorController {
         const parts = [`Pasted ${counted({ entities: r.entities.length, tiles: r.tiles.length, decals: r.decals.length })}`];
         if (r.missing.length) parts.push(`${r.missing.length} missing in this build: ${r.missing.slice(0, 6).join(", ")}${r.missing.length > 6 ? ", …" : ""}`);
         if (r.onSpace) parts.push(`${r.onSpace} ${r.onSpace === 1 ? "decal" : "decals"} on space skipped`);
+        if (r.entitiesOnSpace) parts.push(`${r.entitiesOnSpace} not pasted: no tile under ${r.entitiesOnSpace === 1 ? "it" : "them"}`);
         if (r.dropped) parts.push(`${r.dropped} ${r.dropped === 1 ? "link" : "links"} dropped`);
         this.say(parts.join(", "));
     }

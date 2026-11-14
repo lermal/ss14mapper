@@ -196,6 +196,42 @@ describe("signal links on a small map", () => {
         expect(doc.serialize(NOW)).toBe(BASE);
     });
 
+    it("link defaults wipes the pair's other links, even with no defaults, in one undo step", () => {
+        const doc = new MapDocument(BASE);
+        doc.link(11, 3, "Pressed", "Open", pack);
+        doc.link(11, 3, "Pressed", "Close", pack);
+        doc.link(11, 4, "Pressed", "Open", pack);
+        const before = doc.serialize(NOW);
+        expect(doc.linkDefaults(11, 3, pack)).toBe(1);
+        expect(doc.links(11).map((l) => `${l.sink} ${l.sinkPort}`)).toEqual(["3 Toggle", "4 Open"]);
+        expect(doc.undo()).toBe("Link defaults");
+        expect(doc.serialize(NOW)).toBe(before);
+        // no defaults (DoorBoltStatus has none): the links between the two still go
+        doc.link(6, 3, "DoorStatus", "Open", pack);
+        doc.link(6, 4, "DoorStatus", "Open", pack);
+        const withBolt = doc.serialize(NOW);
+        expect(doc.linkDefaults(6, 3, pack)).toBe(0);
+        expect(doc.links(6).map((l) => l.sink)).toEqual([4]);
+        expect(doc.undo()).toBe("Link defaults");
+        expect(doc.serialize(NOW)).toBe(withBolt);
+        // the only link goes: the component goes with it
+        doc.unlinkAll(6, 4);
+        expect(doc.linkDefaults(6, 3, pack)).toBe(0);
+        expect(doc.links(6)).toEqual([]);
+        undoAll(doc);
+        expect(doc.serialize(NOW)).toBe(BASE);
+    });
+
+    it("link defaults out of range changes nothing", () => {
+        const doc = new MapDocument(BASE);
+        doc.link(11, 3, "Pressed", "Open", pack);
+        const before = doc.serialize(NOW);
+        expect(() => doc.linkDefaults(11, 5, pack)).toThrow(/out of range/);
+        expect(doc.serialize(NOW)).toBe(before);
+        doc.undo();
+        expect(doc.serialize(NOW)).toBe(BASE);
+    });
+
     it("unlinks, dropping emptied sinks, fields and components", () => {
         const doc = new MapDocument(BASE);
         doc.link(11, 3, "Pressed", "Toggle", pack);
@@ -421,11 +457,14 @@ describe.skipIf(!upstream || !has(BOX))("box (upstream, struct pairs)", () => {
         expect(doc.serialize(NOW)).toBe(source);
     });
 
-    it("upstream airlocks link nothing by default: DoorBoltStatus has no default links", () => {
-        const doc = new MapDocument(read(BOX));
+    it("upstream airlocks link nothing by default: DoorBoltStatus has no default links, and the pair's links go", () => {
+        const source = read(BOX);
+        const doc = new MapDocument(source);
         expect(upstream!.prototypes.ports!.source.DoorBoltStatus!.defaultLinks).toBeUndefined();
         expect(doc.linkDefaults(7759, 8943, upstream!)).toBe(0);
-        expect(doc.canUndo).toBe(false);
+        expect(doc.links(7759).map((l) => l.sink)).toEqual([8920]);
+        expect(doc.undo()).toBe("Link defaults");
+        expect(doc.serialize(NOW)).toBe(source);
     });
 
     it("deleting a door removes the links into it", () => {

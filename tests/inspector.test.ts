@@ -112,6 +112,13 @@ describe("fields", () => {
         expect(sameValue("string", "a", "b")).toBe(false);
     });
 
+    it("hides netsync unless the map overrides it", () => {
+        const fields = (over?: string) => fieldViews([schema("netsync", "bool", "bool", "True"), schema("radius", "float", "float", "5")], { netsync: false }, over).map((f) => f.name);
+        expect(fields()).toEqual(["radius"]);
+        expect(fields("radius: 4")).toEqual(["radius"]);
+        expect(fields("netsync: False")).toEqual(["netsync", "radius"]);
+    });
+
     it("keeps only the fields that differ from the prototype", () => {
         const radius: FieldView = { name: "radius", kind: "float", type: "float", proto: 3, default: "5" };
         const energy: FieldView = { name: "energy", kind: "float", type: "float", default: "1" };
@@ -191,6 +198,25 @@ describe.skipIf(!fs.existsSync(file) || !withSchemas)("field edits on barnacle",
         await set(pack, doc, lamp, "PointLight", "color", editorText({ kind: "color" } as FieldView, protoColor ?? "#FFFFFFFF", pack.prototypes.colors));
         expect(doc.components(lamp).find((c) => c.type === "PointLight")?.text).toBe("radius: 7.5");
         for (let i = 0; i < 4; i++) expect(doc.undo()).not.toBeNull();
+        expect(doc.serialize()).toBe(text);
+    });
+
+    it("does not list netsync for a component without an override, and lists it when the map sets it", async () => {
+        const doc = new MapDocument(text);
+        const data = (await pack.prototypeData())!;
+        const lamp = doc.uids().find((u) => doc.proto(u) && "PointLight" in pack.fullComponents(data, doc.proto(u)!) && doc.components(u).every((c) => c.type !== "PointLight"))!;
+        expect(lamp).toBeDefined();
+        const names = async (uid: number, type: string) => {
+            const schemas = (await pack.componentSchemas())!;
+            const proto = { ...pack.fullComponents(data, doc.proto(uid)!) };
+            const over = doc.components(uid).find((c) => c.type === type)?.text;
+            return fieldViews(schemas.components[type], proto[type], over).map((f) => f.name);
+        };
+        expect(await names(lamp, "PointLight")).not.toContain("netsync");
+        doc.setComponent(lamp, "PointLight", "netsync: False");
+        expect(await names(lamp, "PointLight")).toContain("netsync");
+        expect(doc.components(lamp).find((c) => c.type === "PointLight")?.text).toBe("netsync: False");
+        doc.undo();
         expect(doc.serialize()).toBe(text);
     });
 

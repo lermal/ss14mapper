@@ -245,14 +245,17 @@ export class DeviceEdits {
 
     /**
      * Links a source to a sink by the default links of its ports, replacing the links between them, as the
-     * game's "link defaults" does. Returns the number of links made; 0 leaves existing links alone (the game
-     * would remove them) when no default applies, e.g. when a source port has no default links.
+     * game's "link defaults" does. Returns the number of links made. The links between them are removed even
+     * when no default applies (e.g. a source port has no default links); out of range, it throws and changes nothing.
      */
     linkDefaults(source: number, sink: number, pack: DevicePack): number {
         const ends = this.checkEnds(source, sink, pack);
         if (!ends.ok) throw new Error(ends.reason);
         const pairs = defaultPairs(this.signalPorts(source, pack).source, this.signalPorts(sink, pack).sink, pack);
-        if (!pairs.length) return 0;
+        if (!pairs.length) {
+            this.removePairs(source, (s) => s === sink);
+            return 0;
+        }
         this.writePairs(source, sink, pairs, true, pack);
         return pairs.length;
     }

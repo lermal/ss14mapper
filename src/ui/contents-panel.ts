@@ -217,7 +217,7 @@ export class ContentsPanel {
         root.append(summary, body);
 
         const fill = this.kit?.rules?.fill(t.doc.proto(t.uid)!);
-        if (fill?.fills && (total > 0 || this.adding?.startsWith(`${t.uid}|`))) {
+        if (fill?.fills) {
             const note = h("div", "cts-note", "The game fills this container at round start; your items come on top.");
             if (fill.plainBase) {
                 const base = fill.plainBase;

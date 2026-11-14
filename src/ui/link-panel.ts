@@ -196,11 +196,12 @@ export class LinkPanel {
     private defaults(): void {
         const { doc, pack, source, sink } = this.target!;
         let n: number;
+        const had = doc.links(source).filter((l) => l.sink === sink).length;
         try {
             n = doc.linkDefaults(source, sink, pack);
         } catch (e) {
             return this.say(`Cannot link: ${e instanceof Error ? e.message : String(e)}`);
         }
-        this.say(n ? `Linked ${n} default ${n === 1 ? "pair" : "pairs"}` : "No default links");
+        this.say(n ? `Linked ${n} default ${n === 1 ? "pair" : "pairs"}` : had ? "No default links, existing links removed" : "No default links");
     }
 }

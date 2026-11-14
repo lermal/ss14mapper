@@ -20,6 +20,8 @@ export interface PackManifest {
         parallax?: string;
         /** Item sizes, entity storage defaults and body sizes for checking container operations (`ContainerRules`), loaded on demand. Absent in older packs. */
         containerRules?: string;
+        /** `BuildIndex`: just enough to tell which maps a build can open, a few percent of `prototypes`. Absent in older packs. */
+        index?: string;
     };
     stats: { entities: number; placeable: number; tiles: number; decals: number; rsi: number; frames: number; pages: number };
 }
@@ -76,6 +78,16 @@ export interface DecalDefinition {
     defaultCleanable?: true;
     /** `DecalPrototype.DefaultCustomColor` when `true`. */
     defaultCustomColor?: true;
+}
+
+/** What choosing a build for a map needs, without the full prototypes file. */
+export interface BuildIndex {
+    /** Sorted ids of the entity prototypes. */
+    entities: string[];
+    /** Sorted ids of the tiles. */
+    tiles: string[];
+    /** Same as `PrototypeIndex.migrations`. */
+    migrations: Record<string, string | null>;
 }
 
 export interface PrototypeIndex {

@@ -189,14 +189,9 @@ export type AdminAction = "reject" | "hide" | "unhide" | "rebuild";
 export class Api {
     constructor(readonly client: ApiClient) {}
 
-    /** The signed-in user, or null when signed out. */
+    /** The signed-in user, or null when signed out (the API answers 200 with null, so the console stays clean). */
     async me(): Promise<Me | null> {
-        try {
-            return await this.client.request<Me>("GET", "/me");
-        } catch (e) {
-            if (e instanceof ApiError && e.status === 401) return null;
-            throw e;
-        }
+        return (await this.client.request<Me | null>("GET", "/me")) ?? null;
     }
 
     /** Where the browser goes to sign in; the API comes back to `returnTo` afterwards. */

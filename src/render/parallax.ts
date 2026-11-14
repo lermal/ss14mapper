@@ -1,12 +1,12 @@
 // The game's parallax background on its own canvas behind the map (the map canvas is transparent where it has
 // nothing). Layers are placed as ParallaxOverlay places them (parallax-math.ts) for an eye at the centre of the view,
-// with time stopped at 0 (layers that scroll stay put). The game draws parallax in world units, so at the editor's
+// at the parallax clock (layers that scroll drift while it runs, see sync()). The game draws parallax in world units, so at the editor's
 // far zoom-outs the textures would shrink to a dense repeating pattern: the background is drawn at the zoom the
 // game would use nearest to the editor's, from 1 (the game's default zoom, 32 px per tile) to 3.375 (its closest
-// zoom), and only the offsets follow the eye. Redrawn when the view moves, never by edits.
+// zoom), and only the offsets follow the eye. Redrawn when the view moves, never by edits; scrolling layers redraw this canvas alone each frame.
 import type { Pack } from "../pack/loader";
 import type { ParallaxData, ParallaxLayer } from "../pack/format";
-import { layerOrigin, layerSize, PIXELS_PER_METER, type Vec2 } from "./parallax-math";
+import { advanceClock, animateDefault, hasScrolling, layerOrigin, layerSize, PIXELS_PER_METER, shouldAnimate, type Vec2 } from "./parallax-math";
 
 /** The game's eye zoom range as editor scales (CSS px per texture px): ContentEye MaxZoom 1 to MinZoom 1.5^-3. */
 export const PARALLAX_MIN_SCALE = 1;
@@ -27,6 +27,7 @@ export interface BackgroundView {
 }
 
 const STORAGE_KEY = "ss14mapper.view.parallax";
+const ANIMATE_KEY = "ss14mapper.view.parallaxAnimate";
 
 /** The scale the background is drawn at for an editor scale. */
 export function parallaxScale(scale: number): number {
@@ -37,10 +38,10 @@ export function parallaxScale(scale: number): number {
  * Where a layer's texture goes on a canvas of `width`×`height` px for `view`, with `ppx` canvas px per CSS px:
  * the top-left corner and the size of one copy, in canvas px.
  */
-export function layerRect(layer: ParallaxLayer, view: BackgroundView, width: number, height: number, ppx = 1, centre: [number, number] = [width / 2, height / 2]): { x: number; y: number; w: number; h: number } {
+export function layerRect(layer: ParallaxLayer, view: BackgroundView, width: number, height: number, ppx = 1, centre: [number, number] = [width / 2, height / 2], time = 0): { x: number; y: number; w: number; h: number } {
     const k = PIXELS_PER_METER * parallaxScale(view.scale) * ppx;
     const [sw, sh] = layerSize(layer);
-    const [ox, oy] = layerOrigin(layer, view.eye);
+    const [ox, oy] = layerOrigin(layer, view.eye, time);
     return { x: centre[0] + (ox - view.eye[0]) * k, y: centre[1] - (oy + sh - view.eye[1]) * k, w: sw * k, h: sh * k };
 }
 
@@ -63,6 +64,12 @@ export class ParallaxBackground {
     /** The pack and parallax whose layers were requested, and the request in progress. */
     private loadedFor: string | null = null;
     private loading: Promise<void> | null = null;
+    private animating = true;
+    /** Seconds of parallax time; advances only while the loop runs, so pausing holds the picture still. */
+    private time = 0;
+    private last: number | null = null;
+    private raf = 0;
+    private readonly onVisible = () => this.sync();
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
@@ -76,7 +83,62 @@ export class ParallaxBackground {
             // denied
         }
         this.on = stored !== "0";
+        let anim: string | null = null;
+        try {
+            anim = storage?.getItem(ANIMATE_KEY) ?? null;
+        } catch {
+            // denied
+        }
+        this.animating = animateDefault(anim, globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+        globalThis.document?.addEventListener("visibilitychange", this.onVisible);
     }
+
+    /** Whether scrolling layers drift. */
+    get animated(): boolean {
+        return this.animating;
+    }
+
+    /** Turns the drift on or off (remembered; an explicit choice overrides reduced motion). */
+    setAnimated(on: boolean): void {
+        if (on === this.animating) return;
+        this.animating = on;
+        try {
+            this.storage?.setItem(ANIMATE_KEY, on ? "1" : "0");
+        } catch {
+            // not remembered
+        }
+        this.sync();
+    }
+
+    /** Whether the frame loop is running. */
+    get running(): boolean {
+        return this.raf !== 0;
+    }
+
+    /** Starts or stops the frame loop to match the switches, the parallax shown and the tab. */
+    private sync(): void {
+        const go = shouldAnimate({
+            enabled: this.on && this.id !== null,
+            animate: this.animating,
+            scrolling: hasScrolling(this.layers.map((l) => l.layer)),
+            visible: globalThis.document?.visibilityState !== "hidden",
+        });
+        if (go && !this.raf) {
+            this.last = null;
+            this.raf = requestAnimationFrame(this.frame);
+        } else if (!go && this.raf) {
+            cancelAnimationFrame(this.raf);
+            this.raf = 0;
+            this.last = null;
+        }
+    }
+
+    private readonly frame = (now: number): void => {
+        this.time = advanceClock(this.time, this.last, now);
+        this.last = now;
+        this.raf = requestAnimationFrame(this.frame);
+        if (this.view) this.paint(this.view);
+    };
 
     get enabled(): boolean {
         return this.on;
@@ -93,6 +155,7 @@ export class ParallaxBackground {
         }
         if (on && this.pack && this.loadedFor !== this.key()) void this.load();
         this.repaint();
+        this.sync();
     }
 
     /** The parallax shown (null: none). */
@@ -116,6 +179,7 @@ export class ParallaxBackground {
         this.layers = [];
         this.loadedFor = null;
         this.repaint();
+        this.sync();
         if (this.on) await this.load();
     }
 
@@ -139,6 +203,7 @@ export class ParallaxBackground {
             if (token !== this.token) return;
             this.layers = loaded;
             this.repaint();
+            this.sync();
         };
         const p = run().finally(() => {
             if (this.loading === p) this.loading = null;
@@ -153,7 +218,7 @@ export class ParallaxBackground {
         const c = this.canvas;
         const dpr = window.devicePixelRatio || 1;
         const W = Math.round(c.clientWidth * dpr), H = Math.round(c.clientHeight * dpr);
-        const key = `${this.on}|${this.token}|${this.layers.length}|${W}|${H}|${view.eye[0]}|${view.eye[1]}|${parallaxScale(view.scale)}`;
+        const key = `${this.on}|${this.token}|${this.layers.length}|${W}|${H}|${view.eye[0]}|${view.eye[1]}|${parallaxScale(view.scale)}|${this.time}`;
         if (key === this.drawn) return;
         this.drawn = key;
         if (c.width !== W || c.height !== H) {
@@ -170,7 +235,7 @@ export class ParallaxBackground {
         g.fillRect(0, 0, W, H);
         for (const l of this.layers) {
             if (!l.img) continue;
-            const r = layerRect(l.layer, view, W, H, dpr, [PARALLAX_ANCHOR[0] * dpr, PARALLAX_ANCHOR[1] * dpr]);
+            const r = layerRect(l.layer, view, W, H, dpr, [PARALLAX_ANCHOR[0] * dpr, PARALLAX_ANCHOR[1] * dpr], this.time);
             g.imageSmoothingEnabled = !!l.layer.filter;
             if (l.layer.tiled) {
                 l.pattern ??= g.createPattern(l.img, "repeat");

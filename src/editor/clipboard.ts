@@ -271,6 +271,8 @@ export interface PasteResult {
     dropped: number;
     /** Decals not pasted because they would land on space. */
     onSpace: number;
+    /** Root entities (with their children) not pasted because they would land on space. */
+    entitiesOnSpace: number;
 }
 
 const ALL_KNOWN: PasteKnown = { entity: () => true, tile: () => true, decal: () => true };
@@ -296,7 +298,7 @@ export function pastePlan(clip: Clip, target: PasteTarget) {
 /** Pastes a clipboard onto a grid as one edit (one undo step). */
 export function pasteClip(doc: MapDocument, clip: Clip, target: PasteTarget, known: PasteKnown = ALL_KNOWN): PasteResult {
     const plan = pastePlan(clip, target);
-    const result: PasteResult = { roots: [], entities: [], tiles: [], decals: [], missing: [], dropped: 0, onSpace: 0 };
+    const result: PasteResult = { roots: [], entities: [], tiles: [], decals: [], missing: [], dropped: 0, onSpace: 0, entitiesOnSpace: 0 };
     const missing = new Set<string>();
     const ids = new Map<number, number>();
     const made: Array<{ uid: number; entity: ClipEntity }> = [];
@@ -325,7 +327,17 @@ export function pasteClip(doc: MapDocument, clip: Clip, target: PasteTarget, kno
             for (const c of e.children) place(c, uid, c.x, c.y, c.rot);
             return uid;
         };
+        // nothing is placed over space (as in single placement), as seen after the tiles above
+        const floor = plan.entities.length ? solidCells(doc, grid) : null;
         for (const { at, rot, entity } of plan.entities) {
+            if (!known.entity(entity.proto)) {
+                missing.add(entity.proto);
+                continue;
+            }
+            if (!floor!.has(cellKey(Math.floor(at[0]), Math.floor(at[1])))) {
+                result.entitiesOnSpace++;
+                continue;
+            }
             const uid = place(entity, grid, at[0], at[1], rot);
             if (uid !== null) result.roots.push(uid);
         }

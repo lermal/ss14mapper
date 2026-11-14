@@ -60,7 +60,10 @@ export function valueText(entry: YEntry): string {
     return [first, ...body].filter((l, i) => i > 0 || l !== "").join("\n");
 }
 
-/** Fields of a component: the schema's, plus any the prototype or the map sets that the schema lacks; sorted by name. */
+/** Base field every component has in the game, which mappers never edit: listed only when the map overrides it. */
+export const HIDDEN_FIELD = "netsync";
+
+/** Fields of a component: the schema's, plus any the prototype or the map sets that the schema lacks; sorted by name. The hidden field is left out unless the map overrides it. */
 export function fieldViews(schema: readonly FieldSchema[] | undefined, proto: Record<string, unknown> | undefined, overrideText: string | undefined): FieldView[] {
     const out = new Map<string, FieldView>();
     for (const s of schema ?? []) out.set(s.name, { name: s.name, kind: s.kind, type: s.type, schema: s, ...(s.default !== undefined ? { default: s.default } : {}) });
@@ -76,7 +79,7 @@ export function fieldViews(schema: readonly FieldSchema[] | undefined, proto: Re
         f.override = { value: toPlain(e.value), text: valueText(e) };
         out.set(k, f);
     }
-    return [...out.values()].sort((a, b) => byName(a.name, b.name));
+    return [...out.values()].filter((f) => f.name !== HIDDEN_FIELD || f.override !== undefined).sort((a, b) => byName(a.name, b.name));
 }
 
 /** Kind of a value of a field the schema does not know: scalars are edited as text, the rest as YAML. */

@@ -1,5 +1,5 @@
 // Loads an asset pack in the browser: manifest, prototypes and texture index first, texture pages on demand.
-import type { ComponentSchemas, ContainerRules, PackManifest, ParallaxData, PrototypeData, PrototypeIndex, TextureIndex } from "./format";
+import type { BuildIndex, ComponentSchemas, ContainerRules, PackManifest, ParallaxData, PrototypeData, PrototypeIndex, TextureIndex } from "./format";
 import { type Components, resolveComponents } from "./prototype-data";
 
 /** A frame of a texture page: [page, x, y, width, height]. */
@@ -145,4 +145,22 @@ export class Pack {
         const t = this.prototypes.tiles[id] ?? this.prototypes.tiles[this.prototypes.tileAliases[id] ?? ""];
         return t ?? null;
     }
+}
+
+/** The small index of a pack (manifest and index file only), or null for a pack built without one. */
+export async function loadBuildIndex(base: string): Promise<BuildIndex | null> {
+    const root = base.endsWith("/") ? base : base + "/";
+    const get = async <T>(name: string): Promise<T> => {
+        const r = await fetch(root + name);
+        if (!r.ok) throw new Error(`${root}${name}: ${r.status}`);
+        return (await r.json()) as T;
+    };
+    const manifest = await get<PackManifest>("manifest.json");
+    return manifest.files.index ? get<BuildIndex>(manifest.files.index) : null;
+}
+
+/** The index of a pack that is already loaded in full. */
+export function indexOf(pack: Pack): BuildIndex {
+    const { entities, tiles, migrations } = pack.prototypes;
+    return { entities: Object.keys(entities), tiles: Object.keys(tiles), migrations };
 }

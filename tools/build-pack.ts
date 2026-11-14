@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type PackManifest, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
+import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type BuildIndex, type PackManifest, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
 import { ContainerData } from "./pack/containers";
 import { DeviceData } from "./pack/devices";
 import { Checkout, truthy, type Raw } from "./pack/game";
@@ -199,6 +199,13 @@ async function main(): Promise<void> {
     const prototypesName = hashName("prototypes", "json", prototypesJson);
     fs.writeFileSync(path.join(outDir, prototypesName), prototypesJson);
 
+    // ---- small index for choosing a build without loading the prototypes
+    const sorted = (ids: string[]) => ids.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const buildIndex: BuildIndex = { entities: sorted(Object.keys(entities)), tiles: sorted(Object.keys(tiles)), migrations: prototypes.migrations };
+    const indexJson = JSON.stringify(buildIndex);
+    const indexName = hashName("index", "json", indexJson);
+    fs.writeFileSync(path.join(outDir, indexName), indexJson);
+
     // ---- full prototype data and component fields, loaded by the editor on demand
     const full: PrototypeData = { entities: {} };
     for (const [id, p] of [...game.all("entity")].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
@@ -261,7 +268,7 @@ async function main(): Promise<void> {
             engineCommit: git(checkoutDir, "ls-tree", "HEAD", "RobustToolbox")?.split(/\s+/)[2] ?? null,
         },
         builtAt: new Date().toISOString(),
-        files: { prototypes: prototypesName, textures: texturesName, componentSchemas: schemasName, prototypeData: fullName, parallax: parallaxName, containerRules: rulesName },
+        files: { prototypes: prototypesName, textures: texturesName, componentSchemas: schemasName, prototypeData: fullName, parallax: parallaxName, containerRules: rulesName, index: indexName },
         stats: {
             entities: Object.keys(entities).length,
             placeable,
@@ -274,8 +281,8 @@ async function main(): Promise<void> {
     };
 
     // remove files of earlier builds that this pack no longer references
-    const keep = new Set(["manifest.json", prototypesName, texturesName, schemasName, fullName, parallaxName, rulesName, ...index.pages, ...parallax.files]);
-    for (const f of fs.readdirSync(outDir)) if (!keep.has(f) && /^(page|prototypes|textures|components|prototype-data|container-rules|parallax|parallax-thumb)\.[0-9a-f]{12}\./.test(f)) fs.unlinkSync(path.join(outDir, f));
+    const keep = new Set(["manifest.json", prototypesName, texturesName, schemasName, fullName, parallaxName, rulesName, indexName, ...index.pages, ...parallax.files]);
+    for (const f of fs.readdirSync(outDir)) if (!keep.has(f) && /^(page|prototypes|textures|components|prototype-data|container-rules|index|parallax|parallax-thumb)\.[0-9a-f]{12}\./.test(f)) fs.unlinkSync(path.join(outDir, f));
     const tmp = path.join(outDir, `.manifest.${process.pid}.json`);
     fs.writeFileSync(tmp, JSON.stringify(manifest, null, 2));
     fs.renameSync(tmp, path.join(outDir, "manifest.json"));
