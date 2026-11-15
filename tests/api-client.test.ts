@@ -129,10 +129,10 @@ describe("ApiClient", () => {
 
     it("sends a bug report as JSON and downloads a map with the session", async () => {
         const s = server([json(201, { id: 3, status: "new" }), () => new Response("meta: 1\n", { status: 200 }), json(404, { message: "Not found." })]);
-        await s.api.sendBugReport({ title: "T", description: "D", page_url: "http://x/", build: "frontier", user_agent: "UA", map: "a: 1\n" });
+        await s.api.sendBugReport({ kind: "idea", title: "T", description: "D", page_url: "http://x/", build: "frontier", user_agent: "UA", map: "a: 1\n" });
         const post = s.calls.find((c) => c.url === "http://api.test/bug-reports")!;
         expect(post.method).toBe("POST");
-        expect(JSON.parse(post.body!)).toMatchObject({ title: "T", build: "frontier", map: "a: 1\n" });
+        expect(JSON.parse(post.body!)).toMatchObject({ kind: "idea", title: "T", build: "frontier", map: "a: 1\n" });
 
         const blob = await s.api.bugMap(3);
         expect(await blob.text()).toBe("meta: 1\n");

@@ -1,7 +1,7 @@
 // The account in the headers of the start screen and the editor: Sign in with GitHub, or the user's menu (Your
 // builds, Add a build, Manage builds for the maintainer, Sign out), and the dialogs behind it.
-import { adminMeta, BUG_TABS, bugMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
-import { ApiError, type AdminFork, type Api, type BugReport, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
+import { adminMeta, BUG_TABS, KIND_TABS, bugMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
+import { ApiError, type AdminFork, type Api, type BugReport, type BugKind, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
 import { dialog } from "./dialog";
 import { button, h, icon, ICON } from "./icons";
 import { popupMenu, type MenuItem } from "./menus";
@@ -43,6 +43,15 @@ const STYLE = `
 .dlg .fb-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-2); font-size: 13px; }
 .dlg .fb-desc { color: var(--text-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
 .dlg .fb-row.top { align-items: flex-start; }
+.dlg .fb-seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; align-self: flex-start; width: max-content; margin-top: 4px; }
+.dlg .fb-seg button { height: 26px; padding: 0 14px; border: 0; background: var(--raised); color: var(--text); }
+.dlg .fb-seg button + button { border-left: 1px solid var(--border); }
+.dlg .fb-seg button[aria-pressed="true"] { background: var(--accent-soft); font-weight: 600; }
+.dlg .fb-kind { flex: none; padding: 1px 7px; border-radius: var(--radius-s); font-size: 11px; font-weight: 600; }
+.dlg .fb-kind.bug { background: var(--danger-bg); color: var(--danger-text); }
+.dlg .fb-kind.idea { background: var(--accent-soft); color: var(--accent-text); }
+.dlg .fb-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.dlg .fb-bar .fb-tabs { margin-top: 0; }
 .dlg .fb-empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); }
 `;
 
@@ -208,13 +217,13 @@ export class Account {
         const items: MenuItem[] = [
             { label: "Your builds…", run: () => void this.yourBuilds() },
             { label: "Add a build…", run: () => void this.addBuild() },
-            { label: "Report a bug…", run: () => void this.reportBug() },
+            { label: "Send feedback…", run: () => void this.reportBug() },
         ];
         if (me.maintainer) {
             const n = me.pending ?? 0;
             items.push({ label: "Manage builds…", ...(n > 0 ? { note: `${n} waiting for approval` } : {}), run: () => void this.manageBuilds() });
             const bugs = me.bugs ?? 0;
-            items.push({ label: "Bug reports…", ...(bugs > 0 ? { note: `${bugs} new` } : {}), run: () => void this.bugReports() });
+            items.push({ label: "Feedback…", ...(bugs > 0 ? { note: `${bugs} new` } : {}), run: () => void this.bugReports() });
         }
         items.push("-", { label: "Sign out", run: () => void this.signOut() });
         return items;
@@ -316,17 +325,35 @@ export class Account {
     // ---- Report a bug
 
     async reportBug(): Promise<void> {
-        if (!(await this.needSignIn("Report a bug", "report a bug"))) return;
+        if (!(await this.needSignIn("Send feedback", "send feedback"))) return;
         const ctx = this.hooks.bugContext();
         const title = textInput("", "Short summary");
         title.dataset.autofocus = "";
         title.maxLength = 150;
         const text = h("textarea");
-        text.placeholder = "What happened, and what you expected instead";
         text.maxLength = 5000;
         const attach = h("input");
         attach.type = "checkbox";
-        attach.checked = true;
+        let kind: BugKind = "bug";
+        const seg = h("div", "fb-seg");
+        const kinds: Array<[BugKind, string]> = [
+            ["bug", "Bug"],
+            ["idea", "Suggestion"],
+        ];
+        const setKind = (k: BugKind) => {
+            kind = k;
+            for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.kind === k));
+            text.placeholder = k === "bug" ? "What happened, and what you expected instead" : "What you would like the editor to do, and why";
+            // a map helps to reproduce a bug; a suggestion rarely needs one
+            attach.checked = k === "bug";
+        };
+        for (const [k, label] of kinds) {
+            const b = button("", label, "", () => setKind(k));
+            b.type = "button";
+            b.dataset.kind = k;
+            seg.append(b);
+        }
+        setKind("bug");
         const check = h("label", "fb-check");
         check.append(attach, `Attach the open map (${ctx.mapName ?? ""})`);
         check.hidden = ctx.mapName === null;
@@ -343,12 +370,12 @@ export class Account {
             const subject = title.value.trim();
             const description = text.value.trim();
             if (!subject) return fail("Enter a title.");
-            if (!description) return fail("Describe the problem.");
-            const report: BugReportInput = { title: subject, description, page_url: location.href, build: ctx.build, user_agent: navigator.userAgent };
+            if (!description) return fail(kind === "bug" ? "Describe the problem." : "Describe the suggestion.");
+            const report: BugReportInput = { kind, title: subject, description, page_url: location.href, build: ctx.build, user_agent: navigator.userAgent };
             if (ctx.mapName !== null && attach.checked) {
                 const map = ctx.mapText();
                 if (map !== null) {
-                    if (map.length > MAX_MAP) return fail("The map is larger than 20 MB. Send the report without it.");
+                    if (map.length > MAX_MAP) return fail("The map is larger than 20 MB. Send it without the map.");
                     report.map_name = ctx.mapName;
                     report.map = map;
                 }
@@ -358,20 +385,21 @@ export class Account {
             } catch (e) {
                 if (e instanceof ApiError && e.status === 401) {
                     this.lost();
-                    return fail("You are signed out. Sign in with GitHub to report a bug.");
+                    return fail("You are signed out. Sign in with GitHub to send feedback.");
                 }
                 return fail(messageOf(e));
             }
             return true;
         };
         const ok = await dialog(
-            "Report a bug",
+            "Send feedback",
             [
+                seg,
                 field("Title", title),
                 field("Description", text),
                 check,
                 error,
-                h("p", "fb-hint", "The report includes the page address, the build and your browser version."),
+                h("p", "fb-hint", "The page address, the build and your browser version are sent with it."),
             ],
             [
                 { label: "Cancel", value: false },
@@ -380,7 +408,7 @@ export class Account {
             false,
             { check: send, width: 480 },
         );
-        if (ok) showToast("Thanks. The report was sent.", undefined, 6000);
+        if (ok) showToast("Thanks. Your feedback was sent.", undefined, 6000);
     }
 
     // ---- Your builds
@@ -411,12 +439,26 @@ export class Account {
     async bugReports(): Promise<void> {
         let reports: BugReport[] | null = null;
         let tab: BugStatus | null = "new";
+        let kindTab: BugKind | null = null;
         const tabs = h("div", "fb-tabs");
+        const kindTabs = h("div", "fb-tabs");
+        const bar = h("div", "fb-bar");
+        bar.append(tabs, kindTabs);
         const list = h("div", "fb-list");
         list.append(h("p", "dlg-muted", "Loading…"));
 
         const render = () => {
-            const all = reports ?? [];
+            const all = (reports ?? []).filter((r) => kindTab === null || r.kind === kindTab);
+            kindTabs.replaceChildren(
+                ...KIND_TABS.map((t) => {
+                    const b = button("", t.label, "", () => {
+                        kindTab = t.kind;
+                        render();
+                    });
+                    b.setAttribute("aria-pressed", String(t.kind === kindTab));
+                    return b;
+                }),
+            );
             tabs.replaceChildren(
                 ...BUG_TABS.map((t) => {
                     const b = button("", t.label, "", () => {
@@ -430,7 +472,7 @@ export class Account {
             );
             if (!reports) return;
             const shown = tab ? all.filter((r) => r.status === tab) : all;
-            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", "No reports")]));
+            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", "Nothing here")]));
         };
 
         const refresh = async () => {
@@ -488,15 +530,15 @@ export class Account {
             const n = h("span", "fb-name", r.title);
             n.title = r.title;
             t.append(n, h("span", "fb-meta", bugMeta(r, this.hooks.bugContext().buildName)), h("span", "fb-desc", r.description));
-            el.append(t);
+            el.append(h("span", `fb-kind ${r.kind === "idea" ? "idea" : "bug"}`, r.kind === "idea" ? "Suggestion" : "Bug"), t);
             if (r.hasMap) el.append(button("btn", "Map", "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
-            if (r.status === "new") el.append(button("btn", "Mark fixed", "", () => void act(el, () => this.api.markBugFixed(r.id))));
+            if (r.status === "new") el.append(button("btn", "Mark done", "", () => void act(el, () => this.api.markBugFixed(r.id))));
             el.append(button("btn danger", "Delete", "", () => void remove(r, el)));
             return el;
         };
 
         render();
-        const shown = dialog<void>("Bug reports", [tabs, list], [{ label: "Close", value: undefined }], undefined, { width: 720 });
+        const shown = dialog<void>("Feedback", [bar, list], [{ label: "Close", value: undefined }], undefined, { width: 720 });
         try {
             await refresh();
         } catch (e) {

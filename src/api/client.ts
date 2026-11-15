@@ -193,9 +193,12 @@ export interface AdminFork {
 }
 
 export type BugStatus = "new" | "fixed";
+/** A bug or a suggestion. */
+export type BugKind = "bug" | "idea";
 
 export interface BugReport {
     id: number;
+    kind: BugKind;
     title: string;
     description: string;
     status: BugStatus;
@@ -210,6 +213,7 @@ export interface BugReport {
 
 /** What the site sends with a bug report; the map is the open map's text. */
 export interface BugReportInput {
+    kind: BugKind;
     title: string;
     description: string;
     page_url: string;

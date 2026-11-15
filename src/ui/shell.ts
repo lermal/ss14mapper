@@ -28,7 +28,7 @@ export interface ShellHooks {
     about(): void;
     /** File > Add a build…; absent without accounts. */
     addBuild?(): void;
-    /** Help > Report a bug…; absent without accounts. */
+    /** Help > Send feedback…; absent without accounts. */
     reportBug?(): void;
 }
 
@@ -220,7 +220,7 @@ export class Shell {
                 label: "Help",
                 items: () => [
                     { label: "Keyboard shortcuts", keys: keys("help.shortcuts"), run: () => hooks.shortcuts() },
-                    ...(hooks.reportBug ? [{ label: "Report a bug…", run: () => hooks.reportBug?.() }] : []),
+                    ...(hooks.reportBug ? [{ label: "Send feedback…", run: () => hooks.reportBug?.() }] : []),
                     "-",
                     { label: "About SS14 Mapper", run: () => hooks.about() },
                 ],

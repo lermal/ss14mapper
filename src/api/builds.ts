@@ -1,5 +1,5 @@
 // What the build lists show, without DOM: the state badge of a submitted build, its meta line, relative times.
-import type { AdminFork, BugReport, BugStatus, BuildState, ForkStatus } from "./client";
+import type { AdminFork, BugKind, BugReport, BugStatus, BuildState, ForkStatus } from "./client";
 
 export type StateTone = "ready" | "failed" | "wait" | "";
 
@@ -109,9 +109,16 @@ export function bugMeta(r: Pick<BugReport, "user" | "build" | "mapName" | "userA
     return [r.user ?? "deleted user", r.build && buildName(r.build), r.mapName, browserName(r.userAgent), relativeTime(r.createdAt, now)].filter(Boolean).join(" · ");
 }
 
-/** Tabs of Bug reports; `status` null lists all. */
+/** Type filter of Feedback; `kind` null lists both. */
+export const KIND_TABS: ReadonlyArray<{ label: string; kind: BugKind | null }> = [
+    { label: "All types", kind: null },
+    { label: "Bugs", kind: "bug" },
+    { label: "Suggestions", kind: "idea" },
+];
+
+/** Tabs of Feedback; `status` null lists all. */
 export const BUG_TABS: ReadonlyArray<{ label: string; status: BugStatus | null }> = [
     { label: "New", status: "new" },
-    { label: "Fixed", status: "fixed" },
+    { label: "Done", status: "fixed" },
     { label: "All", status: null },
 ];
