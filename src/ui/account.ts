@@ -1,7 +1,8 @@
 // The account in the headers of the start screen and the editor: Sign in with GitHub, or the user's menu (Your
 // builds, Add a build, Manage builds for the maintainer, Sign out), and the dialogs behind it.
 import { adminMeta, BUG_TABS, KIND_TABS, bugMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
-import { ApiError, type AdminFork, type Api, type BugReport, type BugKind, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
+import { ApiError, type AdminFork, type Api, type BugImage, type BugReport, type BugKind, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
+import { addImages, IMAGE_TYPES, MAX_IMAGES } from "../api/feedback-images";
 import { dialog } from "./dialog";
 import { button, h, icon, ICON } from "./icons";
 import { popupMenu, type MenuItem } from "./menus";
@@ -52,6 +53,19 @@ const STYLE = `
 .dlg .fb-kind.idea { background: var(--accent-soft); color: var(--accent-text); }
 .dlg .fb-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .dlg .fb-bar .fb-tabs { margin-top: 0; }
+.dlg .fb-images { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dlg .fb-images .fb-count { color: var(--muted); font-size: 12px; }
+.dlg .fb-thumb { position: relative; flex: none; }
+.dlg .fb-thumb img { display: block; height: 64px; width: auto; max-width: 120px; min-width: 40px; object-fit: cover; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--panel-2); }
+.dlg .fb-thumb .fb-rm { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-s); background: var(--raised); color: var(--text); opacity: 0.9; }
+.dlg .fb-thumb .fb-rm:hover { background: var(--danger-bg); color: var(--danger-text); opacity: 1; }
+.dlg .fb-row-images { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.dlg .fb-row-images button { padding: 0; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--panel-2); line-height: 0; overflow: hidden; }
+.dlg .fb-row-images button:hover { border-color: var(--border-strong); }
+.dlg .fb-row-images img, .dlg .fb-row-images .ph { height: 48px; width: 48px; object-fit: cover; display: block; }
+.dlg .fb-view { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.dlg .fb-view img { flex: 1; min-width: 0; max-width: 100%; max-height: calc(100vh - 190px); object-fit: contain; margin: 0 auto; }
+.dlg .fb-view button { flex: none; }
 .dlg .fb-empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); }
 `;
 
@@ -354,6 +368,74 @@ export class Account {
             seg.append(b);
         }
         setKind("bug");
+        // images: the files, their previews, and the three ways to add them
+        let files: File[] = [];
+        const previews = new Map<File, string>();
+        const strip = h("div", "fb-images");
+        const picker = h("input");
+        picker.type = "file";
+        picker.accept = IMAGE_TYPES.join(",");
+        picker.multiple = true;
+        picker.hidden = true;
+        const addBtn = button("btn", "Add images…", "", () => picker.click());
+        addBtn.type = "button";
+        const drawImages = () => {
+            const thumbs = files.map((f) => {
+                let url = previews.get(f);
+                if (!url) previews.set(f, (url = URL.createObjectURL(f)));
+                const t = h("div", "fb-thumb");
+                const img = h("img");
+                img.src = url;
+                img.alt = f.name;
+                const rm = button("fb-rm", icon(ICON.close, 10), "Remove image", () => {
+                    files = files.filter((x) => x !== f);
+                    URL.revokeObjectURL(previews.get(f)!);
+                    previews.delete(f);
+                    drawImages();
+                });
+                rm.type = "button";
+                t.append(img, rm);
+                return t;
+            });
+            addBtn.disabled = files.length >= MAX_IMAGES;
+            strip.replaceChildren(addBtn, ...thumbs, h("span", "fb-count", `${files.length} of ${MAX_IMAGES}`));
+        };
+        const take = (list: File[]) => {
+            const r = addImages(files, list);
+            files = r.images;
+            if (r.error) fail(r.error);
+            else error.hidden = true;
+            drawImages();
+        };
+        picker.addEventListener("change", () => {
+            take([...(picker.files ?? [])]);
+            picker.value = "";
+        });
+        const onPaste = (e: ClipboardEvent) => {
+            const items = [...(e.clipboardData?.items ?? [])];
+            const pics = items.filter((i) => i.kind === "file" && i.type.startsWith("image/")).map((i) => i.getAsFile()).filter((f): f is File => f !== null);
+            if (!pics.length) return;
+            const t = e.target;
+            // a text field keeps its own paste unless the clipboard holds only the image
+            if ((t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) && items.some((i) => i.type === "text/plain")) return;
+            e.preventDefault();
+            take(pics);
+        };
+        const hasFiles = (e: DragEvent) => [...(e.dataTransfer?.types ?? [])].includes("Files");
+        const onOver = (e: DragEvent) => {
+            if (hasFiles(e)) e.preventDefault();
+        };
+        const onDrop = (e: DragEvent) => {
+            if (!hasFiles(e)) return;
+            e.preventDefault();
+            take([...(e.dataTransfer?.files ?? [])]);
+        };
+        document.addEventListener("paste", onPaste);
+        document.addEventListener("dragover", onOver);
+        document.addEventListener("drop", onDrop);
+        const imagesField = h("div", "dlg-field");
+        imagesField.append("Images", strip, picker);
+        drawImages();
         const check = h("label", "fb-check");
         check.append(attach, `Attach the open map (${ctx.mapName ?? ""})`);
         check.hidden = ctx.mapName === null;
@@ -381,7 +463,7 @@ export class Account {
                 }
             } else if (ctx.mapName !== null) report.map_name = ctx.mapName;
             try {
-                await this.api.sendBugReport(report);
+                await this.api.sendBugReport(report, files);
             } catch (e) {
                 if (e instanceof ApiError && e.status === 401) {
                     this.lost();
@@ -397,6 +479,7 @@ export class Account {
                 seg,
                 field("Title", title),
                 field("Description", text),
+                imagesField,
                 check,
                 error,
                 h("p", "fb-hint", "The page address, the build and your browser version are sent with it."),
@@ -408,6 +491,10 @@ export class Account {
             false,
             { check: send, width: 480 },
         );
+        document.removeEventListener("paste", onPaste);
+        document.removeEventListener("dragover", onOver);
+        document.removeEventListener("drop", onDrop);
+        for (const u of previews.values()) URL.revokeObjectURL(u);
         if (ok) showToast("Thanks. Your feedback was sent.", undefined, 6000);
     }
 
@@ -513,7 +600,7 @@ export class Account {
         const remove = async (r: BugReport, el: HTMLElement) => {
             const sure = await dialog(
                 "Delete report?",
-                [`${r.title} and its attached map will be deleted.`],
+                [`${r.title} and its attached map and images will be deleted.`],
                 [
                     { label: "Cancel", value: false },
                     { label: "Delete", value: true, kind: "danger" },
@@ -523,6 +610,66 @@ export class Account {
             if (sure) await act(el, () => this.api.removeBug(r.id));
         };
 
+        // image previews are fetched with the session and live until the dialog closes
+        const urls = new Map<number, Promise<string>>();
+        const imageUrl = (r: BugReport, i: BugImage): Promise<string> => {
+            let p = urls.get(i.id);
+            if (!p) urls.set(i.id, (p = this.api.bugImage(r.id, i.id).then((b) => URL.createObjectURL(b))));
+            return p;
+        };
+        const view = async (r: BugReport, start: number) => {
+            let at = start;
+            const img = h("img");
+            const prev = button("btn", "Previous", "", () => step(-1));
+            const next = button("btn", "Next", "", () => step(1));
+            const n = r.images.length;
+            const wrap = h("div", "fb-view");
+            wrap.append(prev, img, next);
+            const show = async () => {
+                const dlgEl = wrap.closest(".dlg");
+                dlgEl?.setAttribute("aria-label", `Image ${at + 1} of ${n}`);
+                const title = dlgEl?.querySelector("h2");
+                if (title) title.textContent = `Image ${at + 1} of ${n}`;
+                prev.disabled = at === 0;
+                next.disabled = at === n - 1;
+                const want = at;
+                try {
+                    const u = await imageUrl(r, r.images[at]!);
+                    if (want === at) img.src = u;
+                } catch (e) {
+                    showToast(messageOf(e), undefined, 6000);
+                }
+            };
+            const step = (d: number) => {
+                at = Math.min(n - 1, Math.max(0, at + d));
+                void show();
+            };
+            const keys = (e: KeyboardEvent) => {
+                if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                e.preventDefault();
+                e.stopPropagation();
+                step(e.key === "ArrowLeft" ? -1 : 1);
+            };
+            window.addEventListener("keydown", keys, true);
+            const closed = dialog<void>(`Image ${at + 1} of ${n}`, [wrap], [{ label: "Close", value: undefined }], undefined, { width: 960 });
+            void show();
+            await closed;
+            window.removeEventListener("keydown", keys, true);
+        };
+        const thumbs = (r: BugReport): HTMLElement => {
+            const box = h("div", "fb-row-images");
+            r.images.forEach((i, idx) => {
+                const b = button("", "", `Image ${idx + 1} of ${r.images.length}`, () => void view(r, idx));
+                b.type = "button";
+                const img = h("img");
+                img.alt = `Image ${idx + 1}`;
+                b.append(img);
+                box.append(b);
+                void imageUrl(r, i).then((u) => (img.src = u), () => undefined);
+            });
+            return box;
+        };
+
         const row = (r: BugReport): HTMLElement => {
             const el = h("div", "fb-row top");
             el.dataset.id = String(r.id);
@@ -530,6 +677,7 @@ export class Account {
             const n = h("span", "fb-name", r.title);
             n.title = r.title;
             t.append(n, h("span", "fb-meta", bugMeta(r, this.hooks.bugContext().buildName)), h("span", "fb-desc", r.description));
+            if (r.images.length) t.append(thumbs(r));
             el.append(h("span", `fb-kind ${r.kind === "idea" ? "idea" : "bug"}`, r.kind === "idea" ? "Suggestion" : "Bug"), t);
             if (r.hasMap) el.append(button("btn", "Map", "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
             if (r.status === "new") el.append(button("btn", "Mark done", "", () => void act(el, () => this.api.markBugFixed(r.id))));
@@ -546,6 +694,7 @@ export class Account {
             list.replaceChildren(h("div", "fb-error", messageOf(e)));
         }
         await shown;
+        for (const p of urls.values()) void p.then((u) => URL.revokeObjectURL(u), () => undefined);
     }
 
     // ---- Manage builds

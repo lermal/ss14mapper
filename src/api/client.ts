@@ -2,6 +2,7 @@
 // that change something carry the CSRF token from the XSRF-TOKEN cookie, fetched once before the first of them
 // and again when the server answers 419 (token expired).
 import { API_URL } from "../pack/forks";
+import { reportForm } from "./feedback-images";
 
 /** A failed request: the HTTP status (0 when the server could not be reached) and the server's message. */
 export class ApiError extends Error {
@@ -44,6 +45,8 @@ export type Method = "GET" | "POST" | "PUT" | "DELETE";
 
 export interface RequestOptions {
     body?: unknown;
+    /** A multipart body; the browser sets its Content-Type (with the boundary). */
+    form?: FormData;
     /** Lets the request outlive the page (a last settings push). */
     keepalive?: boolean;
 }
@@ -112,7 +115,7 @@ export class ApiClient {
 
     private async send(method: Method, path: string, options: RequestOptions): Promise<Response> {
         const headers: Record<string, string> = { Accept: "application/json" };
-        if (options.body !== undefined) headers["Content-Type"] = "application/json";
+        if (options.body !== undefined && !options.form) headers["Content-Type"] = "application/json";
         if (method !== "GET") {
             const token = readCookie(this.cookies(), "XSRF-TOKEN");
             if (token) headers["X-XSRF-TOKEN"] = token;
@@ -122,7 +125,7 @@ export class ApiClient {
                 method,
                 headers,
                 credentials: "include",
-                body: options.body === undefined ? undefined : JSON.stringify(options.body),
+                body: options.form ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
                 keepalive: options.keepalive,
             });
         } catch {
@@ -196,6 +199,12 @@ export type BugStatus = "new" | "fixed";
 /** A bug or a suggestion. */
 export type BugKind = "bug" | "idea";
 
+export interface BugImage {
+    id: number;
+    width: number;
+    height: number;
+}
+
 export interface BugReport {
     id: number;
     kind: BugKind;
@@ -207,6 +216,7 @@ export interface BugReport {
     build: string | null;
     mapName: string | null;
     hasMap: boolean;
+    images: BugImage[];
     userAgent: string | null;
     createdAt: string | null;
 }
@@ -281,8 +291,14 @@ export class Api {
         return this.client.request("DELETE", `/admin/forks/${id}`);
     }
 
-    sendBugReport(report: BugReportInput): Promise<{ id: number; status: BugStatus }> {
-        return this.client.request("POST", "/bug-reports", { body: report });
+    /** Sends a report; with images it goes as multipart (the map as a text field), without them as JSON. */
+    sendBugReport(report: BugReportInput, images: readonly Blob[] = []): Promise<{ id: number; status: BugStatus }> {
+        if (images.length === 0) return this.client.request("POST", "/bug-reports", { body: report });
+        return this.client.request("POST", "/bug-reports", { form: reportForm(report, images) });
+    }
+
+    bugImage(report: number, image: number): Promise<Blob> {
+        return this.client.blob(`/admin/bug-reports/${report}/images/${image}`);
     }
 
     /** All bug reports, newest first (the tabs are counted from this). */
