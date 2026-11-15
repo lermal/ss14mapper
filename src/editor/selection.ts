@@ -215,11 +215,11 @@ export interface PickView {
 export const decalPoint = (d: DecalLayer): [number, number] => [d.x, d.y];
 
 /** The decal drawn on top at a world point (where its pixels are, with `opaque`), or null. */
-export function decalAt(scene: Scene, x: number, y: number, opaque?: OpaqueTest): DecalLayer | null {
+export function decalAt(scene: Scene, x: number, y: number, opaque?: OpaqueTest, accept?: (decal: DecalLayer) => boolean): DecalLayer | null {
     const list = scene.decals.query(x, y, x, y).sort((a, b) => a.z - b.z || a.seq - b.seq);
     for (let i = list.length - 1; i >= 0; i--) {
         const d = list[i]!;
-        if (d.color && (d.color[3] ?? 1) === 0) continue;
+        if ((accept && !accept(d)) || (d.color && (d.color[3] ?? 1) === 0)) continue;
         const [, , , fw, fh] = scene.frames[d.frame]!;
         const t = texelAt({ ...d, scale: null } as unknown as SpriteLayer, fw, fh, x, y);
         if (t && (!opaque || opaque(d.frame, t[0], t[1]))) return d;

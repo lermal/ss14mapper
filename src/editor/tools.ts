@@ -2,13 +2,14 @@
 // entities, painting tiles, drawing shapes. Gestures made of several steps (a drag, a brush stroke) are one
 // undo step; so is every operation on a whole selection.
 import type { Decal, DecalProps } from "../map/decals";
-import type { MapDocument, Transform } from "../map/document";
+import type { MapDocument, TileEdit, Transform } from "../map/document";
 import type { Pack } from "../pack/loader";
 import { pipeNodesOverlap, pipeOverlapNodes, PPM, type Scene } from "../render/scene";
 import { copyParts, pasteClip, pastePlan, snapAnchor, type Clip, type ClipDecal, type ClipTile, type CopyRoot, type PasteKnown, type PasteResult, type PasteTarget } from "./clipboard";
 import { Group, type TileMap } from "./group";
 import { entityAt, type OpaqueTest } from "./hit";
 import type { DecalLayer } from "../render/scene";
+import { decalSize, mirrorCopies, mirrorDecal, mirrorEntity, mirrorTileRotation, snapMirrorAxis, type Flip, type MirrorAxis, type MirrorMode } from "./mirror";
 import { deleteDecalsOnSpace } from "./space-decals";
 import { pickOf, stackAt, type StackItem, type StackOptions } from "./stack";
 import { cellKey, cellOf, collectAll, collectArea, decalAt, FILTER_KINDS, Selection, wandDecals, wandEntities, wandTiles, type Combine, type PickView, type SelectFilter } from "./selection";
@@ -96,6 +97,92 @@ interface Drag {
 }
 
 export class Editor {
+    mirrorMode: MirrorMode = "off";
+    /** Axis positions are in each grid's own coordinates. */
+    readonly mirrorAxes = new Map<number, Point>();
+
+    mirrorCentre(grid: number): Point {
+        const existing = this.mirrorAxes.get(grid);
+        if (existing) return existing;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const [x, y] of this.scene.tileCells(grid)) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + 1);
+            maxY = Math.max(maxY, y + 1);
+        }
+        const centre: Point = minX === Infinity ? [0, 0] : [(minX + maxX) / 2, (minY + maxY) / 2];
+        this.mirrorAxes.set(grid, centre);
+        return centre;
+    }
+
+    moveMirrorAxis(grid: number, axis: MirrorAxis, world: Point): void {
+        const centre = this.mirrorCentre(grid);
+        const [x, y] = this.scene.toLocal(grid, ...world);
+        this.mirrorAxes.set(grid, axis === "horizontal" ? [snapMirrorAxis(x), centre[1]] : [centre[0], snapMirrorAxis(y)]);
+    }
+
+    private copies(grid: number, point: Point) {
+        return mirrorCopies(point, this.mirrorMode === "off" ? point : this.mirrorCentre(grid), this.mirrorMode);
+    }
+
+    /** The original positions take precedence if the shape crosses its reflection. */
+    private brushCopies(grid: number, points: readonly Point[]) {
+        if (this.mirrorMode === "off") return points.map((at) => ({ at, source: at, flip: null }));
+        const copies = points.map((at) => ({ at, source: at, flip: null as Flip | null }));
+        const key = ([x, y]: Point) => `${x},${y}`;
+        const seen = new Set(points.map(key));
+        for (const point of points) {
+            for (const copy of this.copies(grid, point)) {
+                const k = key(copy.at);
+                if (seen.has(k)) continue;
+                seen.add(k);
+                copies.push({ ...copy, source: point });
+            }
+        }
+        return copies;
+    }
+
+    entityBrush(grid: number, points: readonly Point[], proto: string, angle: number) {
+        const looks = new Map<Flip | null, { proto: string; angle: number }>([[null, { proto, angle }]]);
+        return this.brushCopies(grid, points).flatMap(({ at: [x, y], flip }) => {
+            if (this.scene.tileAt(grid, Math.floor(x), Math.floor(y)) === null) return [];
+            let look = looks.get(flip);
+            if (!look) looks.set(flip, (look = mirrorEntity(this.pack, proto, angle, flip!)));
+            return [{ x, y, flip, ...look }];
+        });
+    }
+
+    tileBrush(grid: number, cells: readonly Cell[]) {
+        return this.brushCopies(grid, cells.map(([x, y]) => [x + 0.5, y + 0.5])).map(({ at: [x, y], source, flip }) => ({
+            x: Math.floor(x), y: Math.floor(y),
+            source,
+            rotationMirroring: flip && this.doc.format >= 7 ? mirrorTileRotation(0, flip) : 0,
+            flip,
+        }));
+    }
+
+    decalBrush(grid: number, points: readonly Point[], props: DecalProps) {
+        if (!points.length) return [];
+        if (this.mirrorMode === "off") return this.decalSpots(grid, points).map(([x, y]) => ({ x, y, props, flip: null as Flip | null }));
+        const [w, h] = decalSize(this.pack, props.proto);
+        return this.brushCopies(grid, points.map(([x, y]) => [x + w / 2, y + h / 2])).flatMap(({ at: [cx, cy], flip }) => {
+            const look = flip ? mirrorDecal(this.pack, props, flip) : props;
+            const [width, height] = look.proto === props.proto ? [w, h] : decalSize(this.pack, look.proto);
+            const x = cx - width / 2, y = cy - height / 2;
+            return this.scene.tileAt(grid, Math.floor(x), Math.floor(y)) === null ? [] : [{ x, y, props: look, flip }];
+        });
+    }
+
+    erasePoints(wx: number, wy: number): Array<{ at: Point; grid: number | null }> {
+        const grid = this.mirrorMode === "off" ? null : this.scene.gridAt(wx, wy);
+        if (grid === null) return [{ at: [wx, wy], grid }];
+        return this.copies(grid, this.scene.toLocal(grid, wx, wy)).map(({ at, flip }) => ({
+            at: flip ? this.scene.toWorld(grid, ...at) : [wx, wy],
+            grid: flip ? grid : null,
+        }));
+    }
+
     /** Everything selected. A single entity is also `selection`. */
     readonly selected = new Selection();
     private drag: Drag | null = null;
@@ -113,6 +200,7 @@ export class Editor {
     private visited: Set<string> | null = null;
     /** The selection before and after each undo step made here, restored by `undo` and `redo`. */
     private readonly snapshots = new WeakMap<object, { before: Selection; after: Selection }>();
+    private readonly flips = new WeakMap<object, { axis: MirrorAxis; selectionVersion: number; under: TileMap | null }>();
     /** The selection and the last undo step when the open gesture began. */
     private gestureStart: { before: Selection; top: object | null } | null = null;
     /** Variant of each tile painted (the brush's choice; 0 by default). */
@@ -531,6 +619,32 @@ export class Editor {
         return true;
     }
 
+    flipSelection(axis: MirrorAxis): boolean {
+        if (this.selected.isEmpty || this.busy) return false;
+        const top = this.doc.lastEdit;
+        const flip = top && this.flips.get(top);
+        const previous = top && this.snapshots.get(top);
+        const under = this.float?.changes === this.changes ? this.float.under : null;
+        const flipped = this.tracked(() => {
+            if (flip?.axis === axis && flip.selectionVersion === this.selected.version && previous) {
+                if (!this.hold(() => this.doc.journal.reverseLast())) return false;
+                this.restore(previous.before);
+                this.float = flip.under && { under: flip.under, changes: this.changes };
+                return true;
+            }
+            const group = this.group();
+            const cellTo = this.hold(() => group.flip(axis, this.pack));
+            if (!cellTo) return false;
+            this.selected.mapTiles(cellTo);
+            this.selected.mapDecals((g, id) => group.decalIdOf(g, id));
+            this.floatAfter(group);
+            return true;
+        });
+        const last = this.doc.lastEdit;
+        if (flipped && last && last !== top) this.flips.set(last, { axis, selectionVersion: this.selected.version, under });
+        return flipped;
+    }
+
     /** Deletes the selection: entities with everything inside them, tiles become space; returns the deleted uids. */
     deleteSelection(): number[] {
         const one = this.selection;
@@ -552,12 +666,12 @@ export class Editor {
     // ---- placing
 
     /** Where an entity of `proto` would be placed for a world point: the grid there and its position on it. */
-    placeTarget(proto: string, wx: number, wy: number): GridPoint | null {
+    placeTarget(proto: string, wx: number, wy: number, allowSpace = false): GridPoint | null {
         const grid = this.scene.gridAt(wx, wy);
         if (grid === null) return null;
         const [lx, ly] = this.scene.toLocal(grid, wx, wy);
         // nothing is placed over space
-        if (this.scene.tileAt(grid, Math.floor(lx), Math.floor(ly)) === null) return null;
+        if (!allowSpace && this.scene.tileAt(grid, Math.floor(lx), Math.floor(ly)) === null) return null;
         return snapsToTile(this.pack.prototypes.entities[proto])
             ? { grid, x: tileCenter(lx), y: tileCenter(ly) }
             : { grid, x: toPixel(lx), y: toPixel(ly) };
@@ -568,7 +682,7 @@ export class Editor {
      * has an anchored entity of that prototype, or (in a stroke) the stroke has already placed there.
      */
     place(proto: string, wx: number, wy: number, rotation = 0): number | null {
-        const t = this.placeTarget(proto, wx, wy);
+        const t = this.placeTarget(proto, wx, wy, this.mirrorMode !== "off");
         if (!t) return null;
         const tx = Math.floor(t.x), ty = Math.floor(t.y);
         const snaps = snapsToTile(this.pack.prototypes.entities[proto]);
@@ -578,11 +692,19 @@ export class Editor {
             if (this.visited.has(key) || (this.visited.size && !snaps)) return null;
             this.visited.add(key);
         }
-        const replaced = this.displaced(proto, t.grid, tx, ty, rotation, snaps);
-        if (replaced === null) return null;
         return this.doc.batch("Place", () => {
-            for (const u of replaced) if (this.doc.proto(u) !== undefined) this.doc.deleteEntity(u);
-            return this.doc.addEntity(proto, t.grid, t.x, t.y, rotation);
+            let placed: number | null = null;
+            for (const copy of this.entityBrush(t.grid, [[t.x, t.y]], proto, rotation)) {
+                const x = Math.floor(copy.x), y = Math.floor(copy.y);
+                if (copy.flip && this.visited) {
+                    const key = `${t.grid}|${x}|${y}`;
+                    if (snaps && this.visited.has(key)) continue;
+                    this.visited.add(key);
+                }
+                const uid = this.placeAt(copy.proto, t.grid, copy.x, copy.y, copy.angle);
+                placed ??= uid;
+            }
+            return placed;
         });
     }
 
@@ -625,14 +747,11 @@ export class Editor {
         return typeof key === "string" && key !== "" ? key : null;
     }
 
-    /** Places an entity on the centre of a grid tile, unless an anchored one of that prototype is there. */
-    private placeOnTile(proto: string, grid: number, x: number, y: number, rotation: number): boolean {
-        if (this.scene.tileAt(grid, x, y) === null) return false;
-        const replaced = this.displaced(proto, grid, x, y, rotation, snapsToTile(this.pack.prototypes.entities[proto]));
-        if (replaced === null) return false;
+    private placeAt(proto: string, grid: number, x: number, y: number, rotation: number): number | null {
+        const replaced = this.displaced(proto, grid, Math.floor(x), Math.floor(y), rotation, snapsToTile(this.pack.prototypes.entities[proto]));
+        if (replaced === null) return null;
         for (const u of replaced) if (this.doc.proto(u) !== undefined) this.doc.deleteEntity(u);
-        this.doc.addEntity(proto, grid, x + 0.5, y + 0.5, rotation);
-        return true;
+        return this.doc.addEntity(proto, grid, x, y, rotation);
     }
 
     // ---- decals
@@ -673,10 +792,8 @@ export class Editor {
 
     /** Places decals of one look at corners on a grid (those on tiles) as one undo step; returns their ids. */
     placeDecals(props: DecalProps, grid: number, points: readonly Point[]): string[] {
-        const spots = this.decalSpots(grid, points);
-        if (!spots.length) return [];
-        const { proto, ...rest } = props;
-        return this.tracked(() => this.doc.addDecals(grid, spots.map(([x, y]) => ({ proto, x, y, props: rest }))));
+        const decals = this.decalBrush(grid, points, props).map(({ x, y, props: { proto, ...look } }) => ({ x, y, proto, props: look }));
+        return decals.length ? this.tracked(() => this.doc.addDecals(grid, decals)) : [];
     }
 
     /**
@@ -752,20 +869,15 @@ export class Editor {
         const shape = this.shapeTiles(kind, filled, from, to, constrain);
         if (!shape) return 0;
         const { grid, cells } = shape;
-        let n = 0;
-        this.doc.batch(SHAPE_LABELS[kind], () => {
-            if (brush.kind === "decal") {
-                const { proto, ...rest } = brush.props;
-                const spots = this.decalSpots(grid, cells);
-                if (spots.length) n = this.doc.addDecals(grid, spots.map(([x, y]) => ({ proto, x, y, props: rest }))).length;
-            } else if (brush.kind === "tile") {
-                const edits = cells.filter(([x, y]) => (this.scene.tileAt(grid, x, y) ?? "Space") !== brush.id).map(([x, y]) => ({ x, y, name: brush.id, variant: brush.id === "Space" ? 0 : this.variant(brush.id) }));
-                if (edits.length) this.doc.setTiles(grid, edits);
-                if (brush.id === "Space") deleteDecalsOnSpace(this.doc, grid, edits.map((e) => cellKey(e.x, e.y)));
-                n = edits.length;
-            } else for (const [x, y] of cells) if (this.placeOnTile(brush.id, grid, x, y, rotation)) n++;
+        return this.doc.batch(SHAPE_LABELS[kind], () => {
+            if (brush.kind === "decal") return this.placeDecals(brush.props, grid, cells).length;
+            if (brush.kind === "tile") return this.paintCells(brush.id, grid, cells);
+            let placed = 0;
+            for (const copy of this.entityBrush(grid, cells.map(([x, y]) => [x + 0.5, y + 0.5]), brush.id, rotation)) {
+                if (this.placeAt(copy.proto, grid, copy.x, copy.y, copy.angle) !== null) placed++;
+            }
+            return placed;
         });
-        return n;
     }
 
     // ---- clipboard
@@ -846,32 +958,63 @@ export class Editor {
     /** Paints the tile at a world point ("Space" erases); returns whether it changed. */
     paint(name: string, wx: number, wy: number): boolean {
         const t = this.tileTarget(wx, wy);
-        if (!t) return false;
-        if ((this.scene.tileAt(t.grid, t.x, t.y) ?? "Space") === name) return false;
-        this.doc.batch("Paint", () => {
-            this.doc.setTile(t.grid, t.x, t.y, name, name === "Space" ? 0 : this.variant(name));
-            if (name === "Space") deleteDecalsOnSpace(this.doc, t.grid, [cellKey(t.x, t.y)]);
-        });
-        return true;
+        if (!t || (this.mirrorMode !== "off" && this.visited?.has(`${t.grid}|${t.x}|${t.y}`))) return false;
+        return this.doc.batch("Paint", () => this.paintCells(name, t.grid, [[t.x, t.y]])) > 0;
     }
 
-    /** Erases the topmost drawn entity (with its contents) or decal at a world point; returns whether it did. */
-    erase(kind: "entities" | "decals", wx: number, wy: number): boolean {
-        if (kind === "entities") {
-            const uid = this.entityAt(wx, wy);
-            if (uid === null) return false;
-            this.doc.deleteEntity(uid);
-            return true;
+    private paintCells(name: string, grid: number, cells: readonly Cell[]): number {
+        const edits: TileEdit[] = [];
+        const variants = new Map<Point, number>();
+        for (const { x, y, source, flip, rotationMirroring } of this.tileBrush(grid, cells)) {
+            if (this.mirrorMode !== "off") this.visited?.add(`${grid}|${x}|${y}`);
+            const sameName = (this.scene.tileAt(grid, x, y) ?? "Space") === name;
+            if (sameName && (!flip || name === "Space")) continue;
+            let variant = variants.get(source);
+            if (variant === undefined) {
+                const sx = Math.floor(source[0]), sy = Math.floor(source[1]);
+                variant = name === "Space" ? 0 : flip && this.scene.tileAt(grid, sx, sy) === name
+                    ? this.doc.tile(grid, sx, sy).variant : this.variant(name);
+                variants.set(source, variant);
+            }
+            if (sameName) {
+                const tile = this.doc.tile(grid, x, y);
+                if (tile.rotationMirroring === rotationMirroring && tile.variant === variant) continue;
+            }
+            edits.push({ x, y, name, variant, rotationMirroring });
         }
-        const d = this.decalUnder(wx, wy);
-        if (!d) return false;
-        this.doc.deleteDecal(d.grid, d.id);
-        return true;
+        if (edits.length) this.doc.setTiles(grid, edits);
+        if (name === "Space" && edits.length) deleteDecalsOnSpace(this.doc, grid, edits.map((e) => cellKey(e.x, e.y)));
+        return edits.length;
+    }
+
+    /** Erases the topmost drawn entity (with its contents) or decal at each brush point. */
+    erase(kind: "entities" | "decals", wx: number, wy: number): boolean {
+        const points = this.erasePoints(wx, wy);
+        const entities = new Set<number>();
+        const decals = new Map<number, Set<string>>();
+        for (const { at, grid } of points) {
+            if (kind === "entities") {
+                const uid = this.entityAt(...at, grid === null ? undefined : (u) => this.scene.placement(u)?.grid === grid);
+                if (uid !== null) entities.add(uid);
+            } else {
+                const d = this.decalUnder(...at, grid);
+                if (!d) continue;
+                let ids = decals.get(d.grid);
+                if (!ids) decals.set(d.grid, (ids = new Set()));
+                ids.add(d.id);
+            }
+        }
+        return this.doc.batch(kind === "entities" ? "Delete" : "Erase", () => {
+            for (const uid of entities) if (this.doc.proto(uid) !== undefined) this.doc.deleteEntity(uid);
+            for (const [grid, ids] of decals) this.doc.deleteDecals(grid, ids);
+            return entities.size > 0 || decals.size > 0;
+        });
     }
 
     /** The decal under a world point: the one whose pixels are there, else the topmost whose box is (when shown). */
-    decalUnder(wx: number, wy: number): DecalLayer | null {
+    decalUnder(wx: number, wy: number, grid: number | null = null): DecalLayer | null {
         if (!(this.view.decalsShown?.() ?? true)) return null;
-        return decalAt(this.scene, wx, wy, this.view.opaque) ?? decalAt(this.scene, wx, wy);
+        const accept = grid === null ? undefined : (d: DecalLayer) => d.grid === grid;
+        return decalAt(this.scene, wx, wy, this.view.opaque, accept) ?? decalAt(this.scene, wx, wy, undefined, accept);
     }
 }

@@ -23,6 +23,8 @@ export interface Change {
 
 export interface Edit {
     label: string;
+    /** A previous document state that this edit restores exactly. */
+    restores?: Edit | null;
     assignments: Assignment[];
     entities: Set<number>;
     tiles: Map<string, [number, number, number]>;
@@ -163,19 +165,48 @@ export class Journal {
         return this.undone.length > 0;
     }
 
+    private get state(): Edit | null {
+        const top = this.done.at(-1);
+        return top?.restores === undefined ? top ?? null : top.restores;
+    }
+
     /** Whether the document differs from the opened one by any edit (undone edits do not count). */
     get isDirty(): boolean {
-        return this.done.length > 0 || !!this.open?.assignments.length;
+        return this.state !== null || !!this.open?.assignments.length;
     }
 
     /** Remembers the current state as saved. */
     markSaved(): void {
-        this.saved = this.done.at(-1) ?? null;
+        this.saved = this.state;
     }
 
     /** Whether there are edits since the document was saved (or opened). */
     get isModified(): boolean {
-        return (this.done.at(-1) ?? null) !== this.saved || !!this.open?.assignments.length;
+        return this.state !== this.saved || !!this.open?.assignments.length;
+    }
+
+    /** Applies the last edit in reverse as a new undo step, restoring the original YAML nodes. */
+    reverseLast(): boolean {
+        const last = this.done.at(-1);
+        if (!last || this.open || this.current) return false;
+        const previous = this.done.at(-2);
+        const edit: Edit = {
+            ...last,
+            restores: previous?.restores === undefined ? previous ?? null : previous.restores,
+            assignments: last.assignments.slice().reverse().map((a) => ({
+                target: a.target,
+                key: a.key,
+                had: a.hasNext,
+                previous: a.next,
+                hasNext: a.had,
+                next: a.previous,
+            })),
+        };
+        revert(last);
+        this.push(edit);
+        this.settle(edit.entities);
+        this.emit(edit);
+        return true;
     }
 
     undo(): string | null {

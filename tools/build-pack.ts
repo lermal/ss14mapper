@@ -158,7 +158,7 @@ async function main(): Promise<void> {
         const name = t.name === undefined ? undefined : game.localize(String(t.name));
         tiles[id] = { name: name ?? id, sprite, variants, isSubfloor: truthy(t.isSubfloor ?? false) };
         // ContentTileDefinition.MapAtmosphere: the game treats such tiles (space, lattice) as open space
-        if (truthy(t.isSpace ?? false)) tiles[id].isSpace = true;
+        if (game.tileIsSpace(id)) tiles[id].isSpace = true;
         const mass = t.mass !== undefined ? Number(t.mass) : physics.tileMass;
         if (mass !== null && !Number.isNaN(mass)) tiles[id].mass = mass;
     }

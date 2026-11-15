@@ -7,6 +7,8 @@
 // Copied entities keep their map component overrides (YAML text) and everything parented to them (container
 // contents included). Pasting gives new uids; references between copied entities are renamed to the new
 // uids, references to entities that were not copied are dropped.
+import type { Pack } from "../pack/loader";
+import { decalSize, mirrorDecal, mirrorEntity, mirrorPoint, mirrorTileRotation, snapMirrorAxis, type MirrorAxis } from "./mirror";
 import type { DecalProps, NewDecal } from "../map/decals";
 import type { MapDocument, TileEdit } from "../map/document";
 import { entryText, parseDocument, type YEntry, type YItem, type YMap, type YNode } from "../map/yaml";
@@ -370,6 +372,40 @@ export function pasteClip(doc: MapDocument, clip: Clip, target: PasteTarget, kno
     });
     result.missing = [...missing].sort();
     return result;
+}
+
+/** Reflects a paste in the current grid view, then stores the result relative to its existing anchor. */
+export function flipClip(clip: Clip, turns: number, axis: MirrorAxis, pack: Pack): Clip {
+    const plan = pastePlan(clip, { grid: 0, anchor: [0, 0], turns });
+    const index = axis === "horizontal" ? 0 : 1;
+    // Use tile centres before flooring: the anchor can itself lie at a half tile.
+    const tilePoints = clip.tiles.map((tile) => turnPoint([tile.x, tile.y], [0, 0], turns));
+    let low = Infinity, high = -Infinity;
+    for (const at of [...tilePoints, ...plan.entities.map((e) => e.at), ...plan.decals.map((d) => d.at)]) {
+        low = Math.min(low, at[index]);
+        high = Math.max(high, at[index]);
+    }
+    if (low === Infinity) return clip;
+    const coordinate = snapMirrorAxis((low + high) / 2);
+    const centre: Point = axis === "horizontal" ? [coordinate, 0] : [0, coordinate];
+    return {
+        ...clip,
+        entities: plan.entities.map(({ entity, at, rot }) => {
+            const [x, y] = mirrorPoint(at, centre, axis);
+            const look = mirrorEntity(pack, entity.proto, rot, axis);
+            return { ...entity, x, y, proto: look.proto, rot: look.angle };
+        }),
+        tiles: clip.tiles.map((tile, i) => {
+            const [x, y] = mirrorPoint(tilePoints[i]!, centre, axis);
+            return { ...tile, x, y, rot: mirrorTileRotation(turnTileRotation(tile.rot, turns), axis) };
+        }),
+        decals: plan.decals.map(({ decal, at, angle }) => {
+            const [x, y] = mirrorPoint(at, centre, axis);
+            const look = mirrorDecal(pack, { ...decal, angle }, axis);
+            const [w, h] = look.proto === decal.proto ? [decal.w, decal.h] : decalSize(pack, look.proto);
+            return { ...decal, ...look, x, y, w, h };
+        }),
+    };
 }
 
 /** Where the anchor of a clipboard goes for a point on a grid: the nearest point of its lattice. */

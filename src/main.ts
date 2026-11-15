@@ -350,7 +350,7 @@ async function showNow(load: number): Promise<void> {
         await updateParallax(doc, pack);
         if (load !== loading) return;
         loadingScreen.hide();
-        controller.open({ name: current.name, doc, scene, pack });
+        controller.open({ name: current.name, libraryId: current.id, doc, scene, pack });
         // development: the open map for the console and measurements
         if (import.meta.env.DEV) Object.assign(window, { mapper: { doc, scene, map, pack, palette, controller, inspector, shell, library } });
         controller.fit();

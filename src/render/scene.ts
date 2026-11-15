@@ -924,15 +924,7 @@ export class Scene {
         this.smoothCache.delete(k);
 
         const c = e.c;
-        const layer = layersOverride(c);
-        const nodes: Array<[string, number, number]> = [];
-        for (const nd of Object.values<any>(c.NodeContainer?.nodes ?? {})) {
-            if (!nd || typeof nd !== "object" || nd.pipeDirection === undefined) continue;
-            if (isFalse(nd.connectionsEnabled)) continue;
-            let mask = pipeMask(nd);
-            if (!isFalse(nd.rotationsEnabled)) mask = rotatePipe(mask, lrot);
-            nodes.push([nd.nodeGroupID ?? "Pipe", layer ?? pipeLayerOf(nd.pipeLayer), mask]);
-        }
+        const nodes = pipeConnectionsAtRotation(c, lrot);
         if (nodes.length) this.pipeNodes.set(uid, nodes);
     }
 
@@ -1280,7 +1272,12 @@ export class Scene {
                 // ThrusterSystem.NozzleExposed → TurfSystem.IsSpace, the tile prototype's `isSpace`
                 const nx = Math.floor(lx - Math.sin(lrot)), ny = Math.floor(ly + Math.cos(lrot));
                 const behind = this.gridTiles.get(g)?.get(`${nx},${ny}`);
-                on = !behind || !!(this.pack.tile(behind[0]) as { isSpace?: boolean } | null)?.isSpace;
+                const tile = behind && this.pack.tile(behind[0]);
+                // Triad's angled lattice has no isSpace flag in its pack. Treat its four corner tiles
+                // as open for the powered preview, just like ordinary lattice.
+                on = !behind || !!tile?.isSpace ||
+                    (this.pack.manifest.fork.repo?.toLowerCase() === "https://github.com/triad-sector/triad_sector" &&
+                        /^LatticeCorner(?:NE|NW|SE|SW)$/.test(behind[0]));
             }
             if (on) setLayers("enum.ThrusterVisualLayers.ThrustOn", { visible: true });
         }
@@ -1439,5 +1436,19 @@ const rotatePipe = (mask: number, rot: number) => {
     });
     return out;
 };
+
+/** Enabled pipe connections on the grid, including fixed-direction nodes. */
+export function pipeConnectionsAtRotation(c: any, rotation: number): Array<[string, number, number]> {
+    const layer = layersOverride(c);
+    const nodes: Array<[string, number, number]> = [];
+    for (const nd of Object.values<any>(c.NodeContainer?.nodes ?? {})) {
+        if (!nd || typeof nd !== "object" || nd.pipeDirection === undefined) continue;
+        if (isFalse(nd.connectionsEnabled)) continue;
+        let mask = pipeMask(nd);
+        if (!isFalse(nd.rotationsEnabled)) mask = rotatePipe(mask, rotation);
+        nodes.push([nd.nodeGroupID ?? "Pipe", layer ?? pipeLayerOf(nd.pipeLayer), mask]);
+    }
+    return nodes;
+}
 
 const cableKind = (e: Ent | undefined) => e?.c.CableVisualizer?.statePrefix ?? null;
