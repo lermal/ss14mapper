@@ -145,6 +145,10 @@ export class OptionsBar {
             parts.push(muted("Holding"), h("span", o.holding ? "chip text" : "chip empty", o.holding ?? "nothing"));
             parts.push(check("Show links", c.layer("links"), (on) => c.setLayer("links", on)));
         }
+        if (o.tool === "brush" || o.tool === "eraser" || o.tool === "shapes") {
+            const modes = [["off", "Off"], ["horizontal", "Left–right"], ["vertical", "Top–bottom"], ["both", "Both"]] as const;
+            parts.push(h("span", "ob-sep"), muted("Mirror"), seg("Mirror", modes, o.mirror, (mode) => c.setMirrorMode(mode)));
+        }
         parts.push(h("span", "ob-grow"));
         if (selectionTool) {
             const none = !o.selection;

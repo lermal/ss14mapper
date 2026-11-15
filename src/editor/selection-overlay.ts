@@ -308,6 +308,8 @@ export interface GhostIcon {
     frame: Frame | null;
     /** Scale the icon to a tile (tiles) rather than keeping texture pixels (entities). */
     fit: boolean;
+    alpha?: number;
+    mirror?: boolean;
 }
 
 /**
@@ -339,7 +341,10 @@ export function drawPasteGhost(c: OverlayContext, grid: number, icons: readonly 
         const s = i.fit ? (PPM * k) / Math.max(fw, fh) : k;
         g.setTransform(base);
         g.translate(sx, sy);
-        g.rotate(-(gridRot + i.rot));
+        g.globalAlpha = i.alpha ?? 0.7;
+        g.rotate(-gridRot);
+        if (i.mirror) g.scale(-1, 1);
+        g.rotate(-i.rot);
         g.drawImage(img, fx, fy, fw, fh, (-fw / 2) * s, (-fh / 2) * s, fw * s, fh * s);
         drawn++;
     }
@@ -467,6 +472,7 @@ export function drawCellGhosts(
     fit: boolean,
     color: string,
     drawAt: ((x: number, y: number) => void) | null = null,
+    mirror = false,
 ): void {
     const { g, map, scene } = c;
     const { at, view } = gridScreen(c, grid);
@@ -498,7 +504,9 @@ export function drawCellGhosts(
         const [sx, sy] = at(x + 0.5, y + 0.5);
         g.setTransform(base);
         g.translate(sx, sy);
-        g.rotate(-(gridRot + rotation));
+        g.rotate(-gridRot);
+        if (mirror) g.scale(-1, 1);
+        g.rotate(-rotation);
         g.drawImage(img, fx, fy, fw, fh, (-fw / 2) * s, (-fh / 2) * s, fw * s, fh * s);
         drawn++;
     }

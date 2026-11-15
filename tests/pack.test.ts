@@ -561,6 +561,28 @@ describe.each(["upstream", "frontier", "goob"])("pack %s", (fork) => {
     });
 });
 
+it("inherits the space flag of a tile and honors explicit overrides", () => {
+    write("Resources/Prototypes/test-tile-inheritance.yml", `
+- type: tile
+  id: TestSpaceLattice
+  isSpace: true
+- type: tile
+  id: TestCorner
+  parent: TestSpaceLattice
+- type: tile
+  id: TestPlatedCorner
+  parent: TestCorner
+  isSpace: false
+- type: tile
+  id: TestSolid
+  baseTurf: TestCorner
+`);
+    const checkout = new Checkout(root);
+    expect(checkout.tileIsSpace("TestCorner")).toBe(true);
+    expect(checkout.tileIsSpace("TestPlatedCorner")).toBe(false);
+    expect(checkout.tileIsSpace("TestSolid")).toBe(false);
+});
+
 describe("container data", () => {
     it("keeps container kinds written without fields and leaves other empty tags alone", () => {
         const game = new Checkout(root);

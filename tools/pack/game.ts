@@ -241,6 +241,24 @@ export class Checkout {
         return this.protos.get(type)?.get(id);
     }
 
+    /** Whether a tile is exposed to the atmosphere, including through a parent tile. */
+    tileIsSpace(id: string): boolean {
+        const seen = new Set<string>();
+        const field = (id: string): unknown => {
+            if (seen.has(id)) return undefined;
+            seen.add(id);
+            const tile = this.proto("tile", id);
+            if (!tile) return undefined;
+            if (tile.isSpace !== undefined) return tile.isSpace;
+            for (const parent of list(tile.parent)) {
+                const inherited = field(parent);
+                if (inherited !== undefined) return inherited;
+            }
+            return undefined;
+        };
+        return truthy(field(id));
+    }
+
     /**
      * Entity prototype with its parents applied. The engine pushes parents in order onto the child and keeps
      * values already set, so the first parent listed wins; component fields merge.

@@ -191,6 +191,8 @@ export class Shell {
                         "-",
                         cmd("Rotate clockwise", "edit.rotateCw", !st.canRotate),
                         cmd("Rotate counter-clockwise", "edit.rotateCcw", !st.canRotate),
+                        cmd("Flip horizontally", "edit.flipHorizontal", st.busy || (none && !c.options.pasting)),
+                        cmd("Flip vertically", "edit.flipVertical", st.busy || (none && !c.options.pasting)),
                         "-",
                         cmd("Select all", "select.all", !st.open),
                         cmd("Deselect", "select.none", none),

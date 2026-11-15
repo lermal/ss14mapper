@@ -43,6 +43,8 @@ export const ACTIONS: readonly ActionDef[] = [
     { id: "tool.shapeRect", label: "Rectangle", group: "Shapes", defaults: ["Shift+KeyM"] },
     { id: "tool.shapeEllipse", label: "Ellipse", group: "Shapes", defaults: ["Shift+KeyE"] },
     { id: "tool.shapeFill", label: "Outline or filled", group: "Shapes", defaults: ["KeyF"] },
+    { id: "edit.flipHorizontal", label: "Flip horizontally", group: "Editing", defaults: [] },
+    { id: "edit.flipVertical", label: "Flip vertically", group: "Editing", defaults: [] },
     { id: "edit.rotateCw", label: "Rotate clockwise", group: "Editing", defaults: ["KeyR", "Mouse1"] },
     { id: "edit.rotateCcw", label: "Rotate counter-clockwise", group: "Editing", defaults: ["Shift+KeyR", "Shift+Mouse1"] },
     { id: "edit.delete", label: "Delete", group: "Editing", defaults: ["Delete", "Backspace"] },

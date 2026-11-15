@@ -31,6 +31,8 @@
 // Copy, cut and paste go through the browser's clipboard events when bound to Ctrl+C/X/V, so the clipboard
 // text reaches other tabs without asking for permission; other bindings use the Clipboard API, and an
 // in-memory copy stands in when neither is available.
+import { turnTileRotation } from "./group";
+import { decalSize, type MirrorAxis, type MirrorMode } from "./mirror";
 import type { DecalProps } from "../map/decals";
 import type { MapDocument } from "../map/document";
 import type { Frame, Pack } from "../pack/loader";
@@ -45,7 +47,7 @@ import { showToast } from "../ui/toast";
 import { Contents, contentsKit } from "./contents";
 import { chordOfKey, chordOfMouse, formatChord, type Keymap, type KeyStorage } from "./keymap";
 import { loadPrefs, savePrefs } from "./prefs";
-import { clipCounts, clipText, readClip, type Clip, type PasteKnown } from "./clipboard";
+import { clipCounts, flipClip, clipText, readClip, type Clip, type PasteKnown } from "./clipboard";
 import { cellOf, FILTER_KINDS, type Combine, type Kind, type SelectFilter } from "./selection";
 import { ClickCycle, describe, nextIndex, type StackItem, type StackKind, type StackOptions } from "./stack";
 import { PickMenu } from "../ui/pick-menu";
@@ -64,6 +66,7 @@ export type { ShapeKind } from "./shapes";
 /** An open map. */
 export interface Session {
     name: string;
+    libraryId?: string | null;
     doc: MapDocument;
     scene: Scene;
     pack: Pack;
@@ -132,6 +135,7 @@ export type Aid = "grid" | "centre" | "direction";
 /** What the options bar of the active tool shows. */
 export interface ToolOptions {
     tool: Tool;
+    mirror: MirrorMode;
     marquee: MarqueeShape;
     filter: SelectFilter;
     contiguous: boolean;
@@ -195,6 +199,7 @@ type Gesture =
     | { kind: "pan"; x: number; y: number; view: { x: number; y: number; scale: number }; moved: boolean; then?: () => void }
     | { kind: "press"; uid: number; x: number; y: number }
     | { kind: "move" }
+    | { kind: "mirrorAxis"; grid: number; axis: MirrorAxis; original: Point; press: PointerEvent; start: Point; moved: boolean }
     | { kind: "place"; proto: string }
     | { kind: "paint"; tile: string }
     | { kind: "erase"; what: "entities" | "decals" }
@@ -230,6 +235,10 @@ const typing = (t: EventTarget | null) =>
 
 export class EditorController {
     private session: Session | null = null;
+    private mirrorMode: MirrorMode = "off";
+    private mirrorHintShown = false;
+    private readonly mapAxes = new WeakMap<MapDocument, Map<number, Point>>();
+    private readonly libraryAxes = new Map<string, Map<number, Point>>();
     private editor: Editor | null = null;
     private unsubscribe: (() => void) | null = null;
     private choice: PaletteChoice = null;
@@ -415,6 +424,11 @@ export class EditorController {
             opaque: (frame, tx, ty) => (map.frameAlpha(frame, tx, ty) ?? 255) >= ALPHA_HIT,
         });
         this.editor.moveSnap = this.decalSnap;
+        this.editor.mirrorMode = this.mirrorMode;
+        const axes = this.mapAxes.get(doc) ?? (session.libraryId ? this.libraryAxes.get(session.libraryId) : undefined);
+        if (axes) for (const [grid, centre] of axes) this.editor.mirrorAxes.set(grid, centre);
+        this.mapAxes.set(doc, this.editor.mirrorAxes);
+        if (session.libraryId) this.libraryAxes.set(session.libraryId, this.editor.mirrorAxes);
         if (keep) this.editor.selected.assign(keep);
         this.editor.validate();
         this.areas = new GridMass(scene);
@@ -544,6 +558,7 @@ export class EditorController {
         const sel = editor?.selected;
         return {
             tool: this.tool,
+            mirror: this.mirrorMode,
             marquee: this.marquee,
             filter: this.filter,
             contiguous: this.contiguous,
@@ -596,6 +611,62 @@ export class EditorController {
     setFilled(on: boolean): void {
         this.filled = on;
         this.refresh();
+    }
+
+    setMirrorMode(mode: MirrorMode): void {
+        if (mode === this.mirrorMode) return;
+        this.endGesture(false);
+        this.mirrorMode = mode;
+        if (this.editor) this.editor.mirrorMode = mode;
+        this.refresh();
+    }
+
+    private mirrorLines(): Array<{ grid: number; axis: MirrorAxis; from: Point; to: Point }> {
+        const editor = this.editor;
+        if (!editor || this.mirrorMode === "off" || !["brush", "eraser", "shapes"].includes(this.tool) || this.pasting) return [];
+        const lines: Array<{ grid: number; axis: MirrorAxis; from: Point; to: Point }> = [];
+        for (const grid of editor.scene.grids) {
+            const area = this.areas?.area(grid);
+            const [x0, y0, x1, y1] = area ?? [-3, -3, 3, 3];
+            const [x, y] = editor.mirrorCentre(grid);
+            if (this.mirrorMode !== "vertical") lines.push({ grid, axis: "horizontal", from: [x, y0 - 1], to: [x, y1 + 1] });
+            if (this.mirrorMode !== "horizontal") lines.push({ grid, axis: "vertical", from: [x0 - 1, y], to: [x1 + 1, y] });
+        }
+        return lines;
+    }
+
+    private mirrorLineAt(world: Point) {
+        const scene = this.session!.scene;
+        const tolerance = 5 / (this.el.map.view.scale * PPM);
+        let best: ReturnType<EditorController["mirrorLines"]>[number] | null = null;
+        let nearest = tolerance;
+        for (const line of this.mirrorLines()) {
+            const [x, y] = scene.toLocal(line.grid, ...world);
+            const [x0, y0] = line.from, [x1, y1] = line.to;
+            const d = Math.hypot(x - Math.max(x0, Math.min(x, x1)), y - Math.max(y0, Math.min(y, y1)));
+            if (d < nearest) {
+                best = line;
+                nearest = d;
+            }
+        }
+        return best;
+    }
+
+    private drawMirrorLines(c: OverlayContext): void {
+        const lines = this.mirrorLines();
+        if (!lines.length) return;
+        const { g, map, scene } = c;
+        g.save();
+        g.setLineDash([7, 5]);
+        g.lineWidth = 2;
+        g.strokeStyle = "#7fd4ff";
+        g.beginPath();
+        for (const { grid, from, to } of lines) {
+            g.moveTo(...map.screenAt(...scene.toWorld(grid, ...from)));
+            g.lineTo(...map.screenAt(...scene.toWorld(grid, ...to)));
+        }
+        g.stroke();
+        g.restore();
     }
 
     setEraseKind(kind: EraseKind): void {
@@ -840,6 +911,8 @@ export class EditorController {
         this.handle("edit.nudgeRight", () => this.nudge(1, 0));
         this.handle("edit.rotateCw", () => this.rotate(-1));
         this.handle("edit.rotateCcw", () => this.rotate(1));
+        this.handle("edit.flipHorizontal", () => this.flip("horizontal"));
+        this.handle("edit.flipVertical", () => this.flip("vertical"));
         this.handle("edit.delete", () => this.remove());
         this.handle("edit.undo", () => this.undo());
         this.handle("edit.redo", () => this.redo());
@@ -963,6 +1036,15 @@ export class EditorController {
             this.decalBrush = { ...this.decalBrush, angle: (norm * Math.PI) / 180 };
             this.refresh();
         } else if (this.editor.rotateSelection(turns)) this.say(turns < 0 ? "Rotated clockwise" : "Rotated counter-clockwise");
+    }
+
+    private flip(axis: MirrorAxis): void {
+        const editor = this.editor;
+        if (!editor || editor.busy || this.gesture) return;
+        if (this.pasting) this.pasting = { clip: flipClip(this.pasting.clip, this.pasting.turns, axis, editor.pack), turns: 0 };
+        else if (!editor.flipSelection(axis)) return;
+        if (this.pasting?.clip.entities.length || editor.selected.entities.size) this.showMirrorHint();
+        this.refresh();
     }
 
     remove(): void {
@@ -1279,6 +1361,12 @@ export class EditorController {
         this.setInto(this.pointerInto());
     }
 
+    private showMirrorHint(): void {
+        if (this.mirrorHintShown) return;
+        this.mirrorHintShown = true;
+        this.say("Entity sprites use the closest available rotation when mirrored");
+    }
+
     private setInto(into: { uid: number; ok: boolean; text: string } | null): void {
         const was = this.into;
         if (was?.uid === into?.uid && was?.ok === into?.ok && was?.text === into?.text) return;
@@ -1397,43 +1485,53 @@ export class EditorController {
                 );
             }
         } else if (e.button === 0) {
-            const at: [number, number] = [e.clientX, e.clientY];
-            if (this.pasting) this.placePaste(w);
-            else if (mode === "link") this.multitoolClick(w, e.shiftKey);
-            else if (mode === "sample") this.sample(w, at);
-            else if (e.altKey && this.choice && (mode === "place" || mode === "paint" || mode === "decal")) this.sample(w, at, [CHOICE_KIND[this.choice.kind]]);
-            else if ((e.ctrlKey || e.metaKey) && mode === "place" && this.choice) {
-                const item = { proto: this.choice.id };
-                const into = this.intoAt(w, item);
-                if (into) this.putInto(into.uid, item);
-                else this.message = this.contents ? "No container here" : "Loading container data";
+            const axis = !e.altKey && !e.ctrlKey && !e.metaKey && this.mirrorLineAt(w);
+            if (axis) {
+                this.gesture = { kind: "mirrorAxis", grid: axis.grid, axis: axis.axis, original: editor.mirrorCentre(axis.grid), press: e, start: w, moved: false };
+                return this.refresh();
             }
-            else if (mode === "shape") {
-                const brush = this.brush();
-                if (brush) this.startShape(this.shapeKind, brush.kind === "entity" ? { ...brush, id: this.layered(brush.id, w) } : brush, w);
-                else this.message = PICK_FIRST;
-            } else if (mode === "decal") {
-                this.gesture = { kind: "decal", start: w, end: w, x: e.clientX, y: e.clientY, moved: false };
-                this.message = "";
-            } else if (mode === "select") {
-                this.message = "";
-                this.selectPress(e, w);
-            } else if (mode === "place" && this.choice) {
-                // a drag keeps the pipe layer of its first tile, as the game's line placement
-                const proto = this.layered(this.choice.id, w);
-                this.gesture = { kind: "place", proto };
-                this.message = "";
-                editor.beginStroke("Place");
-                if (editor.place(proto, ...w, this.placeRotation) === null) {
-                    this.message = editor.placeTarget(proto, ...w) ? `${proto} is already there` : "Needs a tile";
-                }
-            } else if (mode === "paint" && this.choice) this.startPaint(this.choice.id, w);
-            else if (mode === "erase") {
-                if (this.eraseKind === "tiles") this.startPaint("Space", w);
-                else this.startErase(this.eraseKind, w);
-            } else if (mode === "idle") this.message = PICK_FIRST;
+            this.leftPress(e, w);
         }
         this.refresh();
+    }
+
+    private leftPress(e: PointerEvent, w: Point): void {
+        const editor = this.editor!, mode = this.mode;
+        const at: [number, number] = [e.clientX, e.clientY];
+        if (this.pasting) this.placePaste(w);
+        else if (mode === "link") this.multitoolClick(w, e.shiftKey);
+        else if (mode === "sample") this.sample(w, at);
+        else if (e.altKey && this.choice && (mode === "place" || mode === "paint" || mode === "decal")) this.sample(w, at, [CHOICE_KIND[this.choice.kind]]);
+        else if ((e.ctrlKey || e.metaKey) && mode === "place" && this.choice) {
+            const item = { proto: this.choice.id };
+            const into = this.intoAt(w, item);
+            if (into) this.putInto(into.uid, item);
+            else this.message = this.contents ? "No container here" : "Loading container data";
+        }
+        else if (mode === "shape") {
+            const brush = this.brush();
+            if (brush) this.startShape(this.shapeKind, brush.kind === "entity" ? { ...brush, id: this.layered(brush.id, w) } : brush, w);
+            else this.message = PICK_FIRST;
+        } else if (mode === "decal") {
+            this.gesture = { kind: "decal", start: w, end: w, x: e.clientX, y: e.clientY, moved: false };
+            this.message = "";
+        } else if (mode === "select") {
+            this.message = "";
+            this.selectPress(e, w);
+        } else if (mode === "place" && this.choice) {
+            // a drag keeps the pipe layer of its first tile, as the game's line placement
+            const proto = this.layered(this.choice.id, w);
+            this.gesture = { kind: "place", proto };
+            this.message = "";
+            editor.beginStroke("Place");
+            if (editor.place(proto, ...w, this.placeRotation) === null) {
+                this.message = editor.placeTarget(proto, ...w) ? `${proto} is already there` : "Needs a tile";
+            }
+        } else if (mode === "paint" && this.choice) this.startPaint(this.choice.id, w);
+        else if (mode === "erase") {
+            if (this.eraseKind === "tiles") this.startPaint("Space", w);
+            else this.startErase(this.eraseKind, w);
+        } else if (mode === "idle") this.message = PICK_FIRST;
     }
 
     /**
@@ -1545,6 +1643,9 @@ export class EditorController {
             if (g.kind === "pan") {
                 if (Math.hypot(e.clientX - g.x, e.clientY - g.y) >= DRAG_PX) g.moved = true;
                 this.el.map.setView({ ...g.view, x: g.view.x + e.clientX - g.x, y: g.view.y + e.clientY - g.y });
+            } else if (g.kind === "mirrorAxis") {
+                g.moved ||= Math.hypot(e.clientX - g.press.clientX, e.clientY - g.press.clientY) >= DRAG_PX;
+                if (g.moved) editor.moveMirrorAxis(g.grid, g.axis, w);
             } else if (g.kind === "press") {
                 if (Math.hypot(e.clientX - g.x, e.clientY - g.y) >= DRAG_PX) {
                     this.cycle.reset();
@@ -1601,10 +1702,16 @@ export class EditorController {
 
     /** Ends the gesture in progress: committed as one undo step, or reverted with `revert`. */
     private endGesture(revert: boolean): void {
-        const g = this.gesture;
+        let g = this.gesture;
+        if (!revert && g?.kind === "mirrorAxis" && !g.moved) {
+            this.gesture = null;
+            this.leftPress(g.press, g.start);
+            g = this.gesture;
+        }
         this.gesture = null;
         if (g?.kind === "pan" && !g.moved && !revert) g.then?.();
         const editor = this.editor;
+        if (editor && revert && g?.kind === "mirrorAxis") editor.mirrorAxes.set(g.grid, g.original);
         if (editor && !revert) {
             if (g?.kind === "marquee") {
                 if (g.moved) editor.selectArea(this.areaOf(g), this.filter, g.op);
@@ -1619,6 +1726,7 @@ export class EditorController {
                 const n = editor.drawShape(g.shape, g.filled, g.brush, g.start, g.end, this.placeRotation, g.constrain);
                 const what = g.brush.kind !== "tile" ? `Placed ${n} ${g.brush.id}` : g.brush.id === "Space" ? `Erased ${n} tiles` : `Painted ${n} tiles`;
                 this.message = n ? what : "Nothing changed";
+                if (n && g.brush.kind === "entity" && this.mirrorMode !== "off") this.showMirrorHint();
             }
         }
         // Ctrl held on the drop: into the container under the cursor instead
@@ -1631,7 +1739,10 @@ export class EditorController {
         }
         if (editor?.busy) {
             if (revert) editor.cancel();
-            else if (editor.finish() && (g?.kind === "move" || g?.kind === "groupMove")) this.message = "Moved";
+            else if (editor.finish()) {
+                if (g?.kind === "move" || g?.kind === "groupMove") this.message = "Moved";
+                if (g?.kind === "place" && this.mirrorMode !== "off") this.showMirrorHint();
+            }
         }
         this.refresh();
     }
@@ -1719,7 +1830,7 @@ export class EditorController {
         canvas.style.cursor =
             g?.kind === "pan" ? "grabbing"
             : this.spaceHeld ? "grab"
-            : g?.kind === "move" || g?.kind === "groupMove" ? "move"
+            : g?.kind === "move" || g?.kind === "groupMove" || g?.kind === "mirrorAxis" || (!g && editor && this.hover && this.mirrorLineAt(this.hover)) ? "move"
             : mode === "select" && this.selTool === "pointer" && g?.kind !== "marquee" && !this.pasting ? "default"
             : mode === "link" ? (this.hoverDevice !== null ? "pointer" : "default")
             : mode === "idle" ? "not-allowed"
@@ -1791,6 +1902,7 @@ export class EditorController {
         g.imageSmoothingEnabled = false;
         this.drawAids(g, tilePx);
         const c: OverlayContext = { g, map: this.el.map, scene: s.scene, width: this.el.canvas.clientWidth, height: this.el.canvas.clientHeight };
+        this.drawMirrorLines(c);
         this.drawSelection(c);
         this.drawLinks(c);
         this.drawMenuHover(c);
@@ -1800,38 +1912,50 @@ export class EditorController {
         if (gesture?.kind === "shape") return this.drawShapeGhost(c, gesture);
         if (gesture?.kind === "decal") return this.drawDecalGhost(c, gesture.start, gesture.moved ? gesture.end : null);
         if (this.pasting && this.hover && !gesture) return this.drawPasteGhost(c, this.pasting, this.hover);
-        if (!this.hover || gesture?.kind === "pan" || gesture?.kind === "move" || gesture?.kind === "groupMove") return;
+        if (!this.hover || gesture?.kind === "pan" || gesture?.kind === "move" || gesture?.kind === "groupMove" || gesture?.kind === "mirrorAxis") return;
         if (mode === "decal") return this.drawDecalGhost(c, this.hover, null);
         if (mode === "place" && this.choice) {
             if (this.into) return;
-            const t = editor.placeTarget(this.choice.id, ...this.hover);
+            const t = editor.placeTarget(this.choice.id, ...this.hover, this.mirrorMode !== "off");
             if (!t) return;
             const proto = this.layered(this.choice.id, this.hover);
             const gridRot = s.scene.worldTransform(t.grid)!.rot;
             this.outlineTile(g, { grid: t.grid, x: Math.floor(t.x), y: Math.floor(t.y) }, "rgba(255,255,255,0.5)", null);
             // the game draws the guides of the pipe layers under the ghost
             if (this.pipeLayer === null && layerPrototypes(s.pack, this.choice.id)) this.drawLayerGuides(g, t, gridRot, this.cursorLayer(this.choice.id, this.hover));
-            // the entity as it would look placed; its icon when it draws nothing
-            const layers = s.scene.preview(proto, t.grid, t.x, t.y, this.placeRotation);
-            const frame = layers.length ? null : entityIcon(s.pack, proto);
-            if (layers.length) this.el.map.drawSprites(g, layers, [0, 0], 0.6);
-            else if (frame) this.drawFrame(g, frame, s.scene.toWorld(t.grid, t.x, t.y), this.placeRotation + gridRot, tilePx / PPM, 0.6);
+            for (const copy of editor.entityBrush(t.grid, [[t.x, t.y]], proto, this.placeRotation)) {
+                const layers = s.scene.preview(copy.proto, t.grid, copy.x, copy.y, copy.angle);
+                const alpha = copy.flip ? 0.4 : 0.6;
+                if (copy.flip) this.outlineTile(g, { grid: t.grid, x: Math.floor(copy.x), y: Math.floor(copy.y) }, "#7fd4ff", null);
+                if (layers.length) this.el.map.drawSprites(g, layers, [0, 0], alpha);
+                else {
+                    const frame = entityIcon(s.pack, copy.proto);
+                    if (frame) this.drawFrame(g, frame, s.scene.toWorld(t.grid, copy.x, copy.y), copy.angle + gridRot, tilePx / PPM, alpha);
+                }
+            }
         } else if (mode === "erase" && this.eraseKind === "entities") {
-            const uid = editor.entityAt(...this.hover);
-            if (uid !== null) boxEntities(c, [uid], ERASE_COLOR, 2);
+            for (const { at, grid } of editor.erasePoints(...this.hover)) {
+                const uid = editor.entityAt(...at, grid === null ? undefined : (u) => s.scene.placement(u)?.grid === grid);
+                if (uid !== null) boxEntities(c, [uid], ERASE_COLOR, 2);
+            }
         } else if (mode === "erase" && this.eraseKind === "decals") {
-            const d = editor.decalUnder(...this.hover);
-            if (d) this.outlineDecal(c, d, ERASE_COLOR);
+            for (const { at, grid } of editor.erasePoints(...this.hover)) {
+                const d = editor.decalUnder(...at, grid);
+                if (d) this.outlineDecal(c, d, ERASE_COLOR);
+            }
         } else if (mode === "paint" || mode === "erase") {
             const t = editor.tileTarget(...this.hover);
             if (!t) return;
             const tile = mode === "paint" ? this.choice?.id : undefined;
             const frame = tile ? tileIcon(s.pack, tile) : null;
-            if (frame) {
-                const fit = tilePx / Math.max(frame[3], frame[4]);
-                this.drawFrame(g, frame, s.scene.toWorld(t.grid, t.x + 0.5, t.y + 0.5), s.scene.worldTransform(t.grid)!.rot, fit, 0.7);
+            const gridRot = s.scene.worldTransform(t.grid)!.rot;
+            for (const cell of editor.tileBrush(t.grid, [[t.x, t.y]])) {
+                if (frame) {
+                    const fit = tilePx / Math.max(frame[3], frame[4]);
+                    this.drawFrame(g, frame, s.scene.toWorld(t.grid, cell.x + 0.5, cell.y + 0.5), gridRot, fit, cell.flip ? 0.4 : 0.7, cell.rotationMirroring);
+                }
+                this.outlineTile(g, { grid: t.grid, ...cell }, mode === "erase" ? "#ff6b6b" : "#7fd4ff", mode === "erase" ? "rgba(255,80,80,0.25)" : null);
             }
-            this.outlineTile(g, t, mode === "erase" ? "#ff6b6b" : "#7fd4ff", mode === "erase" ? "rgba(255,80,80,0.25)" : null);
         }
     }
 
@@ -1999,7 +2123,10 @@ export class EditorController {
         if (!target) return;
         const plan = editor.pastePreview(p.clip, target);
         const icons: GhostIcon[] = [
-            ...plan.tiles.map((t) => ({ x: t.x + 0.5, y: t.y + 0.5, rot: 0, frame: tileIcon(s.pack, t.tile.name), fit: true })),
+            ...plan.tiles.map((t) => {
+                const rotation = s.doc.format >= 7 ? turnTileRotation(t.tile.rot, target.turns) : 0;
+                return { x: t.x + 0.5, y: t.y + 0.5, rot: (rotation & 3) * Math.PI / 2, mirror: !!(rotation & 4), frame: tileIcon(s.pack, t.tile.name), fit: true };
+            }),
             ...plan.entities.map((e) => ({ x: e.at[0], y: e.at[1], rot: e.rot, frame: entityIcon(s.pack, e.entity.proto), fit: false })),
         ];
         const boxes = plan.decals.map((d) => ({ x: d.at[0], y: d.at[1], w: d.decal.w, h: d.decal.h, rot: d.angle }));
@@ -2012,6 +2139,34 @@ export class EditorController {
         const shape = this.editor!.shapeTiles(g.shape, g.filled, g.start, g.end, g.constrain);
         if (!shape) return;
         const { brush } = g;
+        if (this.mirrorMode !== "off") {
+            const editor = this.editor!;
+            const { grid, cells } = shape;
+            if (brush.kind === "decal") return this.drawDecalBrushGhost(c, grid, cells, brush.props);
+            if (brush.kind === "tile") {
+                const frame = brush.id === "Space" ? null : tileIcon(s.pack, brush.id);
+                const color = brush.id === "Space" ? ERASE_COLOR : "#7fd4ff";
+                const tiles = editor.tileBrush(grid, cells);
+                for (const rm of new Set(tiles.map((tile) => tile.rotationMirroring))) {
+                    const group = tiles.filter((tile) => tile.rotationMirroring === rm);
+                    drawCellGhosts(c, grid, group.map(({ x, y }) => [x, y]), frame, (rm & 3) * Math.PI / 2, true, color, null, !!(rm & 4));
+                }
+                return;
+            }
+            const copies = editor.entityBrush(grid, cells.map(([x, y]) => [x + 0.5, y + 0.5]), brush.id, this.placeRotation);
+            for (const flip of new Set(copies.map((e) => e.flip))) {
+                const group = copies.filter((e) => e.flip === flip);
+                const { proto, angle } = group[0]!;
+                const layers = s.scene.preview(proto, grid, 0.5, 0.5, angle);
+                const [ox, oy] = s.scene.toWorld(grid, 0.5, 0.5);
+                const drawAt = layers.length ? (x: number, y: number) => {
+                    const [wx, wy] = s.scene.toWorld(grid, x + 0.5, y + 0.5);
+                    this.el.map.drawSprites(c.g, layers, [wx - ox, wy - oy], 0.55);
+                } : null;
+                drawCellGhosts(c, grid, group.map(({ x, y }) => [Math.floor(x), Math.floor(y)]), entityIcon(s.pack, proto), angle, false, "#7fd4ff", drawAt);
+            }
+            return;
+        }
         const frame =
             brush.kind === "entity" ? entityIcon(s.pack, brush.id) : brush.kind === "decal" ? decalIcon(s.pack, brush.id) : brush.id === "Space" ? null : tileIcon(s.pack, brush.id);
         const color = brush.kind === "tile" && brush.id === "Space" ? "#ff6b6b" : "#7fd4ff";
@@ -2030,17 +2185,22 @@ export class EditorController {
 
     /** Decals the brush would place: at a point, or along a line to `end`. */
     private drawDecalGhost(c: OverlayContext, start: Point, end: Point | null): void {
-        const s = this.session!, editor = this.editor!;
+        const editor = this.editor!;
         const b = this.decalBrush;
         const line = end ? editor.decalLine(start, end, this.decalSnap) : null;
         const one = line ? null : editor.decalTarget(...start, this.decalSnap);
         const grid = line?.grid ?? one?.grid;
         if (grid === undefined) return;
-        const frame = decalIcon(s.pack, b.proto);
-        const [w, h] = frame ? [frame[3] / PPM, frame[4] / PPM] : [1, 1];
-        const points = editor.decalSpots(grid, line ? line.points : [[one!.x, one!.y]]);
-        const icons: GhostIcon[] = points.map(([x, y]) => ({ x: x + w / 2, y: y + h / 2, rot: b.angle, frame, fit: false }));
-        drawPasteGhost(c, grid, icons, points.map(([x, y]) => ({ x: x + w / 2, y: y + h / 2, w, h, rot: b.angle })));
+        this.drawDecalBrushGhost(c, grid, line ? line.points : [[one!.x, one!.y]], b);
+    }
+
+    private drawDecalBrushGhost(c: OverlayContext, grid: number, points: readonly Point[], props: DecalProps): void {
+        const { pack } = this.session!;
+        const plan = this.editor!.decalBrush(grid, points, props).map((d) => {
+            const [w, h] = decalSize(pack, d.props.proto);
+            return { x: d.x + w / 2, y: d.y + h / 2, w, h, rot: d.props.angle, frame: decalIcon(pack, d.props.proto), fit: false, alpha: d.flip ? 0.4 : 0.7 };
+        });
+        drawPasteGhost(c, grid, plan, plan);
     }
 
     /** The game's guide circles of the pipe layers in a tile, the one the cursor picks filled. */
@@ -2081,7 +2241,7 @@ export class EditorController {
     }
 
     /** A texture frame centred at a world point, turned by `rot` (radians, counter-clockwise), `k` CSS px per texture px. */
-    private drawFrame(g: CanvasRenderingContext2D, frame: Frame, at: [number, number], rot: number, k: number, alpha: number): void {
+    private drawFrame(g: CanvasRenderingContext2D, frame: Frame, at: [number, number], rot: number, k: number, alpha: number, tileRotation = 0): void {
         const [page, fx, fy, fw, fh] = frame;
         const img = this.el.map.pageImage(page);
         if (!img) return;
@@ -2090,6 +2250,8 @@ export class EditorController {
         g.globalAlpha = alpha;
         g.translate(x, y);
         g.rotate(-rot);
+        if (tileRotation & 4) g.scale(-1, 1);
+        if (tileRotation & 3) g.rotate(-(tileRotation & 3) * Math.PI / 2);
         g.drawImage(img, fx, fy, fw, fh, (-fw / 2) * k, (-fh / 2) * k, fw * k, fh * k);
         g.restore();
     }

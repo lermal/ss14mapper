@@ -7,6 +7,8 @@
 // Selected tiles move on their own grid: the cells they cover take their tile with its variant and rotation,
 // the cells they leave become space. After a move the selection "floats" (as in image editors): what its tiles
 // covered is remembered (`under`), so the next move of the same selection gives those cells their tiles back.
+import type { Pack } from "../pack/loader";
+import { decalSize, mirrorDecal, mirrorEntity, mirrorPoint, mirrorTileRotation, snapMirrorAxis, type MirrorAxis } from "./mirror";
 import type { DecalProps } from "../map/decals";
 import type { MapDocument, TileEdit, Transform } from "../map/document";
 import { PPM, type Scene } from "../render/scene";
@@ -388,17 +390,22 @@ export class Group {
      * Moves decals (bottom left corners, on their grids) where they are not yet, and turns them (`angle`), with
      * one edit per grid; follows their ids.
      */
-    private writeDecals(moves: ReadonlyArray<{ d: DecalItem; x: number; y: number; angle?: number }>): void {
-        const byGrid = new Map<number, Array<{ d: DecalItem; x: number; y: number; angle?: number; from: string }>>();
+    private writeDecals(moves: ReadonlyArray<{ d: DecalItem; x: number; y: number; angle?: number; proto?: string }>): void {
+        const byGrid = new Map<number, Array<{ d: DecalItem; x: number; y: number; angle?: number; proto?: string; from: string }>>();
         for (const m of moves) {
             const now = this.decalsNow.get(`${m.d.grid}|${m.d.id}`) ?? { id: m.d.id, x: m.d.x, y: m.d.y };
-            if (now.x === m.x && now.y === m.y && m.angle === undefined) continue;
+            if (now.x === m.x && now.y === m.y && m.angle === undefined && m.proto === undefined) continue;
             let list = byGrid.get(m.d.grid);
             if (!list) byGrid.set(m.d.grid, (list = []));
             list.push({ ...m, from: now.id });
         }
         for (const [g, list] of byGrid) {
-            const ids = this.doc.editDecals(g, list.map((m) => ({ id: m.from, x: m.x, y: m.y, ...(m.angle !== undefined ? { props: { angle: m.angle } } : {}) })));
+            const ids = this.doc.editDecals(g, list.map((m) => {
+                const props: Partial<DecalProps> = {};
+                if (m.angle !== undefined) props.angle = m.angle;
+                if (m.proto !== undefined) props.proto = m.proto;
+                return { id: m.from, x: m.x, y: m.y, props };
+            }));
             list.forEach((m, i) => {
                 this.decalsNow.set(`${g}|${m.d.id}`, { id: ids[i]!, x: m.x, y: m.y });
                 if (m.x === m.d.x && m.y === m.d.y && m.angle === undefined) this.reverted = true;
@@ -467,7 +474,7 @@ export class Group {
     // Turning and deleting
 
     /** Centre of the group in its frame; on the tile lattice when it snaps, so tiles turn onto tiles. */
-    centre(): Point | null {
+    centre(snap = this.snaps): Point | null {
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         const add = ([x, y]: Point, r: number) => {
             x0 = Math.min(x0, x - r);
@@ -488,7 +495,7 @@ export class Group {
         }
         if (x0 === Infinity) return null;
         const c: Point = [(x0 + x1) / 2, (y0 + y1) / 2];
-        return this.snaps ? latticeCentre(c) : c;
+        return snap ? latticeCentre(c) : c;
     }
 
     /**
@@ -547,6 +554,59 @@ export class Group {
                 this.doc.rotateEntity(m.uid, quarterTurn(from.rotation, turns));
             }
             this.writeTiles(turned);
+            this.clearSpaceDecals();
+        });
+        return cellTo;
+    }
+
+    /** Reflects each part on its grid, about the selection's centre projected onto that grid. */
+    flip(axis: MirrorAxis, pack: Pack): ((grid: number, x: number, y: number) => [number, number]) | null {
+        const centre = this.centre(false);
+        if (!centre) return null;
+        const worldCentre = this.fromFrame(centre);
+        const centres = new Map<number | null, Point>();
+        const reflect = (grid: number | null, at: Point): Point => {
+            let c = centres.get(grid);
+            if (!c) {
+                const [x, y] = grid === null ? worldCentre : this.scene.toLocal(grid, ...worldCentre);
+                centres.set(grid, (c = [snapMirrorAxis(x), snapMirrorAxis(y)]));
+            }
+            return mirrorPoint(at, c, axis);
+        };
+        const cellTo = (grid: number, x: number, y: number): [number, number] => {
+            const [tx, ty] = reflect(grid, [x + 0.5, y + 0.5]);
+            return [Math.floor(tx), Math.floor(ty)];
+        };
+        const flipped: TileMap = new Map();
+        for (const [grid, cells] of this.tiles) {
+            const dest = new Map<number, TileValue>();
+            for (const [key, tile] of cells) {
+                const rot = this.doc.format >= 7 ? mirrorTileRotation(tile.rot, axis) : tile.rot;
+                dest.set(cellKey(...cellTo(grid, ...cellOf(key))), { ...tile, rot });
+            }
+            flipped.set(grid, dest);
+        }
+        this.doc.batch(axis === "horizontal" ? "Flip horizontally" : "Flip vertically", () => {
+            this.writeDecals(this.decals.map((d) => {
+                const [cx, cy] = reflect(d.grid, [d.x + d.w / 2, d.y + d.h / 2]);
+                const props = mirrorDecal(pack, d.props, axis);
+                const [w, h] = props.proto === d.props.proto ? [d.w, d.h] : decalSize(pack, props.proto);
+                return { d, x: cx - w / 2, y: cy - h / 2, proto: props.proto, angle: props.angle };
+            }));
+            for (const m of this.movers) {
+                const parent = m.from.parent!;
+                const grid = m.anchored ?? this.scene.placement(m.uid)?.grid ?? this.ref;
+                const position = grid === parent ? [m.from.x, m.from.y] as Point : grid === null ? m.world : this.scene.toLocal(grid, ...m.world);
+                const at = reflect(grid, position);
+                const moved = grid === parent ? at : this.scene.toLocal(parent, ...(grid === null ? at : this.scene.toWorld(grid, ...at)));
+                const relative = grid === parent ? 0 : (this.scene.worldTransform(parent)?.rot ?? 0) - (grid === null ? 0 : this.scene.worldTransform(grid)?.rot ?? 0);
+                const proto = this.doc.proto(m.uid)!;
+                const look = mirrorEntity(pack, proto, m.from.rotation + relative, axis);
+                if (proto !== look.proto) this.doc.changePrototype(m.uid, look.proto);
+                if (moved[0] !== m.from.x || moved[1] !== m.from.y) this.doc.moveEntity(m.uid, ...moved);
+                this.doc.rotateEntity(m.uid, look.angle - relative);
+            }
+            this.writeTiles(flipped);
             this.clearSpaceDecals();
         });
         return cellTo;
