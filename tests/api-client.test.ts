@@ -126,4 +126,18 @@ describe("ApiClient", () => {
         const s = server([]);
         expect(s.api.signInUrl("http://localhost:8769/?open=a&x=1")).toBe("http://api.test/auth/github?return=http%3A%2F%2Flocalhost%3A8769%2F%3Fopen%3Da%26x%3D1");
     });
+
+    it("sends a bug report as JSON and downloads a map with the session", async () => {
+        const s = server([json(201, { id: 3, status: "new" }), () => new Response("meta: 1\n", { status: 200 }), json(404, { message: "Not found." })]);
+        await s.api.sendBugReport({ title: "T", description: "D", page_url: "http://x/", build: "frontier", user_agent: "UA", map: "a: 1\n" });
+        const post = s.calls.find((c) => c.url === "http://api.test/bug-reports")!;
+        expect(post.method).toBe("POST");
+        expect(JSON.parse(post.body!)).toMatchObject({ title: "T", build: "frontier", map: "a: 1\n" });
+
+        const blob = await s.api.bugMap(3);
+        expect(await blob.text()).toBe("meta: 1\n");
+        expect(s.calls.at(-1)!.url).toBe("http://api.test/admin/bug-reports/3/map");
+        expect(s.calls.at(-1)!.credentials).toBe("include");
+        await expect(s.api.bugMap(4)).rejects.toMatchObject({ status: 404, message: "Not found." });
+    });
 });

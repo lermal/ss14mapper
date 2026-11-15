@@ -1,7 +1,7 @@
 // The account in the headers of the start screen and the editor: Sign in with GitHub, or the user's menu (Your
 // builds, Add a build, Manage builds for the maintainer, Sign out), and the dialogs behind it.
-import { adminMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
-import { ApiError, type AdminFork, type Api, type ForkStatus, type Me, type MyFork } from "../api/client";
+import { adminMeta, BUG_TABS, bugMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
+import { ApiError, type AdminFork, type Api, type BugReport, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
 import { dialog } from "./dialog";
 import { button, h, icon, ICON } from "./icons";
 import { popupMenu, type MenuItem } from "./menus";
@@ -39,6 +39,10 @@ const STYLE = `
 .dlg .fb-approve .dlg-field.id { flex: 0 0 120px; }
 .dlg .fb-approve input:disabled { color: var(--muted); }
 .dlg .fb-note { margin-top: 10px; color: var(--muted); font-size: 12px; }
+.dlg textarea { min-height: 120px; resize: vertical; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--input); color: var(--text); font: 13px/1.4 var(--font); }
+.dlg .fb-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-2); font-size: 13px; }
+.dlg .fb-desc { color: var(--text-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
+.dlg .fb-row.top { align-items: flex-start; }
 .dlg .fb-empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); }
 `;
 
@@ -58,7 +62,12 @@ export interface AccountHooks {
     signedOut(): void;
     /** After Manage builds closes: the public build list may have changed. */
     buildsChanged(): void;
+    /** What a bug report carries from the editor: the current build and the open map (null when none). */
+    bugContext(): { build: string; buildName(id: string): string; mapName: string | null; mapText(): string | null };
 }
+
+/** The attached map's size limit (the API's). */
+const MAX_MAP = 20 * 1024 * 1024;
 
 function field(label: string, control: HTMLElement, cls = ""): HTMLElement {
     const l = h("label", `dlg-field${cls ? ` ${cls}` : ""}`);
@@ -199,10 +208,13 @@ export class Account {
         const items: MenuItem[] = [
             { label: "Your builds…", run: () => void this.yourBuilds() },
             { label: "Add a build…", run: () => void this.addBuild() },
+            { label: "Report a bug…", run: () => void this.reportBug() },
         ];
         if (me.maintainer) {
             const n = me.pending ?? 0;
             items.push({ label: "Manage builds…", ...(n > 0 ? { note: `${n} waiting for approval` } : {}), run: () => void this.manageBuilds() });
+            const bugs = me.bugs ?? 0;
+            items.push({ label: "Bug reports…", ...(bugs > 0 ? { note: `${bugs} new` } : {}), run: () => void this.bugReports() });
         }
         items.push("-", { label: "Sign out", run: () => void this.signOut() });
         return items;
@@ -236,21 +248,25 @@ export class Account {
 
     // ---- Add a build
 
-    async addBuild(): Promise<void> {
+    /** Signed out: offers to sign in (true when the visitor is signed in and may go on). */
+    private async needSignIn(title: string, what: string): Promise<boolean> {
         await this.ready;
-        if (!this.me) {
-            const go = await dialog(
-                "Add a build",
-                ["Sign in with GitHub to add a build."],
-                [
-                    { label: "Cancel", value: false },
-                    { label: "Sign in", value: true, kind: "primary" },
-                ],
-                false,
-            );
-            if (go) await this.signIn();
-            return;
-        }
+        if (this.me) return true;
+        const go = await dialog(
+            title,
+            [`Sign in with GitHub to ${what}.`],
+            [
+                { label: "Cancel", value: false },
+                { label: "Sign in", value: true, kind: "primary" },
+            ],
+            false,
+        );
+        if (go) await this.signIn();
+        return false;
+    }
+
+    async addBuild(): Promise<void> {
+        if (!(await this.needSignIn("Add a build", "add a build"))) return;
         const repo = textInput("", "https://github.com/owner/repository");
         repo.dataset.autofocus = "";
         const branch = textInput("", "Default branch");
@@ -297,6 +313,76 @@ export class Account {
         showToast("Build submitted. It will appear after approval.", undefined, 6000);
     }
 
+    // ---- Report a bug
+
+    async reportBug(): Promise<void> {
+        if (!(await this.needSignIn("Report a bug", "report a bug"))) return;
+        const ctx = this.hooks.bugContext();
+        const title = textInput("", "Short summary");
+        title.dataset.autofocus = "";
+        title.maxLength = 150;
+        const text = h("textarea");
+        text.placeholder = "What happened, and what you expected instead";
+        text.maxLength = 5000;
+        const attach = h("input");
+        attach.type = "checkbox";
+        attach.checked = true;
+        const check = h("label", "fb-check");
+        check.append(attach, `Attach the open map (${ctx.mapName ?? ""})`);
+        check.hidden = ctx.mapName === null;
+        const error = h("div", "fb-error");
+        error.hidden = true;
+        error.setAttribute("role", "alert");
+        const fail = (message: string) => {
+            error.textContent = message;
+            error.hidden = false;
+            return false;
+        };
+        const send = async (submit: boolean): Promise<boolean> => {
+            if (!submit) return true;
+            const subject = title.value.trim();
+            const description = text.value.trim();
+            if (!subject) return fail("Enter a title.");
+            if (!description) return fail("Describe the problem.");
+            const report: BugReportInput = { title: subject, description, page_url: location.href, build: ctx.build, user_agent: navigator.userAgent };
+            if (ctx.mapName !== null && attach.checked) {
+                const map = ctx.mapText();
+                if (map !== null) {
+                    if (map.length > MAX_MAP) return fail("The map is larger than 20 MB. Send the report without it.");
+                    report.map_name = ctx.mapName;
+                    report.map = map;
+                }
+            } else if (ctx.mapName !== null) report.map_name = ctx.mapName;
+            try {
+                await this.api.sendBugReport(report);
+            } catch (e) {
+                if (e instanceof ApiError && e.status === 401) {
+                    this.lost();
+                    return fail("You are signed out. Sign in with GitHub to report a bug.");
+                }
+                return fail(messageOf(e));
+            }
+            return true;
+        };
+        const ok = await dialog(
+            "Report a bug",
+            [
+                field("Title", title),
+                field("Description", text),
+                check,
+                error,
+                h("p", "fb-hint", "The report includes the page address, the build and your browser version."),
+            ],
+            [
+                { label: "Cancel", value: false },
+                { label: "Send", value: true, kind: "primary" },
+            ],
+            false,
+            { check: send, width: 480 },
+        );
+        if (ok) showToast("Thanks. The report was sent.", undefined, 6000);
+    }
+
     // ---- Your builds
 
     async yourBuilds(): Promise<void> {
@@ -318,6 +404,106 @@ export class Account {
         const r = h("div", "fb-row");
         r.append(rowText(f.name, myBuildMeta(f), s.reason), badge(s));
         return r;
+    }
+
+    // ---- Bug reports (maintainer)
+
+    async bugReports(): Promise<void> {
+        let reports: BugReport[] | null = null;
+        let tab: BugStatus | null = "new";
+        const tabs = h("div", "fb-tabs");
+        const list = h("div", "fb-list");
+        list.append(h("p", "dlg-muted", "Loading…"));
+
+        const render = () => {
+            const all = reports ?? [];
+            tabs.replaceChildren(
+                ...BUG_TABS.map((t) => {
+                    const b = button("", t.label, "", () => {
+                        tab = t.status;
+                        render();
+                    });
+                    b.append(h("span", "n", String(t.status ? all.filter((r) => r.status === t.status).length : all.length)));
+                    b.setAttribute("aria-pressed", String(t.status === tab));
+                    return b;
+                }),
+            );
+            if (!reports) return;
+            const shown = tab ? all.filter((r) => r.status === tab) : all;
+            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", "No reports")]));
+        };
+
+        const refresh = async () => {
+            reports = await this.api.adminBugReports();
+            if (this.me?.maintainer) this.me.bugs = reports.filter((r) => r.status === "new").length;
+            render();
+        };
+
+        /** Runs an action of a row, then lists the reports again; a failure is told in a notice. */
+        const act = async (r: HTMLElement, action: () => Promise<unknown>) => {
+            for (const b of r.querySelectorAll("button")) b.disabled = true;
+            try {
+                await action();
+                await refresh();
+            } catch (e) {
+                if (e instanceof ApiError && e.status === 401) this.lost();
+                showToast(messageOf(e), undefined, 6000);
+                for (const b of r.querySelectorAll("button")) b.disabled = false;
+            }
+        };
+
+        const download = async (r: BugReport, b: HTMLButtonElement) => {
+            b.disabled = true;
+            try {
+                const blob = await this.api.bugMap(r.id);
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = r.mapName || "map.yml";
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+            } catch (e) {
+                if (e instanceof ApiError && e.status === 401) this.lost();
+                showToast(messageOf(e), undefined, 6000);
+            }
+            b.disabled = false;
+        };
+
+        const remove = async (r: BugReport, el: HTMLElement) => {
+            const sure = await dialog(
+                "Delete report?",
+                [`${r.title} and its attached map will be deleted.`],
+                [
+                    { label: "Cancel", value: false },
+                    { label: "Delete", value: true, kind: "danger" },
+                ],
+                false,
+            );
+            if (sure) await act(el, () => this.api.removeBug(r.id));
+        };
+
+        const row = (r: BugReport): HTMLElement => {
+            const el = h("div", "fb-row top");
+            el.dataset.id = String(r.id);
+            const t = h("div", "fb-text");
+            const n = h("span", "fb-name", r.title);
+            n.title = r.title;
+            t.append(n, h("span", "fb-meta", bugMeta(r, this.hooks.bugContext().buildName)), h("span", "fb-desc", r.description));
+            el.append(t);
+            if (r.hasMap) el.append(button("btn", "Map", "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
+            if (r.status === "new") el.append(button("btn", "Mark fixed", "", () => void act(el, () => this.api.markBugFixed(r.id))));
+            el.append(button("btn danger", "Delete", "", () => void remove(r, el)));
+            return el;
+        };
+
+        render();
+        const shown = dialog<void>("Bug reports", [tabs, list], [{ label: "Close", value: undefined }], undefined, { width: 720 });
+        try {
+            await refresh();
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 401) this.lost();
+            list.replaceChildren(h("div", "fb-error", messageOf(e)));
+        }
+        await shown;
     }
 
     // ---- Manage builds

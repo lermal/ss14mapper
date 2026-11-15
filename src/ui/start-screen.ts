@@ -1,5 +1,6 @@
 // The start screen, shown while no map is open: the build, a new map, opening or dropping a map file, and the
 // maps kept in this browser (one click opens one).
+import { creditLink } from "./credit";
 import { button, h, icon, ICON } from "./icons";
 import { formatSize, formatWhen, type LibraryEntry } from "./library";
 import type { Fork } from "./shell";
@@ -54,6 +55,8 @@ const STYLE = `
 .start .st-recent:hover { border-color: var(--border-strong); background: var(--raised); }
 .start .st-recent .st-meta { color: var(--muted); font-size: 12px; }
 .start .st-none { padding: 12px; border: 1px dashed var(--border-strong); border-radius: 8px; color: var(--muted); font-size: 13px; }
+.start .site-credit { position: fixed; right: 16px; bottom: 16px; z-index: 90; padding: 6px 12px; background: rgba(36, 36, 36, 0.8); color: #a29778; font: 600 12px/1.2 var(--font); letter-spacing: 0.02em; text-decoration: none; clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); }
+.start .site-credit:hover { color: #f2f4f1; background: rgba(36, 36, 36, 0.95); }
 `;
 
 let styleAdded = false;
@@ -113,7 +116,7 @@ export class StartScreen {
         aside.append(heads, this.recent);
         cols.append(left, aside);
         main.append(cols);
-        container.append(top, main);
+        container.append(top, main, creditLink("site-credit"));
     }
 
     setForks(forks: Fork[], current: string): void {

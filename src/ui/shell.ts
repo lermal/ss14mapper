@@ -4,6 +4,7 @@
 import { LAYERS, type EditorController, type Layer } from "../editor/controller";
 import { describeChord, type Keymap } from "../editor/keymap";
 import { MenuBar, popupMenu, type MenuItem } from "./menus";
+import { creditLink } from "./credit";
 import { button, h, icon, ICON } from "./icons";
 import { MARQUEE_SHAPES, OptionsBar, SHAPE_KINDS, TOOLS } from "./options-bar";
 
@@ -27,6 +28,8 @@ export interface ShellHooks {
     about(): void;
     /** File > Add a build…; absent without accounts. */
     addBuild?(): void;
+    /** Help > Report a bug…; absent without accounts. */
+    reportBug?(): void;
 }
 
 const LAYER_DEFS: ReadonlyArray<[Layer, string, string]> = [
@@ -90,6 +93,8 @@ const STYLE = `
 .statusbar { display: flex; align-items: center; gap: 16px; height: 28px; flex: none; padding: 0 12px; box-sizing: border-box; background: var(--panel); border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; }
 .statusbar .sb-build { color: var(--muted); text-decoration: none; }
 .statusbar .sb-build[href]:hover { color: var(--accent-text); text-decoration: underline; }
+.statusbar .sb-credit { flex: none; margin-left: auto; color: #a29778; font-weight: 600; letter-spacing: 0.02em; text-decoration: none; }
+.statusbar .sb-credit:hover { color: #f2f4f1; }
 .statusbar .sb-cursor { font-family: var(--mono); min-width: 110px; white-space: pre; }
 .statusbar .sb-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .statusbar .sb-missing { display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border: 1px solid #5a4a22; border-radius: var(--radius-s); background: #2a2416; color: var(--warn); font-size: 12px; }
@@ -215,6 +220,7 @@ export class Shell {
                 label: "Help",
                 items: () => [
                     { label: "Keyboard shortcuts", keys: keys("help.shortcuts"), run: () => hooks.shortcuts() },
+                    ...(hooks.reportBug ? [{ label: "Report a bug…", run: () => hooks.reportBug?.() }] : []),
                     "-",
                     { label: "About SS14 Mapper", run: () => hooks.about() },
                 ],
@@ -284,7 +290,7 @@ export class Shell {
             this.toggleMissing();
         });
         this.missingBtn.hidden = true;
-        statusbar.append(this.cursor, this.hint, this.counts, this.build, this.missingBtn);
+        statusbar.append(this.cursor, this.hint, this.counts, this.build, this.missingBtn, creditLink("sb-credit"));
 
         // ---- layers and zoom on the map
         controls.classList.add("map-controls");

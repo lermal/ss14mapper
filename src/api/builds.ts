@@ -1,5 +1,5 @@
 // What the build lists show, without DOM: the state badge of a submitted build, its meta line, relative times.
-import type { AdminFork, BuildState, ForkStatus } from "./client";
+import type { AdminFork, BugReport, BugStatus, BuildState, ForkStatus } from "./client";
 
 export type StateTone = "ready" | "failed" | "wait" | "";
 
@@ -85,3 +85,33 @@ export const MANAGE_TABS: ReadonlyArray<{ label: string; status: ForkStatus }> =
 
 /** The ID a build can be given: what the API accepts. */
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,40}$/;
+
+/** "Chrome 142", "Firefox 140", "Safari 17", "Edge 142", "Opera 120" from a user agent; "" when it is not a known browser. */
+export function browserName(ua: string | null | undefined): string {
+    if (!ua) return "";
+    // Edge, Opera and Firefox on iOS also say Chrome or Safari, so they are looked for first
+    const known: Array<[string, RegExp]> = [
+        ["Edge", /\bEdg(?:e|A|iOS)?\/(\d+)/],
+        ["Opera", /\bOPR\/(\d+)/],
+        ["Firefox", /\b(?:Firefox|FxiOS)\/(\d+)/],
+        ["Chrome", /(?:Chrome|CriOS)\/(\d+)/],
+        ["Safari", /\bVersion\/(\d+)[^]*\bSafari\//],
+    ];
+    for (const [name, re] of known) {
+        const m = re.exec(ua);
+        if (m) return `${name} ${m[1]}`;
+    }
+    return "";
+}
+
+/** The meta line of a bug report: who sent it, from which build and map, in which browser, and when. */
+export function bugMeta(r: Pick<BugReport, "user" | "build" | "mapName" | "userAgent" | "createdAt">, buildName: (id: string) => string = (id) => id, now = Date.now()): string {
+    return [r.user ?? "deleted user", r.build && buildName(r.build), r.mapName, browserName(r.userAgent), relativeTime(r.createdAt, now)].filter(Boolean).join(" · ");
+}
+
+/** Tabs of Bug reports; `status` null lists all. */
+export const BUG_TABS: ReadonlyArray<{ label: string; status: BugStatus | null }> = [
+    { label: "New", status: "new" },
+    { label: "Fixed", status: "fixed" },
+    { label: "All", status: null },
+];

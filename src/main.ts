@@ -185,7 +185,7 @@ const shell = new Shell(
             const f = controller.current?.pack.manifest.fork;
             void showAbout(f ? `${forkName(f.id)}, ${f.branch} at ${f.commit.slice(0, 7)}` : "");
         },
-        ...(api ? { addBuild: () => void account?.addBuild() } : {}),
+        ...(api ? { addBuild: () => void account?.addBuild(), reportBug: () => void account?.reportBug() } : {}),
     },
 );
 controller.onRefresh = () => shell.update();
@@ -252,6 +252,12 @@ const account = api
           signedIn: (me) => void sync?.start(me.id),
           signedOut: () => sync?.stop(),
           buildsChanged: () => void refreshForks(),
+          bugContext: () => ({
+              build: controller.current?.pack.manifest.fork?.id ?? fork(),
+              buildName: forkName,
+              mapName: controller.current?.name ?? null,
+              mapText: () => controller.text(),
+          }),
       })
     : null;
 if (account) {

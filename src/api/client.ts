@@ -87,6 +87,13 @@ export class ApiClient {
         return this.parse<T>(r);
     }
 
+    /** Fetches a file (a signed-in download); resolves with its bytes or throws an ApiError. */
+    async blob(path: string): Promise<Blob> {
+        const r = await this.send("GET", path, {});
+        if (r.ok) return r.blob();
+        return this.parse<never>(r);
+    }
+
     private ensureCsrf(again: boolean): Promise<void> {
         if (again || !this.csrf) {
             const p = this.send("GET", "/sanctum/csrf-cookie", {}).then(async (r) => {
@@ -148,6 +155,8 @@ export interface Me {
     maintainer: boolean;
     /** Builds waiting for approval (maintainers only). */
     pending?: number;
+    /** Bug reports not yet fixed (maintainers only). */
+    bugs?: number;
 }
 
 export type SettingsKind = "keys" | "categories";
@@ -181,6 +190,33 @@ export interface AdminFork {
     submitterIp: string | null;
     createdAt: string | null;
     build: { id: number; state: BuildState; commit: string | null; reason: string | null; startedAt: string | null; finishedAt: string | null } | null;
+}
+
+export type BugStatus = "new" | "fixed";
+
+export interface BugReport {
+    id: number;
+    title: string;
+    description: string;
+    status: BugStatus;
+    user: string | null;
+    pageUrl: string | null;
+    build: string | null;
+    mapName: string | null;
+    hasMap: boolean;
+    userAgent: string | null;
+    createdAt: string | null;
+}
+
+/** What the site sends with a bug report; the map is the open map's text. */
+export interface BugReportInput {
+    title: string;
+    description: string;
+    page_url: string;
+    build: string;
+    map_name?: string;
+    user_agent: string;
+    map?: string;
 }
 
 export type AdminAction = "reject" | "hide" | "unhide" | "rebuild";
@@ -239,6 +275,27 @@ export class Api {
 
     remove(id: number): Promise<unknown> {
         return this.client.request("DELETE", `/admin/forks/${id}`);
+    }
+
+    sendBugReport(report: BugReportInput): Promise<{ id: number; status: BugStatus }> {
+        return this.client.request("POST", "/bug-reports", { body: report });
+    }
+
+    /** All bug reports, newest first (the tabs are counted from this). */
+    adminBugReports(): Promise<BugReport[]> {
+        return this.client.request("GET", "/admin/bug-reports?status=all");
+    }
+
+    bugMap(id: number): Promise<Blob> {
+        return this.client.blob(`/admin/bug-reports/${id}/map`);
+    }
+
+    markBugFixed(id: number): Promise<unknown> {
+        return this.client.request("POST", `/admin/bug-reports/${id}/fixed`);
+    }
+
+    removeBug(id: number): Promise<unknown> {
+        return this.client.request("DELETE", `/admin/bug-reports/${id}`);
     }
 }
 
