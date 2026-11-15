@@ -53,6 +53,7 @@ import { decalCorners, drawArea, drawCellGhosts, drawGhostLayers, drawPasteGhost
 import type { Area, Point, ShapeKind } from "./shapes";
 import { MassCache, type MassMode } from "./mass-cache";
 import { Editor, decalBrushDefaults, type Brush, type DecalSnap, type GridPoint } from "./tools";
+import { layerForOffset, layerGuides, layerPrototypes } from "./pipe-layers";
 export type { DecalSnap } from "./tools";
 import { arrow, arrowLength, bounds, forwardOnScreen, GridMass, gridLineRanges } from "./view-aids";
 import { boxEntities, drawLinkLines, LINK_COLORS } from "./link-overlay";
@@ -122,8 +123,8 @@ export type EraseKind = "tiles" | "entities" | "decals";
 export type SampleFrom = "any" | "entities" | "tiles" | "decals";
 
 /** View layers: drawing options of the map and aids on the overlay. */
-export type Layer = "subfloor" | "powered" | "grid" | "centre" | "direction" | "links" | "decals" | "parallax";
-export const LAYERS: readonly Layer[] = ["subfloor", "powered", "grid", "centre", "direction", "links", "decals", "parallax"];
+export type Layer = "subfloor" | "markers" | "powered" | "grid" | "centre" | "direction" | "links" | "decals" | "parallax";
+export const LAYERS: readonly Layer[] = ["subfloor", "markers", "powered", "grid", "centre", "direction", "links", "decals", "parallax"];
 
 /** View aids drawn on the overlay. */
 export type Aid = "grid" | "centre" | "direction";
@@ -139,6 +140,8 @@ export interface ToolOptions {
     rotation: number;
     /** Tile variant painted; null: a random one. */
     variant: number | null;
+    /** Pipe layer of entities placed on one (0 primary, 1 secondary, 2 tertiary); null: the one under the cursor. */
+    pipeLayer: number | null;
     decal: DecalProps;
     snap: DecalSnap;
     /** The snap was set by the picked decal's defaults (Defaults on), not chosen. */
@@ -240,6 +243,8 @@ export class EditorController {
     private sampleFrom: SampleFrom = "any";
     /** Tile variant the brush paints; null: random. */
     private variant: number | null = null;
+    /** Pipe layer of entities placed in the AlignAtmosPipeLayers mode; null: picked by the cursor, as in the game. */
+    private pipeLayer: number | null = null;
     private filter: SelectFilter = "all";
     /** Called after every refresh (the shell redraws what changed). */
     onRefresh: (() => void) | null = null;
@@ -545,6 +550,7 @@ export class EditorController {
             choice: this.choice,
             rotation: Math.round((-this.placeRotation * 180) / Math.PI + 360) % 360,
             variant: this.variant,
+            pipeLayer: this.pipeLayer,
             decal: this.decalBrush,
             snap: this.decalSnap,
             snapByDefaults: this.decalAuto && this.snapByDefaults,
@@ -608,6 +614,28 @@ export class EditorController {
         this.refresh();
     }
 
+    setPipeLayer(layer: number | null): void {
+        this.pipeLayer = layer;
+        this.refresh();
+    }
+
+    /**
+     * The prototype placed for `proto` at a world point: for entities placed in the AlignAtmosPipeLayers mode, the
+     * one of the chosen pipe layer, or of the layer the cursor points at within the tile.
+     */
+    private layered(proto: string, w: Point): string {
+        const protos = this.session ? layerPrototypes(this.session.pack, proto) : null;
+        return protos?.[this.pipeLayer ?? this.cursorLayer(proto, w)] ?? proto;
+    }
+
+    /** The pipe layer the game's placement picks for the cursor at a world point (AlignAtmosPipeLayers). */
+    private cursorLayer(proto: string, w: Point): number {
+        const t = this.editor?.placeTarget(proto, ...w);
+        if (!t) return 0;
+        const [cx, cy] = this.session!.scene.toWorld(t.grid, t.x, t.y);
+        return layerForOffset(w[0] - cx, w[1] - cy);
+    }
+
     /** A field of the decal brush changed (the options bar). */
     setDecalBrush(props: Partial<DecalProps>): void {
         this.decalBrush = { ...this.decalBrush, ...props };
@@ -668,6 +696,7 @@ export class EditorController {
         const o = this.el.map.options;
         switch (l) {
             case "subfloor": return o.subfloor;
+            case "markers": return o.markers;
             case "powered": return o.powered;
             case "decals": return o.decals;
             case "links": return this.showLinks;
@@ -677,7 +706,7 @@ export class EditorController {
     }
 
     setLayer(l: Layer, on: boolean): void {
-        if (l === "subfloor" || l === "powered" || l === "decals") this.el.map.setOptions({ [l]: on });
+        if (l === "subfloor" || l === "markers" || l === "powered" || l === "decals") this.el.map.setOptions({ [l]: on });
         else if (l === "links") this.showLinks = on;
         else if (l === "parallax") this.el.parallax?.setEnabled(on);
         else this.aids[l] = on;
@@ -842,6 +871,7 @@ export class EditorController {
         this.handle("view.fit", () => this.fit());
         const toggle = (id: string, l: Layer) => this.handle(id, () => this.setLayer(l, !this.layer(l)));
         toggle("view.subfloor", "subfloor");
+        toggle("view.markers", "markers");
         toggle("view.powered", "powered");
         toggle("view.grid", "grid");
         toggle("view.centre", "centre");
@@ -1311,7 +1341,7 @@ export class EditorController {
         const into = this.intoAt(w, item);
         if (into) this.putInto(into.uid, item);
         else if (w) {
-            const proto = typeof item === "number" ? s.doc.proto(item)! : item.proto;
+            const proto = typeof item === "number" ? s.doc.proto(item)! : this.layered(item.proto, w);
             const t = editor.placeTarget(proto, ...w);
             if (!t) this.message = "Needs a tile";
             else if (typeof item === "number") {
@@ -1380,7 +1410,7 @@ export class EditorController {
             }
             else if (mode === "shape") {
                 const brush = this.brush();
-                if (brush) this.startShape(this.shapeKind, brush, w);
+                if (brush) this.startShape(this.shapeKind, brush.kind === "entity" ? { ...brush, id: this.layered(brush.id, w) } : brush, w);
                 else this.message = PICK_FIRST;
             } else if (mode === "decal") {
                 this.gesture = { kind: "decal", start: w, end: w, x: e.clientX, y: e.clientY, moved: false };
@@ -1389,11 +1419,13 @@ export class EditorController {
                 this.message = "";
                 this.selectPress(e, w);
             } else if (mode === "place" && this.choice) {
-                this.gesture = { kind: "place", proto: this.choice.id };
+                // a drag keeps the pipe layer of its first tile, as the game's line placement
+                const proto = this.layered(this.choice.id, w);
+                this.gesture = { kind: "place", proto };
                 this.message = "";
                 editor.beginStroke("Place");
-                if (editor.place(this.choice.id, ...w, this.placeRotation) === null) {
-                    this.message = editor.placeTarget(this.choice.id, ...w) ? `${this.choice.id} is already there` : "Needs a tile";
+                if (editor.place(proto, ...w, this.placeRotation) === null) {
+                    this.message = editor.placeTarget(proto, ...w) ? `${proto} is already there` : "Needs a tile";
                 }
             } else if (mode === "paint" && this.choice) this.startPaint(this.choice.id, w);
             else if (mode === "erase") {
@@ -1774,10 +1806,16 @@ export class EditorController {
             if (this.into) return;
             const t = editor.placeTarget(this.choice.id, ...this.hover);
             if (!t) return;
-            const frame = entityIcon(s.pack, this.choice.id);
-            const rot = this.placeRotation + s.scene.worldTransform(t.grid)!.rot;
+            const proto = this.layered(this.choice.id, this.hover);
+            const gridRot = s.scene.worldTransform(t.grid)!.rot;
             this.outlineTile(g, { grid: t.grid, x: Math.floor(t.x), y: Math.floor(t.y) }, "rgba(255,255,255,0.5)", null);
-            if (frame) this.drawFrame(g, frame, s.scene.toWorld(t.grid, t.x, t.y), rot, tilePx / PPM, 0.6);
+            // the game draws the guides of the pipe layers under the ghost
+            if (this.pipeLayer === null && layerPrototypes(s.pack, this.choice.id)) this.drawLayerGuides(g, t, gridRot, this.cursorLayer(this.choice.id, this.hover));
+            // the entity as it would look placed; its icon when it draws nothing
+            const layers = s.scene.preview(proto, t.grid, t.x, t.y, this.placeRotation);
+            const frame = layers.length ? null : entityIcon(s.pack, proto);
+            if (layers.length) this.el.map.drawSprites(g, layers, [0, 0], 0.6);
+            else if (frame) this.drawFrame(g, frame, s.scene.toWorld(t.grid, t.x, t.y), this.placeRotation + gridRot, tilePx / PPM, 0.6);
         } else if (mode === "erase" && this.eraseKind === "entities") {
             const uid = editor.entityAt(...this.hover);
             if (uid !== null) boxEntities(c, [uid], ERASE_COLOR, 2);
@@ -1978,7 +2016,16 @@ export class EditorController {
             brush.kind === "entity" ? entityIcon(s.pack, brush.id) : brush.kind === "decal" ? decalIcon(s.pack, brush.id) : brush.id === "Space" ? null : tileIcon(s.pack, brush.id);
         const color = brush.kind === "tile" && brush.id === "Space" ? "#ff6b6b" : "#7fd4ff";
         const rotation = brush.kind === "entity" ? this.placeRotation : brush.kind === "decal" ? brush.props.angle : 0;
-        drawCellGhosts(c, shape.grid, shape.cells, frame, rotation, brush.kind !== "entity", color);
+        // entities as they would look placed, moved from one tile to each
+        const layers = brush.kind === "entity" ? s.scene.preview(brush.id, shape.grid, 0.5, 0.5, rotation) : [];
+        const [ox, oy] = s.scene.toWorld(shape.grid, 0.5, 0.5);
+        const drawAt = layers.length
+            ? (x: number, y: number) => {
+                  const [wx, wy] = s.scene.toWorld(shape.grid, x + 0.5, y + 0.5);
+                  this.el.map.drawSprites(c.g, layers, [wx - ox, wy - oy], 0.6);
+              }
+            : null;
+        drawCellGhosts(c, shape.grid, shape.cells, frame, rotation, brush.kind !== "entity", color, drawAt);
     }
 
     /** Decals the brush would place: at a point, or along a line to `end`. */
@@ -1994,6 +2041,24 @@ export class EditorController {
         const points = editor.decalSpots(grid, line ? line.points : [[one!.x, one!.y]]);
         const icons: GhostIcon[] = points.map(([x, y]) => ({ x: x + w / 2, y: y + h / 2, rot: b.angle, frame, fit: false }));
         drawPasteGhost(c, grid, icons, points.map(([x, y]) => ({ x: x + w / 2, y: y + h / 2, w, h, rot: b.angle })));
+    }
+
+    /** The game's guide circles of the pipe layers in a tile, the one the cursor picks filled. */
+    private drawLayerGuides(g: CanvasRenderingContext2D, t: GridPoint, gridRot: number, picked: number): void {
+        const [cx, cy] = this.session!.scene.toWorld(t.grid, t.x, t.y);
+        const r = Math.max(2, 0.1 * PPM * this.el.map.view.scale);
+        g.save();
+        for (const { dx, dy, layer } of layerGuides(gridRot)) {
+            const [x, y] = this.el.map.screenAt(cx + dx, cy + dy);
+            g.beginPath();
+            g.arc(x, y, r, 0, 2 * Math.PI);
+            g.fillStyle = layer === picked ? "#7fd4ff" : "rgba(0,0,0,0.45)";
+            g.fill();
+            g.lineWidth = 1.5;
+            g.strokeStyle = layer === picked ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.7)";
+            g.stroke();
+        }
+        g.restore();
     }
 
     /** A grid tile's outline (follows the grid's rotation). */

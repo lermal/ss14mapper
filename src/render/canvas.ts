@@ -22,6 +22,8 @@ export interface View {
 export interface CanvasOptions {
     powered: boolean;
     subfloor: boolean;
+    /** Spawn points, spawners and other markers. */
+    markers: boolean;
     tiles: boolean;
     decals: boolean;
     objects: boolean;
@@ -31,6 +33,7 @@ export interface CanvasOptions {
 export function layerVisible(s: SpriteLayer, o: CanvasOptions): boolean {
     if (s.power && (s.power === 1) !== o.powered) return false;
     if (s.subfloor) return o.subfloor;
+    if (s.kind === "marker") return o.markers;
     return o.objects;
 }
 
@@ -81,7 +84,7 @@ export class MapCanvas {
     private probe: CanvasRenderingContext2D | null = null;
     /** Time of the last paint and the chunks it had to render. */
     readonly stats = { paintMs: 0, chunksRendered: 0, areasRepainted: 0 };
-    options: CanvasOptions = { powered: true, subfloor: false, tiles: true, decals: true, objects: true };
+    options: CanvasOptions = { powered: true, subfloor: false, markers: true, tiles: true, decals: true, objects: true };
     view: View = { x: 0, y: 0, scale: 1 };
     /** Drawn on the overlay canvas, which lies over the map; redrawing it never touches the cached chunks. */
     overlay: Overlay | null = null;
@@ -341,6 +344,33 @@ export class MapCanvas {
 
     visible(s: SpriteLayer): boolean {
         return layerVisible(s, this.options);
+    }
+
+    /**
+     * Sprite layers drawn on the overlay context (CSS px), tinted as on the map, moved by a world vector and at an
+     * opacity: placement ghosts. Layers whose page is still loading are left out until it loads.
+     */
+    drawSprites(g: CanvasRenderingContext2D, layers: readonly SpriteLayer[], [dx, dy]: readonly [number, number], alpha: number): void {
+        const frames = this.scene?.frames;
+        if (!frames) return;
+        const k = this.view.scale;
+        g.save();
+        const base = g.getTransform();
+        g.imageSmoothingEnabled = false;
+        for (const s of layers) {
+            const f = frames[s.frame];
+            if (!f || !this.pageImage(f[0])) continue;
+            const src = this.frame(s.frame, s.color);
+            if (!src) continue;
+            const [sx, sy] = this.screenAt(s.x + dx, s.y + dy);
+            g.setTransform(base);
+            g.translate(sx, sy);
+            if (s.rot) g.rotate(-s.rot);
+            if (s.scale) g.scale(s.scale[0], s.scale[1]);
+            g.globalAlpha = alpha * (s.color ? (s.color[3] ?? 1) : 1);
+            g.drawImage(src.img, src.fx, src.fy, src.fw, src.fh, (-src.fw / 2) * k, (-src.fh / 2) * k, src.fw * k, src.fh * k);
+        }
+        g.restore();
     }
 
     /** A frame, tinted when coloured; null while its page is loading. */

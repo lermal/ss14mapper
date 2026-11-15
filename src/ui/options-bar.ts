@@ -3,6 +3,7 @@
 // Rotate, Copy and Delete. Rebuilt when the options change; not while one of its fields has the focus.
 import type { EditorController, EraseKind, MarqueeShape, SampleFrom, SelectedDecals, SelectFilter, ShapeKind, Tool, ToolOptions } from "../editor/controller";
 import type { DecalSnap } from "../editor/tools";
+import { layerPrototypes } from "../editor/pipe-layers";
 import type { DecalProps } from "../map/decals";
 import type { Pack } from "../pack/loader";
 import { joinColor, splitColor } from "./color";
@@ -47,6 +48,7 @@ const FILTERS: ReadonlyArray<[SelectFilter, string]> = [["all", "All"], ["entiti
 const ERASE: ReadonlyArray<[EraseKind, string]> = [["tiles", "Tiles"], ["entities", "Entities"], ["decals", "Decals"]];
 const SAMPLE: ReadonlyArray<[SampleFrom, string]> = [["any", "Any"], ["entities", "Entities"], ["tiles", "Tiles"], ["decals", "Decals"]];
 const SNAPS: ReadonlyArray<[DecalSnap, string]> = [["tile", "Tile"], ["corner", "Corner"], ["free", "Off"]];
+const PIPE_LAYERS: ReadonlyArray<[string, string]> = [["auto", "Auto"], ["0", "Primary"], ["1", "Secondary"], ["2", "Tertiary"]];
 
 const STYLE = `
 .optionsbar { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; box-sizing: border-box; background: var(--panel-2); border-bottom: 1px solid var(--border); flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
@@ -168,7 +170,15 @@ export class OptionsBar {
             const id = h("span", "ob-muted", ch.id);
             chip.append(`${def?.name || ch.id}${def?.suffix ? ` (${def.suffix})` : ""} `, id);
             chip.title = ch.id;
-            return [chip, h("span", "ob-muted", "Rotation"), button("btn small", `${o.rotation}°`, "Rotate clockwise (R)", () => c.run("edit.rotateCw")), h("span", "ob-muted", "Ctrl+click a container: put inside")];
+            const parts: Node[] = [chip, h("span", "ob-muted", "Rotation"), button("btn small", `${o.rotation}°`, "Rotate clockwise (R)", () => c.run("edit.rotateCw"))];
+            // pipes and atmos devices go on one of three pipe layers, picked by the cursor in the tile as in the game
+            if (layerPrototypes(pack, ch.id)) {
+                const layer = seg("Pipe layer", PIPE_LAYERS, o.pipeLayer === null ? "auto" : String(o.pipeLayer), (v) => c.setPipeLayer(v === "auto" ? null : Number(v)));
+                (layer.firstChild as HTMLElement).title = "By cursor position in the tile";
+                parts.push(h("span", "ob-muted", "Layer"), layer);
+            }
+            parts.push(h("span", "ob-muted", "Ctrl+click a container: put inside"));
+            return parts;
         }
         if (ch.kind === "tile") {
             chip.append(ch.id);

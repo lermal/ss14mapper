@@ -4,7 +4,7 @@
 import type { Decal, DecalProps } from "../map/decals";
 import type { MapDocument, Transform } from "../map/document";
 import type { Pack } from "../pack/loader";
-import { PPM, type Scene } from "../render/scene";
+import { pipeNodesOverlap, pipeOverlapNodes, PPM, type Scene } from "../render/scene";
 import { copyParts, pasteClip, pastePlan, snapAnchor, type Clip, type ClipDecal, type ClipTile, type CopyRoot, type PasteKnown, type PasteResult, type PasteTarget } from "./clipboard";
 import { Group, type TileMap } from "./group";
 import { entityAt, type OpaqueTest } from "./hit";
@@ -69,6 +69,9 @@ export function decalCorner(v: number, snap: DecalSnap): number {
 
 /** Group drags up to this many entities and tiles edit the map live; bigger ones show a ghost until dropped. */
 export const LIVE_LIMIT = 400;
+
+/** Whether two rotations (radians) face the same way. */
+const sameAngle = (a: number, b: number) => Math.abs((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI) < 1e-6;
 
 const SHAPE_LABELS: Record<ShapeKind, string> = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" };
 
@@ -575,12 +578,32 @@ export class Editor {
             if (this.visited.has(key) || (this.visited.size && !snaps)) return null;
             this.visited.add(key);
         }
-        const replaced = this.replacedBy(proto, t.grid, tx, ty);
-        if (snaps && this.scene.anchoredAt(t.grid, tx, ty).some((u) => this.doc.proto(u) === proto)) return null;
+        const replaced = this.displaced(proto, t.grid, tx, ty, rotation, snaps);
+        if (replaced === null) return null;
         return this.doc.batch("Place", () => {
             for (const u of replaced) if (this.doc.proto(u) !== undefined) this.doc.deleteEntity(u);
             return this.doc.addEntity(proto, t.grid, t.x, t.y, rotation);
         });
+    }
+
+    /**
+     * Anchored entities on a tile that a new one of `proto`, turned by `rotation` on the grid, takes the place of; null
+     * when it is not placed there (one of that prototype is already there, for pipes one turned the same way).
+     * Pipes (PipeRestrictOverlap) share a tile when their nodes are on other layers or face other ways. A pipe whose
+     * node shares a layer and a direction with one already there would stay unanchored in the game
+     * (PipeRestrictOverlapSystem); here it takes that one's place, as one of the same key does.
+     */
+    private displaced(proto: string, grid: number, x: number, y: number, rotation: number, snaps: boolean): number[] | null {
+        const here = this.scene.anchoredAt(grid, x, y);
+        const id = this.pack.migrate(proto);
+        const comps = id === null ? undefined : this.pack.prototypes.entities[id]?.components;
+        const out = new Set(this.replacedBy(proto, grid, x, y));
+        if (comps?.PipeRestrictOverlap) {
+            if (snaps && here.some((u) => this.doc.proto(u) === proto && sameAngle(this.doc.transform(u).rotation, rotation))) return null;
+            const nodes = pipeOverlapNodes(comps, rotation);
+            for (const u of here) if (pipeNodesOverlap(nodes, this.scene.pipeOverlapNodes(u))) out.add(u);
+        } else if (snaps && here.some((u) => this.doc.proto(u) === proto)) return null;
+        return [...out];
     }
 
     /**
@@ -605,8 +628,8 @@ export class Editor {
     /** Places an entity on the centre of a grid tile, unless an anchored one of that prototype is there. */
     private placeOnTile(proto: string, grid: number, x: number, y: number, rotation: number): boolean {
         if (this.scene.tileAt(grid, x, y) === null) return false;
-        const replaced = this.replacedBy(proto, grid, x, y);
-        if (snapsToTile(this.pack.prototypes.entities[proto]) && this.scene.anchoredAt(grid, x, y).some((u) => this.doc.proto(u) === proto)) return false;
+        const replaced = this.displaced(proto, grid, x, y, rotation, snapsToTile(this.pack.prototypes.entities[proto]));
+        if (replaced === null) return false;
         for (const u of replaced) if (this.doc.proto(u) !== undefined) this.doc.deleteEntity(u);
         this.doc.addEntity(proto, grid, x + 0.5, y + 0.5, rotation);
         return true;

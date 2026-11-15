@@ -37,6 +37,11 @@ export interface EntityPrototype {
     hidden?: true;
     /** Top-level `placement` of the prototype (snapping mode and the like). */
     placement?: Record<string, unknown>;
+    /**
+     * The prototypes defined together with this one by `!type:CreateVariants`, in order, this one among them (a
+     * variant collection: AlignAtmosPipeLayers takes the one of each pipe layer from it). Absent otherwise.
+     */
+    variants?: string[];
     components: Record<string, ComponentData>;
     /**
      * Signal ports once the entity has started: those of its DeviceLinkSource/DeviceLinkSink plus the ones game

@@ -607,6 +607,17 @@ describe("prototype variants", () => {
             { type: "entity", id: "GasPipeStraightAlt1", categories: ["HideSpawnMenu"], components: [{ type: "AtmosPipeLayers", pipeLayer: 1 }] },
         ]);
     });
+
+    it("keeps the variants of one definition together, as the game's variant collections", () => {
+        write(
+            "Resources/Prototypes/Entities/pipes.yml",
+            "- type: entity\n  id: !type:CreateVariants\n    values: [ PipeA, PipeAAlt1, PipeAAlt2 ]\n  components:\n  - type: AtmosPipeLayers\n    pipeLayer: !type:CreateVariants\n      values: [ 0, 1, 2 ]\n",
+        );
+        const game = new Checkout(root);
+        expect(game.entity("PipeAAlt2").components.AtmosPipeLayers).toMatchObject({ pipeLayer: 2 });
+        expect(game.variantCollection("PipeAAlt1")).toEqual(["PipeA", "PipeAAlt1", "PipeAAlt2"]);
+        expect(game.variantCollection("WallSolid")).toBeNull();
+    });
 });
 
 describe("texture pages", () => {

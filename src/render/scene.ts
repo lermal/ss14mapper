@@ -108,6 +108,32 @@ const pipeLayerOf = (v: any, fallback = 0): number => {
     if (Number.isInteger(v)) return v;
     return PIPE_LAYERS[String(v)] ?? (/^\d+$/.test(String(v)) ? Number(v) : fallback);
 };
+/**
+ * The layer the game puts an entity's pipe nodes on: AtmosPipeLayersSystem moves every node to the component's
+ * layer on startup, unless the layers are locked (manifolds keep a node per layer).
+ */
+const layersOverride = (c: any): number | null =>
+    c.AtmosPipeLayers && !truthy(c.AtmosPipeLayers.pipeLayersLocked ?? false) ? pipeLayerOf(c.AtmosPipeLayers.pipeLayer) : null;
+const pipeMask = (nd: any): number => PIPE_DIRS[String(nd.pipeDirection)] ?? (Number.isInteger(nd.pipeDirection) ? nd.pipeDirection : 0);
+
+/**
+ * Pipe nodes of an entity (merged components) as PipeRestrictOverlapSystem compares them: [layer, directions
+ * turned by the entity's rotation on its grid] for every pipe node, connections enabled or not.
+ */
+export function pipeOverlapNodes(c: any, rotation: number): Array<[number, number]> {
+    const layer = layersOverride(c);
+    const out: Array<[number, number]> = [];
+    for (const nd of Object.values<any>(c?.NodeContainer?.nodes ?? {})) {
+        if (!nd || typeof nd !== "object" || nd.pipeDirection === undefined) continue;
+        out.push([layer ?? pipeLayerOf(nd.pipeLayer), rotatePipe(pipeMask(nd), rotation)]);
+    }
+    return out;
+}
+
+/** Whether two entities' pipe nodes share a direction on one layer (PipeRestrictOverlapSystem.PipeNodesOverlap). */
+export function pipeNodesOverlap(a: ReadonlyArray<[number, number]>, b: ReadonlyArray<[number, number]>): boolean {
+    return a.some(([la, ma]) => b.some(([lb, mb]) => la === lb && (ma & mb) !== 0));
+}
 const PIPE_CONNECTOR_RSI = [
     "Structures/Piping/Atmospherics/pipe.rsi",
     "Structures/Piping/Atmospherics/pipe_alt1.rsi",
@@ -433,6 +459,9 @@ const DIRECTION_OF: Record<string, number> = { "0,-1": 0, "1,-1": 1, "1,0": 2, "
 
 const cellKey = (g: number, x: number, y: number) => `${g}|${x}|${y}`;
 
+/** Uid of the entity a placement preview draws for a moment (map uids are not negative). */
+const PREVIEW_UID = -1;
+
 /**
  * A map turned into draw lists (tiles, decals, sprite layers) for the canvas, kept up to date with edits.
  * The rules mirror the game's map renderer and client visualizers for a freshly loaded map. After an edit,
@@ -512,6 +541,45 @@ export class Scene {
     /** Sprite layers drawn for an entity (both power states). */
     layersOf(uid: number): readonly SpriteLayer[] {
         return this.spriteLayers.get(uid) ?? [];
+    }
+
+    /** Pipe nodes of an entity as the game compares them on a tile (see `pipeOverlapNodes`). */
+    pipeOverlapNodes(uid: number): Array<[number, number]> {
+        const e = this.ents.get(uid), i = this.info.get(uid);
+        return e && i ? pipeOverlapNodes(e.c, i.lrot) : [];
+    }
+
+    /**
+     * Sprite layers of an entity of `proto` at a point of a grid, turned by `rotation` on it, as the game's placement
+     * ghost shows it (an entity of the prototype outside the map): its own look, without links to neighbours (pipe
+     * connectors, smoothing), unpowered and never hidden under the floor. In drawing order; empty when the entity
+     * draws nothing.
+     */
+    preview(proto: string, grid: number, x: number, y: number, rotation: number): SpriteLayer[] {
+        const id = this.pack.migrate(proto);
+        const base = id ? this.protos.entities[id] : undefined;
+        const sp: any = base?.components.Sprite;
+        if (!id || !base || !sp || (isFalse(sp.visible) && !base.components.SubFloorHide)) return [];
+        const c: any = {};
+        for (const [k, v] of Object.entries(base.components)) c[k] = { ...(v as object) };
+        c.Transform = { ...(c.Transform ?? {}), parent: grid, pos: `${x},${y}`, rot: `${rotation} rad` };
+        const e: Ent = { uid: PREVIEW_UID, proto: id, name: base.name ?? id, c };
+        this.ents.set(PREVIEW_UID, e);
+        // no grid: nothing around it is looked at
+        this.info.set(PREVIEW_UID, { g: null, lx: x, ly: y, lrot: rotation, anchored: truthy(c.Transform.anchored ?? false), tx: Math.floor(x), ty: Math.floor(y) });
+        try {
+            const rows = this.entityLayers(PREVIEW_UID, e, false);
+            return Scene.sortSprites(
+                rows.map((r) => ({
+                    x: r[0], y: r[1], rot: r[2], frame: r[3], color: r[4], depth: r[5], subfloor: false, kind: r[7],
+                    uid: PREVIEW_UID, order: 0, layer: r[8], power: 0, scale: r[9], ext: this.reach(r[3], r[9]),
+                })),
+            );
+        } finally {
+            this.ents.delete(PREVIEW_UID);
+            this.info.delete(PREVIEW_UID);
+            this.world.delete(PREVIEW_UID);
+        }
     }
 
     /**
@@ -856,15 +924,14 @@ export class Scene {
         this.smoothCache.delete(k);
 
         const c = e.c;
-        const defaultLayer = pipeLayerOf(c.AtmosPipeLayers?.pipeLayer);
+        const layer = layersOverride(c);
         const nodes: Array<[string, number, number]> = [];
         for (const nd of Object.values<any>(c.NodeContainer?.nodes ?? {})) {
             if (!nd || typeof nd !== "object" || nd.pipeDirection === undefined) continue;
             if (isFalse(nd.connectionsEnabled)) continue;
-            let mask = PIPE_DIRS[String(nd.pipeDirection)] ?? (Number.isInteger(nd.pipeDirection) ? nd.pipeDirection : 0);
+            let mask = pipeMask(nd);
             if (!isFalse(nd.rotationsEnabled)) mask = rotatePipe(mask, lrot);
-            // the server moves every pipe node to the component's layer on startup (AtmosPipeLayersSystem)
-            nodes.push([nd.nodeGroupID ?? "Pipe", c.AtmosPipeLayers ? defaultLayer : pipeLayerOf(nd.pipeLayer), mask]);
+            nodes.push([nd.nodeGroupID ?? "Pipe", layer ?? pipeLayerOf(nd.pipeLayer), mask]);
         }
         if (nodes.length) this.pipeNodes.set(uid, nodes);
     }
@@ -987,7 +1054,7 @@ export class Scene {
         const e = this.ents.get(uid);
         if (!e || !this.info.has(uid)) return;
         const c = e.c, sp = c.Sprite;
-        if (!sp || c.Marker) return;
+        if (!sp) return;
         // SubFloorHide drives sprite visibility itself (revealed when not covered)
         if (isFalse(sp.visible) && !c.SubFloorHide) return;
         const off = this.entityLayers(uid, e, false);
@@ -1000,8 +1067,10 @@ export class Scene {
             for (const r of rows) {
                 layers.push({
                     x: r[0], y: r[1], rot: r[2], frame: r[3], color: r[4], depth: r[5], subfloor: r[6] === 1, kind: r[7],
+                    // spawn points, spawners and atmos fix markers: the game shows them to mappers only
                     uid, order, layer: r[8], power, scale: r[9], ext: this.reach(r[3], r[9]),
                 });
+                if (c.Marker) layers[layers.length - 1]!.kind = "marker";
             }
         };
         if (on === off || sameRows(on, off)) emit(off, 0);
@@ -1114,8 +1183,9 @@ export class Scene {
         };
 
         // pipe layer sprites (AtmosPipeLayersSystem.SetPipeLayer on startup): alternative layers use shifted RSIs
+        // (none while the layers are locked: SetPipeLayer returns early)
         const apl = c.AtmosPipeLayers;
-        if (apl) {
+        if (apl && !truthy(apl.pipeLayersLocked ?? false)) {
             const idx = pipeLayerOf(apl.pipeLayer);
             const pick = (paths: any) => paths?.[PIPE_LAYER_NAMES[idx]!] ?? paths?.[idx];
             const baseOverride = pick(apl.spriteRsiPaths);

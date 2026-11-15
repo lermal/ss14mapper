@@ -455,9 +455,19 @@ export function drawGhostLayers(
 
 /**
  * Ghost of a shape being drawn: the brush's icon on each of its tiles (on screen) and the tiles' outlines.
- * `fit` scales the icon to a tile (tile icons) or keeps texture pixels (entities, 0).
+ * `fit` scales the icon to a tile (tile icons) or keeps texture pixels (entities, 0). `drawAt`, when given, draws
+ * the ghost of a tile instead of the icon.
  */
-export function drawCellGhosts(c: OverlayContext, grid: number, cells: readonly Cell[], frame: Frame | null, rotation: number, fit: boolean, color: string): void {
+export function drawCellGhosts(
+    c: OverlayContext,
+    grid: number,
+    cells: readonly Cell[],
+    frame: Frame | null,
+    rotation: number,
+    fit: boolean,
+    color: string,
+    drawAt: ((x: number, y: number) => void) | null = null,
+): void {
     const { g, map, scene } = c;
     const { at, view } = gridScreen(c, grid);
     const gridRot = scene.worldTransform(grid)?.rot ?? 0;
@@ -476,6 +486,12 @@ export function drawCellGhosts(c: OverlayContext, grid: number, cells: readonly 
         outline.lineTo(...at(x + 1, y + 1));
         outline.lineTo(...at(x, y + 1));
         outline.closePath();
+        if (drawAt && drawn < MAX_GHOSTS) {
+            g.setTransform(base);
+            drawAt(x, y);
+            drawn++;
+            continue;
+        }
         if (!img || !frame || drawn >= MAX_GHOSTS) continue;
         const [, fx, fy, fw, fh] = frame;
         const s = fit ? (PPM * k) / Math.max(fw, fh) : k;

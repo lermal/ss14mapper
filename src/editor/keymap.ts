@@ -70,6 +70,7 @@ export const ACTIONS: readonly ActionDef[] = [
     { id: "view.zoomOut", label: "Zoom out", group: "Navigation", defaults: ["Minus", "NumpadSubtract"] },
     { id: "view.fit", label: "Fit map", group: "Navigation", defaults: ["Shift+Digit1"] },
     { id: "view.subfloor", label: "Subfloor", group: "View", defaults: ["Shift+KeyU"] },
+    { id: "view.markers", label: "Markers", group: "View", defaults: [] },
     { id: "view.powered", label: "Powered", group: "View", defaults: ["KeyP"] },
     { id: "view.grid", label: "Tile grid", group: "View", defaults: ["KeyG"] },
     { id: "view.centre", label: "Center of mass", group: "View", defaults: ["KeyC"] },

@@ -246,7 +246,7 @@ const gridsOf = (scene: Scene) => new Set(scene.grids);
  * Whether an area takes a layer's entity. Unlike a click, an area takes what lies under the floor even while
  * the subfloor is hidden: moving or deleting a room must take its pipes and cables along.
  */
-const inArea = (view: PickView, l: SpriteLayer) => view.visible(l) || l.subfloor;
+const inArea = (view: PickView, l: SpriteLayer) => view.visible(l) || l.subfloor || l.kind === "marker";
 
 /** Everything of the filter's kinds inside an area: entities by their point, tiles by their centre. */
 export function collectArea(scene: Scene, view: PickView, area: Area, filter: SelectFilter): Selection {

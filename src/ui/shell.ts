@@ -34,6 +34,7 @@ export interface ShellHooks {
 
 const LAYER_DEFS: ReadonlyArray<[Layer, string, string]> = [
     ["subfloor", "Subfloor", "view.subfloor"],
+    ["markers", "Markers", "view.markers"],
     ["powered", "Powered", "view.powered"],
     ["grid", "Tile grid", "view.grid"],
     ["centre", "Center of mass", "view.centre"],

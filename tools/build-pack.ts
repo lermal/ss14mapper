@@ -24,6 +24,8 @@ const KEPT_COMPONENTS: Record<string, ((c: Raw) => Raw) | true> = {
     IconSmooth: true,
     CableVisualizer: true,
     AtmosPipeLayers: true,
+    // a pipe whose nodes overlap another's on its tile (same layer, a shared direction) does not stay anchored
+    PipeRestrictOverlap: () => ({}),
     PipeAppearance: true,
     AtmosPipeColor: true,
     GenericVisualizer: true,
@@ -120,6 +122,8 @@ async function main(): Promise<void> {
         if (game.hidden(id)) proto.hidden = true;
         else placeable++;
         if (e.placement) proto.placement = e.placement;
+        const variants = game.variantCollection(id);
+        if (variants) proto.variants = variants;
         const ports = devices.ports(e);
         if (ports.source.length || ports.sink.length) {
             proto.ports = {};

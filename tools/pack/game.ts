@@ -96,6 +96,8 @@ export class Checkout {
     readonly resources: string;
     readonly textures: string;
     private readonly protos = new Map<string, Map<string, Raw>>();
+    /** Entity id → the ids of the `!type:CreateVariants` definition it came from, in order (a variant collection). */
+    private readonly collections = new Map<string, string[]>();
     private readonly resolved = new Map<string, ResolvedEntity>();
     readonly loc = new Map<string, string>();
     readonly colors = new Map<string, [number, number, number, number]>();
@@ -211,14 +213,24 @@ export class Checkout {
             if (!Array.isArray(docs)) continue;
             for (const d of docs) {
                 if (!d || typeof d !== "object") continue;
-                for (const p of expandVariants(d as Raw)) {
+                const variants = expandVariants(d as Raw);
+                for (const p of variants) {
                     if (p.id === undefined || p.id === null || !p.type) continue;
                     const type = String(p.type);
                     if (!this.protos.has(type)) this.protos.set(type, new Map());
                     this.protos.get(type)!.set(String(p.id), p);
                 }
+                if (variants.length > 1 && String((d as Raw).type) === "entity") {
+                    const ids = variants.map((p) => String(p.id));
+                    if (new Set(ids).size === ids.length) for (const id of ids) this.collections.set(id, ids);
+                }
             }
         }
+    }
+
+    /** The variant collection an entity prototype belongs to (IPrototypeManager.TryGetVariantCollection), or null. */
+    variantCollection(id: string): string[] | null {
+        return this.collections.get(id) ?? null;
     }
 
     all(type: string): Map<string, Raw> {
