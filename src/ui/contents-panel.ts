@@ -4,6 +4,7 @@
 // map to take it out there. Take out puts an entity on the tile of its container. Presets save
 // a container's contents and put them into others. Logic without DOM is in editor/contents.ts and
 // container-presets.ts.
+import { t as translate } from "../i18n";
 import { Contents, contentsKit, takeOutPlace, type ContentsKit, type Floor } from "../editor/contents";
 import type { ContainerInfo, MapPlace } from "../map/containers";
 import type { MapDocument } from "../map/document";
@@ -114,7 +115,7 @@ export function sceneFloor(scene: Scene, taken?: Set<string>): Floor {
 
 /** "entity_storage" → "Entity storage". */
 function containerName(c: ContainerInfo): string {
-    if (c.role === "storage" && c.id === "storagebase") return "Storage";
+    if (c.role === "storage" && c.id === "storagebase") return translate("Storage");
     const s = c.id.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim().toLowerCase();
     return s ? s[0]!.toUpperCase() + s.slice(1) : c.id;
 }
@@ -210,7 +211,7 @@ export class ContentsPanel {
         const root = h("details");
         root.open = this.open;
         root.addEventListener("toggle", () => (this.open = root.open));
-        const summary = h("summary", "", "Contents ");
+        const summary = h("summary", "", translate("Contents "));
         const total = boxes.reduce((n, b) => n + b.contents.length, 0);
         summary.append(h("span", "ins-sub", String(total)));
         const body = h("div", "ins-section");
@@ -218,10 +219,10 @@ export class ContentsPanel {
 
         const fill = this.kit?.rules?.fill(t.doc.proto(t.uid)!);
         if (fill?.fills) {
-            const note = h("div", "cts-note", "The game fills this container at round start; your items come on top.");
+            const note = h("div", "cts-note", translate("The game fills this container at round start; your items come on top."));
             if (fill.plainBase) {
                 const base = fill.plainBase;
-                note.append(h("br"), button("ins-btn", `Use plain ${base}`, `Change the prototype to ${base}, keeping uid and contents`, () => this.usePlain(base)));
+                note.append(h("br"), button("ins-btn", translate("Use plain {{1}}", { 1: base }), translate("Change the prototype to {{1}}, keeping uid and contents", { 1: base }), () => this.usePlain(base)));
             }
             body.append(note);
         }
@@ -263,9 +264,9 @@ export class ContentsPanel {
         else if (box.kind !== "ContainerSlot") count = String(n);
         if (count) head.append(h("span", "cts-count", count));
         head.append(h("span", "cts-grow"));
-        const add = button("ins-btn" + (this.adding === key ? " on" : ""), "Add", "Add entities", () => this.toggleAdd(key));
-        const more = button("cts-icon", icon(ICON.more, 16), "More", (e) => this.boxMenu(owner, box, e.currentTarget as HTMLElement));
-        more.setAttribute("aria-label", "More");
+        const add = button("ins-btn" + (this.adding === key ? " on" : ""), translate("Add"), translate("Add entities"), () => this.toggleAdd(key));
+        const more = button("cts-icon", icon(ICON.more, 16), translate("More"), (e) => this.boxMenu(owner, box, e.currentTarget as HTMLElement));
+        more.setAttribute("aria-label", translate("More"));
         head.append(add, more);
         el.append(head);
         if (this.adding === key) el.append(this.addForm(owner, box));
@@ -274,7 +275,7 @@ export class ContentsPanel {
         if (msg) el.append(h("div", "cts-err" + (msg.warn ? " warn" : ""), msg.text));
         const items = h("div", "cts-items");
         for (const uid of box.contents) items.append(...this.item(uid, depth));
-        if (!n) el.append(h("div", "cts-empty", "Empty"));
+        if (!n) el.append(h("div", "cts-empty", translate("Empty")));
         else el.append(items);
         this.dropZone(el, owner, box);
         return el;
@@ -289,7 +290,7 @@ export class ContentsPanel {
         const open = inner.length > 0 && this.expanded.has(uid);
         const row = h("div", "cts-item" + (open ? " open" : ""));
         row.draggable = true;
-        row.title = `${proto}, uid ${uid}`;
+        row.title = translate("{{1}}, uid {{2}}", { 1: proto, 2: uid });
         row.addEventListener("dragstart", (e) => {
             if (!e.dataTransfer) return;
             e.dataTransfer.setData(UID_TYPE, String(uid));
@@ -299,7 +300,7 @@ export class ContentsPanel {
         });
         row.addEventListener("dragend", () => setDragged(null));
         if (inner.length) {
-            const chev = button("cts-icon cts-chev", icon(ICON.chevronRight, 12), open ? "Close" : "Open", () => {
+            const chev = button("cts-icon cts-chev", icon(ICON.chevronRight, 12), open ? translate("Close") : translate("Open"), () => {
                 if (this.expanded.has(uid)) this.expanded.delete(uid);
                 else this.expanded.add(uid);
                 this.render();
@@ -312,10 +313,10 @@ export class ContentsPanel {
         const held = inner.reduce((s, c) => s + c.contents.length, 0);
         text.append(h("span", "cts-name", this.labelOf(uid) + (held ? ` (${held})` : "")), h("span", "cts-id", proto));
         row.append(text);
-        const out = button("cts-icon", icon(ICON.takeOut, 14), "Take out", () => this.takeOut(uid));
-        out.setAttribute("aria-label", "Take out");
-        const del = button("cts-icon danger", icon(ICON.trash, 14), "Delete", () => this.remove(uid));
-        del.setAttribute("aria-label", "Delete");
+        const out = button("cts-icon", icon(ICON.takeOut, 14), translate("Take out"), () => this.takeOut(uid));
+        out.setAttribute("aria-label", translate("Take out"));
+        const del = button("cts-icon danger", icon(ICON.trash, 14), translate("Delete"), () => this.remove(uid));
+        del.setAttribute("aria-label", translate("Delete"));
         row.append(out, del);
         const out_: HTMLElement[] = [row];
         if (open) {
@@ -376,8 +377,8 @@ export class ContentsPanel {
         const row = h("div", "cts-row");
         const input = (this.addInput ??= h("input"));
         input.type = "search";
-        input.placeholder = "Search entities";
-        input.setAttribute("aria-label", "Search entities");
+        input.placeholder = translate("Search entities");
+        input.setAttribute("aria-label", translate("Search entities"));
         input.spellcheck = false;
         input.value = this.query;
         input.dataset.focus = "contents-search";
@@ -387,8 +388,8 @@ export class ContentsPanel {
         qty.min = "1";
         qty.max = String(MAX_COUNT);
         qty.value = String(this.count);
-        qty.title = "How many to add";
-        qty.setAttribute("aria-label", "How many to add");
+        qty.title = translate("How many to add");
+        qty.setAttribute("aria-label", translate("How many to add"));
         qty.disabled = box.kind === "ContainerSlot";
         row.append(input, times, qty);
         const hits = h("div", "cts-hits");
@@ -431,7 +432,7 @@ export class ContentsPanel {
                 if (ok.length >= HITS) break;
             }
             const hit = (e: PaletteEntry, why: string | null) => {
-                const b = button("cts-hit", spriteCanvas(t.pack, entityIcon(t.pack, e.id), 24), why ?? `Add ${e.id}`, () => {
+                const b = button("cts-hit", spriteCanvas(t.pack, entityIcon(t.pack, e.id), 24), why ?? translate("Add {{1}}", { 1: e.id }), () => {
                     if (why !== null) return;
                     this.put(owner, box, { proto: e.id }, box.kind === "ContainerSlot" ? 1 : this.count);
                     // the next search goes on in the same field
@@ -445,18 +446,18 @@ export class ContentsPanel {
             };
             for (const e of ok) nodes.push(hit(e, null));
             for (const [e, why] of refused) nodes.push(hit(e, why));
-            if (!nodes.length) nodes.push(h("div", "cts-empty", "No results"));
+            if (!nodes.length) nodes.push(h("div", "cts-empty", translate("No results")));
         }
         const presets = this.presets?.all ?? [];
         if (presets.length && !q) {
-            nodes.push(h("div", "cts-sub", "Apply preset"));
+            nodes.push(h("div", "cts-sub", translate("Apply preset")));
             for (const p of presets) nodes.push(this.presetButton(owner, box, p));
-        } else if (!q) nodes.push(h("div", "cts-empty", "Type to search, or drag from the palette."));
+        } else if (!q) nodes.push(h("div", "cts-empty", translate("Type to search, or drag from the palette.")));
         hits.replaceChildren(...nodes);
     }
 
     private presetButton(owner: number, box: ContainerInfo, p: ContentsPreset): HTMLElement {
-        const b = button("cts-preset", "", `Put the preset's items in ${containerName(box)}`, () => this.applyPreset(owner, box, p));
+        const b = button("cts-preset", "", translate("Put the preset's items in {{1}}", { 1: containerName(box) }), () => this.applyPreset(owner, box, p));
         const text = h("span", "cts-text");
         text.append(h("span", "cts-name", p.name), h("span", "cts-id", describeItems(p.items, (id) => this.name(id))));
         b.replaceChildren(text, h("span", "cts-count", String(countItems(p.items))));
@@ -486,10 +487,10 @@ export class ContentsPanel {
             return;
         }
         const k = r.uids.length;
-        let message = `Put ${label}${k > 1 ? ` ×${k}` : ""} in ${this.labelOf(owner)}`;
+        let message = translate("Put {{1}}{{2}} in {{3}}", { 1: label, 2: k > 1 ? ` ×${k}` : "", 3: this.labelOf(owner) });
         if (r.reason) {
             message += `. ${r.reason}`;
-            this.note(owner, box, `Added ${k} of ${n}: ${r.reason}`, true);
+            this.note(owner, box, translate("Added {{1}} of {{2}}: {{3}}", { 1: k, 2: n, 3: r.reason }), true);
         }
         this.say(message);
         if (t.doc.proto(owner) !== undefined) this.render();
@@ -505,17 +506,17 @@ export class ContentsPanel {
     private takeOut(uid: number): void {
         const label = this.labelOf(uid);
         const place = this.placeFor(uid);
-        if (!place) return this.say("No tile to put it on");
+        if (!place) return this.say(translate("No tile to put it on"));
         this.messages.clear();
         this.contents!.takeOut(uid, place);
-        this.say(`Took out ${label}`);
+        this.say(translate("Took out {{1}}", { 1: label }));
     }
 
     private remove(uid: number): void {
         const label = this.labelOf(uid);
         this.messages.clear();
         this.contents!.delete(uid);
-        this.say(`Deleted ${label}`);
+        this.say(translate("Deleted {{1}}", { 1: label }));
     }
 
     private takeOutAll(box: ContainerInfo): void {
@@ -531,7 +532,7 @@ export class ContentsPanel {
                 n++;
             }
         });
-        this.say(n ? `Took out ${n}` : "No tile to put them on");
+        this.say(n ? translate("Took out {{1}}", { 1: n }) : translate("No tile to put them on"));
     }
 
     private deleteAll(box: ContainerInfo): void {
@@ -539,7 +540,7 @@ export class ContentsPanel {
         doc.batch("Delete", () => {
             for (const uid of box.contents) if (doc.proto(uid) !== undefined) this.contents!.delete(uid);
         });
-        this.say(`Deleted ${box.contents.length}`);
+        this.say(translate("Deleted {{1}}", { 1: box.contents.length }));
     }
 
     private usePlain(base: string): void {
@@ -550,7 +551,7 @@ export class ContentsPanel {
         } catch (e) {
             return this.say(e instanceof Error ? e.message : String(e));
         }
-        this.say(`Changed ${was} to ${base}`);
+        this.say(translate("Changed {{1}} to {{2}}", { 1: was, 2: base }));
     }
 
     // -----------------------------------------------------------------------------------------
@@ -560,16 +561,16 @@ export class ContentsPanel {
         const presets = this.presets?.all ?? [];
         const empty = !box.contents.length;
         const items: MenuItem[] = [
-            { label: "Save contents as preset…", disabled: empty, run: () => this.startSave(owner, box) },
+            { label: translate("Save contents as preset…"), disabled: empty, run: () => this.startSave(owner, box) },
             {
-                label: "Apply preset",
+                label: translate("Apply preset"),
                 disabled: !presets.length,
                 sub: () => presets.map((p) => ({ label: p.name, note: describeItems(p.items, (id) => this.name(id)), run: () => this.applyPreset(owner, box, p) })),
             },
-            { label: "Manage presets…", disabled: !presets.length, run: () => this.toggleManage(true) },
+            { label: translate("Manage presets…"), disabled: !presets.length, run: () => this.toggleManage(true) },
             "-",
-            { label: "Take out all", disabled: empty || !this.target?.scene, run: () => this.takeOutAll(box) },
-            { label: "Delete all", disabled: empty, run: () => this.deleteAll(box) },
+            { label: translate("Take out all"), disabled: empty || !this.target?.scene, run: () => this.takeOutAll(box) },
+            { label: translate("Delete all"), disabled: empty, run: () => this.deleteAll(box) },
         ];
         const r = anchor.getBoundingClientRect();
         popupMenu(items, r.left, r.bottom + 2);
@@ -589,8 +590,8 @@ export class ContentsPanel {
         const row = h("div", "cts-row");
         const input = h("input");
         input.type = "text";
-        input.placeholder = "Preset name";
-        input.setAttribute("aria-label", "Preset name");
+        input.placeholder = translate("Preset name");
+        input.setAttribute("aria-label", translate("Preset name"));
         input.value = this.saveName;
         input.dataset.focus = "preset-name";
         const err = h("div", "cts-err");
@@ -605,12 +606,12 @@ export class ContentsPanel {
             }
             const items = this.contents!.preset(owner, box.id);
             if (!items.length || !presets.add(name, items)) {
-                err.textContent = "Nothing to save";
+                err.textContent = translate("Nothing to save");
                 return;
             }
-            if (!savePresets(this.presetsFork, presets)) showToast("Could not store the preset in this browser");
+            if (!savePresets(this.presetsFork, presets)) showToast(translate("Could not store the preset in this browser"));
             this.saving = null;
-            this.say(`Saved preset ${name}`);
+            this.say(translate("Saved preset {{1}}", { 1: name }));
             this.render();
         };
         input.oninput = () => (this.saveName = input.value);
@@ -626,8 +627,8 @@ export class ContentsPanel {
         };
         row.append(
             input,
-            button("ins-btn primary", "Save", "Save preset", save),
-            button("ins-btn", "Cancel", "", () => {
+            button("ins-btn primary", translate("Save"), translate("Save preset"), save),
+            button("ins-btn", translate("Cancel"), "", () => {
                 this.saving = null;
                 this.render();
             }),
@@ -639,9 +640,9 @@ export class ContentsPanel {
     private applyPreset(owner: number, box: ContainerInfo, p: ContentsPreset): void {
         this.messages.clear();
         const r = this.contents!.applyPreset(owner, box.id, p.items);
-        let message = `Applied ${p.name}: ${r.added} added`;
+        let message = translate("Applied {{1}}: {{2}} added", { 1: p.name, 2: r.added });
         if (r.skipped) {
-            message += `, ${r.skipped} skipped (${r.reasons.slice(0, 2).join("; ")}${r.reasons.length > 2 ? "; …" : ""})`;
+            message += translate(", {{1}} skipped ({{2}}{{3}})", { 1: r.skipped, 2: r.reasons.slice(0, 2).join("; "), 3: r.reasons.length > 2 ? "; …" : "" });
             this.note(owner, box, message, true);
         }
         this.say(message);
@@ -659,16 +660,16 @@ export class ContentsPanel {
         const presets = this.presets!;
         const box = h("div", "cts-manage");
         const head = h("div", "cts-bhead");
-        head.append(h("span", "cts-bname", "Presets"), h("span", "cts-grow"), button("ins-btn", "Done", "", () => this.toggleManage(false)));
+        head.append(h("span", "cts-bname", translate("Presets")), h("span", "cts-grow"), button("ins-btn", translate("Done"), "", () => this.toggleManage(false)));
         box.append(head);
-        if (!presets.all.length) box.append(h("div", "cts-empty", "No presets"));
+        if (!presets.all.length) box.append(h("div", "cts-empty", translate("No presets")));
         for (const p of presets.all) {
             const row = h("div", "cts-preset");
             if (this.renaming === p.name) {
                 const input = h("input");
                 input.type = "text";
                 input.value = p.name;
-                input.setAttribute("aria-label", "Preset name");
+                input.setAttribute("aria-label", translate("Preset name"));
                 input.style.flex = "1";
                 const err = h("span", "cts-why");
                 const done = () => {
@@ -694,11 +695,11 @@ export class ContentsPanel {
                 text.append(h("span", "cts-name", p.name), h("span", "cts-id", describeItems(p.items, (id) => this.name(id))));
                 row.append(
                     text,
-                    button("ins-btn", "Rename", "", () => {
+                    button("ins-btn", translate("Rename"), "", () => {
                         this.renaming = p.name;
                         this.render();
                     }),
-                    button("cts-icon danger", icon(ICON.trash, 14), "Delete preset", () => this.deletePreset(p.name)),
+                    button("cts-icon danger", icon(ICON.trash, 14), translate("Delete preset"), () => this.deletePreset(p.name)),
                 );
             }
             box.append(row);
@@ -713,8 +714,8 @@ export class ContentsPanel {
         if (!snap) return;
         savePresets(fork, presets);
         this.render();
-        showToast(`Deleted preset ${name}`, {
-            label: "Undo",
+        showToast(translate("Deleted preset {{1}}", { 1: name }), {
+            label: translate("Undo"),
             run: () => {
                 if (presets.restore(snap)) savePresets(fork, presets);
                 this.render();

@@ -1,6 +1,7 @@
 // Component fields as the inspector shows and writes them, without DOM: which components an entity has, each
 // field's value (map override, else prototype, else default), editors' text ↔ YAML, and the override text an edit
 // produces (only the fields that differ from the prototype).
+import { t as translate } from "../i18n";
 import { formatAngle, formatFloat } from "../map/document";
 import { normalizeColor } from "../map/decals";
 import { entryText, formatScalar, parseDocument, toPlain, type YEntry } from "../map/yaml";
@@ -271,41 +272,41 @@ export function formatValue(f: Pick<FieldView, "kind" | "type">, input: unknown)
             return input ? "True" : "False";
         case "int": {
             const s = String(input).trim();
-            if (!/^[-+]?\d+$/.test(s)) throw new Error("Expected a whole number");
-            if (/^(uint|ulong|ushort|byte)$/.test(t) && s.startsWith("-")) throw new Error("Expected a positive number");
+            if (!/^[-+]?\d+$/.test(s)) throw new Error(translate("Expected a whole number"));
+            if (/^(uint|ulong|ushort|byte)$/.test(t) && s.startsWith("-")) throw new Error(translate("Expected a positive number"));
             return String(Number(s));
         }
         case "float": {
             const n = asNumber(String(input).trim());
-            if (n === null) throw new Error("Expected a number");
+            if (n === null) throw new Error(translate("Expected a number"));
             return t === "float" ? formatFloat(n) : double(n);
         }
         case "vector2":
         case "vector2i": {
             const [x, y] = (input as [unknown, unknown]).map((v) => asNumber(String(v).trim()));
-            if (x === null || y === null || x === undefined || y === undefined) throw new Error("Expected two numbers");
-            if (f.kind === "vector2i" && (!Number.isInteger(x) || !Number.isInteger(y))) throw new Error("Expected whole numbers");
+            if (x === null || y === null || x === undefined || y === undefined) throw new Error(translate("Expected two numbers"));
+            if (f.kind === "vector2i" && (!Number.isInteger(x) || !Number.isInteger(y))) throw new Error(translate("Expected whole numbers"));
             return f.kind === "vector2i" ? `${x},${y}` : `${formatFloat(x)},${formatFloat(y)}`;
         }
         case "angle": {
             const deg = asNumber(String(input).trim());
-            if (deg === null) throw new Error("Expected degrees");
+            if (deg === null) throw new Error(translate("Expected degrees"));
             return formatAngle(deg === 0 ? 0 : (deg * Math.PI) / 180);
         }
         case "color": {
             const hex = colorHex(String(input));
-            if (!hex) throw new Error("Expected a colour (#RRGGBBAA)");
+            if (!hex) throw new Error(translate("Expected a colour (#RRGGBBAA)"));
             return formatScalar(hex);
         }
         case "timespan": {
             const s = seconds(String(input));
-            if (s === null) throw new Error("Expected seconds (or 500ms, 2m, 1h)");
+            if (s === null) throw new Error(translate("Expected seconds (or 500ms, 2m, 1h)"));
             return double(Number(s.toPrecision(15)));
         }
         case "entity": {
             const s = String(input).trim();
             if (s === "invalid" || s === "") return "invalid";
-            if (!/^\d+$/.test(s)) throw new Error("Expected an entity uid");
+            if (!/^\d+$/.test(s)) throw new Error(translate("Expected an entity uid"));
             return s;
         }
         case "string":

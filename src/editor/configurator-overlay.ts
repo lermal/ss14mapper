@@ -1,3 +1,4 @@
+import { t as translate } from "../i18n";
 import type { MapDocument } from "../map/document";
 import { toPlain } from "../map/yaml";
 import type { Pack } from "../pack/loader";
@@ -100,6 +101,6 @@ export function drawConfiguratorLinks(c: OverlayContext, index: ConfiguratorLink
     const field = doc.componentField(owner, "DeviceList", "isAllowList");
     const proto = pack.migrate(doc.proto(owner) ?? "");
     const allowList = field ? toPlain(field) : pack.prototypes.entities[proto ?? ""]?.components.DeviceList?.isAllowList ?? true;
-    const purpose = allowList === true ? "Allow list" : allowList === false ? "Deny list" : "Device list";
+    const purpose = allowList === true ? translate("Allow list") : allowList === false ? translate("Deny list") : translate("Device list");
     return { at: cursor, lines: [`${entityLabel(doc, owner, pack)} → ${entityLabel(doc, member, pack)}`, purpose] };
 }

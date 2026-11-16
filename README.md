@@ -21,6 +21,14 @@ npm run build    # static site in dist/
 
 Tests that read real maps use a corpus outside the repository; see `tools/corpus.mjs`. Set `SS14MAPPER_ENGINE` to a RobustToolbox checkout to also compare the noise port with the engine's source.
 
+## Interface translations
+
+Copy [`src/locales/en.json`](src/locales/en.json) to `src/locales/<language-tag>.json` (for example, `de.json`).
+Translate the values and keep the keys and interpolation tokens such as `{{1}}` and `{{count}}`.
+For pluralized keys, use the [i18next JSON v4 plural forms](https://www.i18next.com/translation-function/plurals) for the target language.
+Vite picks up new catalogs at build time. They appear in the language selector, and any missing translation falls back to English.
+Game prototypes, build names, and map files come from their source data.
+
 ## Asset packs
 
 The editor draws maps and lists placeable entities from an asset pack built from a checkout of a fork.

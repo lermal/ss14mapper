@@ -1,6 +1,7 @@
 // Modal dialogs of the shell in place of the browser's confirm() and prompt(): unsaved changes, About, and the
 // forms built on `dialog` (new map, Save as, the library). Esc or a click outside cancels; Enter in a field
 // presses the primary button; the editor does not see keys while one is open.
+import { t as translate } from "../i18n";
 import { button, h, icon, ICON } from "./icons";
 
 const STYLE = `
@@ -65,7 +66,7 @@ export function dialog<T>(title: string, body: Array<string | Node>, buttons: Di
         box.setAttribute("aria-modal", "true");
         box.setAttribute("aria-label", title);
         // a dialog whose only button is Close gets a cross in the corner instead
-        const onlyClose = buttons.length === 1 && buttons[0]!.label === "Close";
+        const onlyClose = buttons.length === 1 && buttons[0]!.label === translate("Close");
         box.append(h("h2", "", title));
         for (const b of body) box.append(typeof b === "string" ? h("p", "", b) : b);
         const row = h("div", "dlg-buttons");
@@ -91,8 +92,8 @@ export function dialog<T>(title: string, body: Array<string | Node>, buttons: Di
         };
         let primary: (() => void) | null = null;
         if (onlyClose) {
-            const x = button("dlg-x", icon(ICON.close, 14), "Close", () => void press(buttons[0]!.value));
-            x.setAttribute("aria-label", "Close");
+            const x = button("dlg-x", icon(ICON.close, 14), translate("Close"), () => void press(buttons[0]!.value));
+            x.setAttribute("aria-label", translate("Close"));
             box.append(x);
         }
         for (const b of onlyClose ? [] : buttons) {
@@ -139,14 +140,14 @@ export function dialog<T>(title: string, body: Array<string | Node>, buttons: Di
 export type UnsavedChoice = "save" | "discard" | "cancel";
 
 /** Asks what to do with unsaved edits before another map replaces them. */
-export function confirmUnsaved(name: string): Promise<UnsavedChoice> {
+export function confirmUnsaved(name: string, note?: string): Promise<UnsavedChoice> {
     return dialog<UnsavedChoice>(
-        "Save changes?",
-        [`${name} has unsaved changes.`],
+        translate("Save changes?"),
+        [translate("{{1}} has unsaved changes.", { 1: name }), ...(note ? [note] : [])],
         [
-            { label: "Discard", value: "discard", kind: "danger", spaceAfter: true },
-            { label: "Cancel", value: "cancel" },
-            { label: "Save", value: "save", kind: "primary" },
+            { label: translate("Discard"), value: "discard", kind: "danger", spaceAfter: true },
+            { label: translate("Cancel"), value: "cancel" },
+            { label: translate("Save"), value: "save", kind: "primary" },
         ],
         "cancel",
     );
@@ -155,16 +156,16 @@ export function confirmUnsaved(name: string): Promise<UnsavedChoice> {
 /** About the editor and the current build data. */
 export async function showAbout(build: string): Promise<void> {
     const trigger = document.activeElement;
-    const head = h("div", "dlg-muted", build ? `Build: ${build}` : "No build loaded");
+    const head = h("div", "dlg-muted", build ? translate("Build: {{1}}", { 1: build }) : translate("No build loaded"));
     await dialog<void>(
-        "About SS14 Mapper",
+        translate("About SS14 Mapper"),
         [
-            "Map editor for Space Station 14.",
+            translate("Map editor for Space Station 14."),
             head,
-            h("h3", "", "AI in development"),
-            "AI tools helped write code and tests for parts of SS14 Mapper. The project maintainer decides what gets merged and released.",
+            h("h3", "", translate("AI in development")),
+            translate("AI tools helped write code and tests for parts of SS14 Mapper. The project maintainer decides what gets merged and released."),
         ],
-        [{ label: "Close", value: undefined, kind: "primary" }],
+        [{ label: translate("Close"), value: undefined, kind: "primary" }],
         undefined,
     );
     if (trigger instanceof HTMLElement) trigger.focus();

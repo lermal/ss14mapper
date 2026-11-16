@@ -1,5 +1,6 @@
 // The start screen, shown while no map is open: the build, a new map, opening or dropping a map file, and the
 // maps kept in this browser (one click opens one).
+import { language, languages, t as translate } from "../i18n";
 import { creditLink } from "./credit";
 import { button, h, icon, ICON } from "./icons";
 import { formatSize, formatWhen, type LibraryEntry } from "./library";
@@ -13,6 +14,7 @@ export interface StartHooks {
     manage(): void;
     shortcuts(): void;
     about(): void;
+    setLanguage(code: string): Promise<void>;
     /** Add a build (a link under the build list); absent without accounts. */
     addBuild?(): void;
 }
@@ -25,6 +27,7 @@ const STYLE = `
 .start .st-top { display: flex; align-items: center; gap: 8px; height: 44px; flex: none; padding: 0 14px; box-sizing: border-box; background: var(--panel); border-bottom: 1px solid var(--border); font-weight: 600; }
 .start .st-top svg { color: var(--focus); }
 .start .st-top .st-grow { flex: 1; }
+.start .st-language { border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 6px; background: var(--raised); color: var(--text); font: inherit; font-size: 13px; }
 .start .st-link { border: 0; background: transparent; color: var(--accent-text); font-size: 13px; font-weight: 400; padding: 4px; }
 .start .st-link:hover { color: #b8d0ff; }
 .start main { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 72px 24px; overflow-y: auto; }
@@ -43,7 +46,7 @@ const STYLE = `
 .start .st-drop > span { color: var(--text-2); }
 .start .st-open { height: 36px; padding: 0 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; }
 .start .st-open:hover { filter: brightness(1.12); }
-.start .st-actions { display: flex; gap: 10px; }
+.start .st-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
 .start .st-new { height: 36px; padding: 0 18px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--raised); color: var(--text); font-weight: 600; }
 .start .st-new:hover { border-color: var(--accent); }
 .start .st-note { margin: 0; color: var(--muted); font-size: 12px; }
@@ -82,7 +85,19 @@ export class StartScreen {
         addStyle();
         container.classList.add("start");
         const top = (this.header = h("header", "st-top"));
-        top.append("SS14 Mapper");
+        const locale = h("select", "st-language");
+        locale.setAttribute("aria-label", translate("Language"));
+        for (const { code, name } of languages) {
+            const option = new Option(name, code);
+            option.lang = code;
+            locale.add(option);
+        }
+        locale.value = language();
+        locale.addEventListener("change", async () => {
+            await hooks.setLanguage(locale.value);
+            locale.value = language();
+        });
+        top.append("SS14 Mapper", h("span", "st-grow"), locale);
 
         const main = h("main");
         const cols = h("div", "st-cols");
@@ -90,16 +105,16 @@ export class StartScreen {
         const build = h("label", "st-build");
         this.fork = h("select");
         this.fork.addEventListener("change", () => hooks.setFork(this.fork.value));
-        build.append(h("span", "", "Build"), this.fork);
-        if (hooks.addBuild) build.append(button("st-add", "Add a build…", "", () => hooks.addBuild?.()));
+        build.append(h("span", "", translate("Build")), this.fork);
+        if (hooks.addBuild) build.append(button("st-add", translate("Add a build…"), "", () => hooks.addBuild?.()));
         const drop = h("div", "st-drop");
-        const open = button("st-open", "Open file…", "", () => hooks.open());
+        const open = button("st-open", translate("Open file…"), "", () => hooks.open());
         open.id = "start-open";
-        const make = button("st-new", "New map…", "", () => hooks.newMap());
+        const make = button("st-new", translate("New map…"), "", () => hooks.newMap());
         make.id = "start-new";
         const actions = h("div", "st-actions");
         actions.append(make, open);
-        drop.append(icon(ICON.upload, 40), h("span", "", "Drop a .yml map here"), actions);
+        drop.append(icon(ICON.upload, 40), h("span", "", translate("Drop a .yml map here")), actions);
         // the page takes the drop itself; the zone only shows where it goes
         drop.addEventListener("dragenter", () => drop.classList.add("over"));
         drop.addEventListener("dragleave", (e) => {
@@ -113,14 +128,14 @@ export class StartScreen {
         this.recent = h("div");
         this.recent.style.cssText = "display: flex; flex-direction: column; gap: 10px";
         const heads = h("div", "st-heads");
-        heads.append(h("span", "st-head", "Recent"), button("st-link", "Manage…", "", () => hooks.manage()));
+        heads.append(h("span", "st-head", translate("Recent")), button("st-link", translate("Manage…"), "", () => hooks.manage()));
         
         aside.append(heads, this.recent);
         cols.append(left, aside);
         main.append(cols);
 
         const footer = h("footer", "st-footer");
-        const about = button("st-link", "AI in development", "", () => hooks.about());
+        const about = button("st-link", translate("AI in development"), "", () => hooks.about());
         about.setAttribute("aria-haspopup", "dialog");
         footer.append(about, creditLink("site-credit"));
         container.append(top, main, footer);
@@ -144,16 +159,16 @@ export class StartScreen {
     /** Lists the maps of the library, most recently used first. */
     setRecent(list: LibraryEntry[]): void {
         if (!list.length) {
-            this.recent.replaceChildren(h("div", "st-none", "No maps yet"));
+            this.recent.replaceChildren(h("div", "st-none", translate("No maps yet")));
             return;
         }
         const items = list.slice(0, SHOWN).map((m) => {
             const fork = this.forks.find((f) => f.id === m.build)?.name ?? m.build;
-            const b = button("st-recent", h("span", "", m.name), `Open ${m.name}`, () => this.hooks.reopen(m));
+            const b = button("st-recent", h("span", "", m.name), translate("Open {{1}}", { 1: m.name }), () => this.hooks.reopen(m));
             b.append(h("span", "st-meta", `${fork} · ${formatWhen(m.savedAt)} · ${formatSize(m.size)}`));
             return b;
         });
-        if (list.length > SHOWN) items.push(button("st-link", `All ${list.length} maps…`, "", () => this.hooks.manage()));
+        if (list.length > SHOWN) items.push(button("st-link", translate("All {{1}} maps…", { 1: list.length }), "", () => this.hooks.manage()));
         this.recent.replaceChildren(...items);
     }
 }

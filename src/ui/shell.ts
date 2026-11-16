@@ -1,6 +1,7 @@
 // The editor shell around the map: top bar (menus, map name, build, undo and redo, Save), options bar,
 // tool rail, status bar, and the Layers and zoom controls on the map. It draws the controller's state on every
 // refresh (cheaply: only what changed is touched) and turns clicks into controller commands.
+import { language, languages, t as translate } from "../i18n";
 import { LAYERS, type EditorController, type Layer } from "../editor/controller";
 import { describeChord, type Keymap } from "../editor/keymap";
 import { MenuBar, popupMenu, type MenuItem } from "./menus";
@@ -27,6 +28,7 @@ export interface ShellHooks {
     settings(): void;
     shortcuts(): void;
     about(): void;
+    setLanguage(code: string): void;
     /** File > Add a build…; absent without accounts. */
     addBuild?(): void;
     /** Help > Send feedback…; absent without accounts. */
@@ -34,17 +36,17 @@ export interface ShellHooks {
 }
 
 const LAYER_DEFS: ReadonlyArray<[Layer, string, string]> = [
-    ["subfloor", "Subfloor", "view.subfloor"],
-    ["markers", "Markers", "view.markers"],
-    ["powered", "Powered", "view.powered"],
-    ["grid", "Tile grid", "view.grid"],
-    ["centre", "Center of mass", "view.centre"],
-    ["direction", "Heading", "view.direction"],
-    ["links", "Device links", "view.links"],
-    ["configuratorLinks", "Network configurator links", "view.configuratorLinks"],
-    ["nodes", "Node networks", "view.nodes"],
-    ["decals", "Decals", "view.decals"],
-    ["parallax", "Parallax", "view.parallax"],
+    ["subfloor", translate("Subfloor"), "view.subfloor"],
+    ["markers", translate("Markers"), "view.markers"],
+    ["powered", translate("Powered"), "view.powered"],
+    ["grid", translate("Tile grid"), "view.grid"],
+    ["centre", translate("Center of mass"), "view.centre"],
+    ["direction", translate("Heading"), "view.direction"],
+    ["links", translate("Device links"), "view.links"],
+    ["configuratorLinks", translate("Network configurator links"), "view.configuratorLinks"],
+    ["nodes", translate("Node networks"), "view.nodes"],
+    ["decals", translate("Decals"), "view.decals"],
+    ["parallax", translate("Parallax"), "view.parallax"],
 ];
 
 const STYLE = `
@@ -168,103 +170,104 @@ export class Shell {
         const cmd = (label: string, id: string, disabled = false): MenuItem => ({ label, keys: keys(id), run: () => c.run(id), disabled });
         new MenuBar(topbar, [
             {
-                label: "File",
+                label: translate("File"),
                 items: () => [
-                    cmd("New map…", "file.new"),
-                    cmd("Open file…", "file.open"),
-                    { label: "Open recent", sub: () => {
+                    cmd(translate("New map…"), "file.new"),
+                    cmd(translate("Open file…"), "file.open"),
+                    { label: translate("Open recent"), sub: () => {
                         const list = hooks.recent();
-                        return list.length ? list : [{ label: "No maps in this browser", disabled: true }];
+                        return list.length ? list : [{ label: translate("No maps in this browser"), disabled: true }];
                     } },
                     "-",
-                    { label: "Save", keys: keys("file.save"), run: () => c.run("file.save"), disabled: !c.status.open },
-                    cmd("Save as…", "file.saveAs", !c.status.open),
-                    cmd("Download .yml", "file.download", !c.status.open),
+                    { label: translate("Save"), keys: keys("file.save"), run: () => c.run("file.save"), disabled: !c.status.open },
+                    cmd(translate("Save as…"), "file.saveAs", !c.status.open),
+                    cmd(translate("Download .yml"), "file.download", !c.status.open),
                     "-",
-                    { label: "Manage library…", run: () => hooks.library() },
-                    { label: "Change build", disabled: !c.status.open, sub: () => this.forks.map((f) => ({ label: f.name, checked: f.id === this.forkSelect.value, run: () => this.chooseFork(f.id) })) },
-                    ...(hooks.addBuild ? [{ label: "Add a build…", run: () => hooks.addBuild?.() }] : []),
+                    { label: translate("Manage library…"), run: () => hooks.library() },
+                    { label: translate("Change build"), disabled: !c.status.open, sub: () => this.forks.map((f) => ({ label: f.name, checked: f.id === this.forkSelect.value, run: () => this.chooseFork(f.id) })) },
+                    ...(hooks.addBuild ? [{ label: translate("Add a build…"), run: () => hooks.addBuild?.() }] : []),
                 ],
             },
             {
-                label: "Edit",
+                label: translate("Edit"),
                 items: () => {
                     const st = c.status, none = !c.options.selection, grids = c.gridList();
                     return [
-                        cmd("Undo", "edit.undo", !st.canUndo),
-                        cmd("Redo", "edit.redo", !st.canRedo),
+                        cmd(translate("Undo"), "edit.undo", !st.canUndo),
+                        cmd(translate("Redo"), "edit.redo", !st.canRedo),
                         "-",
-                        cmd("Cut", "edit.cut", none),
-                        cmd("Copy", "edit.copy", none),
-                        cmd("Paste", "edit.paste", !st.open),
-                        cmd("Delete", "edit.delete", none),
+                        cmd(translate("Cut"), "edit.cut", none),
+                        cmd(translate("Copy"), "edit.copy", none),
+                        cmd(translate("Paste"), "edit.paste", !st.open),
+                        cmd(translate("Delete"), "edit.delete", none),
                         "-",
-                        cmd("Rotate clockwise", "edit.rotateCw", !st.canRotate),
-                        cmd("Rotate counter-clockwise", "edit.rotateCcw", !st.canRotate),
-                        cmd("Flip horizontally", "edit.flipHorizontal", st.busy || (none && !c.options.pasting)),
-                        cmd("Flip vertically", "edit.flipVertical", st.busy || (none && !c.options.pasting)),
+                        cmd(translate("Rotate clockwise"), "edit.rotateCw", !st.canRotate),
+                        cmd(translate("Rotate counter-clockwise"), "edit.rotateCcw", !st.canRotate),
+                        cmd(translate("Flip horizontally"), "edit.flipHorizontal", st.busy || (none && !c.options.pasting)),
+                        cmd(translate("Flip vertically"), "edit.flipVertical", st.busy || (none && !c.options.pasting)),
                         "-",
-                        cmd("Select all", "select.all", !st.open),
-                        cmd("Deselect", "select.none", none),
+                        cmd(translate("Select all"), "select.all", !st.open),
+                        cmd(translate("Deselect"), "select.none", none),
                         "-",
-                        { label: "Color pipe network…", run: () => void c.editPipeNetworkColor(), disabled: !c.canColorPipeNetwork },
+                        { label: translate("Color pipe network…"), run: () => void c.editPipeNetworkColor(), disabled: !c.canColorPipeNetwork },
                         {
-                            label: "Fix grid atmosphere…",
+                            label: translate("Fix grid atmosphere…"),
                             disabled: !grids.length || st.busy,
                             ...(grids.length === 1
                                 ? { run: () => void c.rebuildAtmosphere(grids[0]!.uid) }
-                                : { sub: () => grids.map(({ uid, name }) => ({ label: name, note: `uid ${uid}`, run: () => void c.rebuildAtmosphere(uid) })) }),
+                                : { sub: () => grids.map(({ uid, name }) => ({ label: name, note: translate("uid {{1}}", { 1: uid }), run: () => void c.rebuildAtmosphere(uid) })) }),
                         },
                         "-",
-                        { label: "Map properties", run: () => c.openMapProperties(), disabled: !st.open },
+                        { label: translate("Map properties"), run: () => c.openMapProperties(), disabled: !st.open },
                         {
-                            label: "Grid properties",
+                            label: translate("Grid properties"),
                             disabled: !st.open || !grids.length,
-                            sub: () => grids.map(({ uid, name }) => ({ label: name, note: `uid ${uid}`, run: () => c.openProperties(uid) })),
+                            sub: () => grids.map(({ uid, name }) => ({ label: name, note: translate("uid {{1}}", { 1: uid }), run: () => c.openProperties(uid) })),
                         },
                         "-",
-                        { label: "Key bindings…", run: () => hooks.settings() },
+                        { label: translate("Key bindings…"), run: () => hooks.settings() },
                     ];
                 },
             },
             {
-                label: "View",
+                label: translate("View"),
                 items: () => [
                     ...LAYER_DEFS.map(([l, label, id]): MenuItem => ({ label, keys: keys(id), checked: c.layer(l), run: () => c.setLayer(l, !c.layer(l)) })),
-                    { label: "Animate parallax", checked: c.parallaxAnimated, run: () => c.setParallaxAnimated(!c.parallaxAnimated) },
+                    { label: translate("Animate parallax"), checked: c.parallaxAnimated, run: () => c.setParallaxAnimated(!c.parallaxAnimated) },
                     "-",
-                    cmd("Fit map", "view.fit", !c.status.open),
-                    cmd("Zoom in", "view.zoomIn", !c.status.open),
-                    cmd("Zoom out", "view.zoomOut", !c.status.open),
+                    cmd(translate("Fit map"), "view.fit", !c.status.open),
+                    cmd(translate("Zoom in"), "view.zoomIn", !c.status.open),
+                    cmd(translate("Zoom out"), "view.zoomOut", !c.status.open),
                 ],
             },
             {
-                label: "Help",
+                label: translate("Help"),
                 items: () => [
-                    { label: "Keyboard shortcuts", keys: keys("help.shortcuts"), run: () => hooks.shortcuts() },
-                    ...(hooks.reportBug ? [{ label: "Send feedback…", run: () => hooks.reportBug?.() }] : []),
+                    { label: translate("Keyboard shortcuts"), keys: keys("help.shortcuts"), run: () => hooks.shortcuts() },
+                    { label: translate("Language"), sub: () => languages.map(({ code, name }) => ({ label: name, checked: code === language(), run: () => hooks.setLanguage(code) })) },
+                    ...(hooks.reportBug ? [{ label: translate("Send feedback…"), run: () => hooks.reportBug?.() }] : []),
                     "-",
-                    { label: "About SS14 Mapper", run: () => hooks.about() },
+                    { label: translate("About SS14 Mapper"), run: () => hooks.about() },
                 ],
             },
         ]);
         const centre = h("div", "tb-centre");
         this.name = h("span", "tb-name");
         this.dot = h("span", "tb-dot");
-        this.dot.title = "Unsaved changes";
+        this.dot.title = translate("Unsaved changes");
         this.dot.hidden = true;
         // the build is fixed by the map: it is chosen when a map is opened or made, and File > Change build… switches it
         this.forkSelect = h("select", "tb-fork");
         this.forkSelect.id = "fork";
         this.forkSelect.hidden = true;
         this.buildLabel = h("span", "tb-build");
-        this.buildLabel.title = "Build";
+        this.buildLabel.title = translate("Build");
         centre.append(this.name, this.dot, this.buildLabel, this.forkSelect);
         this.undoBtn = button("tb-icon", icon(ICON.undo), "", () => c.run("edit.undo"));
-        this.undoBtn.setAttribute("aria-label", "Undo");
+        this.undoBtn.setAttribute("aria-label", translate("Undo"));
         this.redoBtn = button("tb-icon", icon(ICON.redo), "", () => c.run("edit.redo"));
-        this.redoBtn.setAttribute("aria-label", "Redo");
-        this.saveBtn = button("tb-save", "Save", "", () => c.run("file.save"));
+        this.redoBtn.setAttribute("aria-label", translate("Redo"));
+        this.saveBtn = button("tb-save", translate("Save"), "", () => c.run("file.save"));
         this.saveBtn.id = "save";
         topbar.append(centre, this.undoBtn, this.redoBtn, h("span", "tb-sep"), this.saveBtn);
 
@@ -307,7 +310,7 @@ export class Shell {
         this.build.target = "_blank";
         this.build.rel = "noopener noreferrer";
         this.build.className = "sb-build";
-        this.missingBtn = button("sb-missing", "", "Missing sprites", (e) => {
+        this.missingBtn = button("sb-missing", "", translate("Missing sprites"), (e) => {
             e.stopPropagation();
             this.toggleMissing();
         });
@@ -318,7 +321,7 @@ export class Shell {
         controls.classList.add("map-controls");
         this.layersPanel = h("div", "mc-layers");
         this.layersPanel.setAttribute("role", "dialog");
-        this.layersPanel.setAttribute("aria-label", "View layers");
+        this.layersPanel.setAttribute("aria-label", translate("View layers"));
         this.layersPanel.hidden = true;
         for (const [l, label] of LAYER_DEFS) {
             const row = h("label");
@@ -338,26 +341,26 @@ export class Shell {
         this.networkPanel = h("div", "mc-networks");
         this.networkPanel.hidden = true;
         this.networkFilter = h("select");
-        this.networkFilter.setAttribute("aria-label", "Filter node networks");
-        const filters: ReadonlyArray<[NetworkFilter, string]> = [["all", "All"], ["pipes", "Pipes"], ["hv", "HV"], ["mv", "MV"], ["lv", "LV / APC"]];
+        this.networkFilter.setAttribute("aria-label", translate("Filter node networks"));
+        const filters: ReadonlyArray<[NetworkFilter, string]> = [["all", translate("All")], ["pipes", translate("Pipes")], ["hv", "HV"], ["mv", "MV"], ["lv", translate("LV / APC")]];
         for (const [id, label] of filters) this.networkFilter.add(new Option(label, id));
         this.networkFilter.addEventListener("change", () => c.setNetworkFilter(this.networkFilter.value as NetworkFilter));
         this.networkStatus = h("div", "mc-network-status");
         this.networkStatus.hidden = true;
         this.networkStatus.setAttribute("role", "status");
-        const networkLabel = h("label", "", "Node networks");
+        const networkLabel = h("label", "", translate("Node networks"));
         networkLabel.append(this.networkFilter);
         this.networkPanel.append(networkLabel, this.networkStatus);
         const bar = h("div", "mc-bar");
-        this.layersToggle = button("mc-toggle", icon(ICON.layers, 16), "View layers", () => this.toggleLayers());
-        this.layersToggle.append("Layers");
+        this.layersToggle = button("mc-toggle", icon(ICON.layers, 16), translate("View layers"), () => this.toggleLayers());
+        this.layersToggle.append(translate("Layers"));
         this.layersToggle.setAttribute("aria-expanded", "false");
         const out = button("mc-zoom", "−", "", () => c.run("view.zoomOut"));
-        out.setAttribute("aria-label", "Zoom out");
+        out.setAttribute("aria-label", translate("Zoom out"));
         const inn = button("mc-zoom", "+", "", () => c.run("view.zoomIn"));
-        inn.setAttribute("aria-label", "Zoom in");
+        inn.setAttribute("aria-label", translate("Zoom in"));
         this.pct = h("span", "mc-pct");
-        const fit = button("mc-fit", "Fit", "", () => c.run("view.fit"));
+        const fit = button("mc-fit", translate("Fit"), "", () => c.run("view.fit"));
         fit.dataset.fit = "";
         bar.append(this.layersToggle, h("span", "mc-sep"), out, this.pct, inn, fit);
         controls.append(this.networkPanel, this.layersPanel, bar);
@@ -396,14 +399,14 @@ export class Shell {
         for (const t of TOOLS) {
             const b = this.railButtons.get(t.id)!;
             tip(b, t.label, t.action);
-            if (t.flyout) b.title += " (right-click for shapes)";
+            if (t.flyout) b.title += translate(" (right-click for shapes)");
         }
-        tip(this.undoBtn, "Undo", "edit.undo");
-        tip(this.redoBtn, "Redo", "edit.redo");
-        tip(this.saveBtn, "Save", "file.save");
+        tip(this.undoBtn, translate("Undo"), "edit.undo");
+        tip(this.redoBtn, translate("Redo"), "edit.redo");
+        tip(this.saveBtn, translate("Save"), "file.save");
         for (const [l, , id] of LAYER_DEFS) this.layerKeys.get(l)!.textContent = this.keymap.bindings(id).map(describeChord)[0] ?? "";
         const fit = this.pct.parentElement?.querySelector<HTMLElement>("[data-fit]");
-        if (fit) tip(fit, "Fit map", "view.fit");
+        if (fit) tip(fit, translate("Fit map"), "view.fit");
     }
 
     /** The shapes of the marquee or the Shapes tool, beside the rail button. */
@@ -428,7 +431,7 @@ export class Shell {
     private toggleMissing(): void {
         if (this.missingList) return this.closeMissing();
         const box = h("div", "sb-list");
-        box.append(h("div", "sl-head", `Missing sprites (${this.missing.length})`));
+        box.append(h("div", "sl-head", translate("Missing sprites ({{1}})", { 1: this.missing.length })));
         box.append(h("div", "sl-body", this.missing.join("\n")));
         document.body.append(box);
         const r = this.missingBtn.getBoundingClientRect();
@@ -479,19 +482,19 @@ export class Shell {
             this.hint.textContent = c.hint;
             this.hint.title = c.hint;
         }
-        const counts = s ? `${s.scene.entities.size} entities, ${s.scene.tiles.size} tiles, ${s.scene.decals.size} decals` : "";
+        const counts = s ? translate("{{1}} entities, {{2}} tiles, {{3}} decals", { 1: s.scene.entities.size, 2: s.scene.tiles.size, 3: s.scene.decals.size }) : "";
         if (set("counts", counts + (s?.pack.manifest.fork.commit ?? ""))) {
             this.counts.textContent = counts;
             this.counts.title = this.loadInfo;
             this.missing = s?.scene.missing ?? [];
             this.missingBtn.hidden = !this.missing.length;
-            this.missingBtn.replaceChildren(icon(ICON.warning, 13), `${this.missing.length} missing`);
+            this.missingBtn.replaceChildren(icon(ICON.warning, 13), translate("{{1}} missing", { 1: this.missing.length }));
             const f = s?.pack.manifest.fork;
             this.build.textContent = f ? `${this.forks.find((x) => x.id === f.id)?.name ?? f.id} ${f.commit.slice(0, 7)}` : "";
             const repo = (f?.repo || this.forks.find((x) => x.id === f?.id)?.repo || "").replace(/\.git$/, "").replace(/\/$/, "");
             if (f && repo) {
                 this.build.href = `${repo}/tree/${f.commit}`;
-                this.build.title = `${repo} at ${f.commit.slice(0, 7)}`;
+                this.build.title = translate("{{1}} at {{2}}", { 1: repo, 2: f.commit.slice(0, 7) });
             } else {
                 this.build.removeAttribute("href");
                 this.build.title = f ? f.commit : "";

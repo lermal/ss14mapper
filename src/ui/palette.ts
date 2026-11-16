@@ -1,5 +1,6 @@
 // Palette of placeable entities, tiles and decals of the open build, with search.
 // API contract shared by the editor (src/editor, src/main.ts); logic without DOM is in palette-search.ts.
+import { t as translate } from "../i18n";
 import type { Frame, Pack } from "../pack/loader";
 import { Categories, FAVOURITES, loadCategories, parseCategories, saveCategories } from "./categories";
 import { ENTRY_TYPE, setDragged } from "./drag";
@@ -116,11 +117,11 @@ const ICONS = {
 };
 
 const KINDS: Array<[EntryKind, string]> = [
-    ["entity", "Entities"],
-    ["tile", "Tiles"],
-    ["decal", "Decals"],
+    ["entity", translate("Entities")],
+    ["tile", translate("Tiles")],
+    ["decal", translate("Decals")],
 ];
-const KIND_ALL: Record<EntryKind, string> = { entity: "All entities", tile: "All tiles", decal: "All decals" };
+const KIND_ALL: Record<EntryKind, string> = { entity: translate("All entities"), tile: translate("All tiles"), decal: translate("All decals") };
 
 /** A list row: a pack entry, or a category entry whose prototype is gone from the pack. */
 interface Row extends PaletteEntry {
@@ -142,7 +143,7 @@ interface Editing {
 }
 
 const DRAG_TYPE = ENTRY_TYPE;
-const categoryLabel = (name: string) => (name === FAVOURITES ? "Favorites" : name);
+const categoryLabel = (name: string) => (name === FAVOURITES ? translate("Favorites") : name);
 
 export class Palette {
     /** Called whenever the choice changes (picked, cleared, or the pack changed). */
@@ -206,8 +207,8 @@ export class Palette {
         label.insertAdjacentHTML("beforeend", ICONS.search);
         this.input = document.createElement("input");
         this.input.type = "text";
-        this.input.placeholder = "Search name or ID";
-        this.input.setAttribute("aria-label", "Search");
+        this.input.placeholder = translate("Search name or ID");
+        this.input.setAttribute("aria-label", translate("Search"));
         this.input.spellcheck = false;
         this.input.addEventListener("input", () => this.refilter());
         this.input.addEventListener("keydown", (e) => this.onKey(e));
@@ -224,16 +225,16 @@ export class Palette {
         head.className = "pal-head";
         const tools = document.createElement("div");
         tools.className = "pal-tools";
-        const add = this.tool("+", "New category");
+        const add = this.tool("+", translate("New category"));
         add.addEventListener("click", () => this.newCategory());
-        const more = this.tool("", "Categories menu");
+        const more = this.tool("", translate("Categories menu"));
         more.innerHTML = ICONS.more;
         more.addEventListener("click", () => {
             const r = more.getBoundingClientRect();
-            this.showMenu([{ label: "Export categories", run: () => this.exportFile() }, { label: "Import categories…", run: () => this.importFile() }], r.left, r.bottom + 2);
+            this.showMenu([{ label: translate("Export categories"), run: () => this.exportFile() }, { label: translate("Import categories…"), run: () => this.importFile() }], r.left, r.bottom + 2);
         });
         tools.append(add, more);
-        head.append("Categories", tools);
+        head.append(translate("Categories"), tools);
         this.folders = document.createElement("div");
         this.catWrap = document.createElement("div");
         this.catWrap.className = "pal-catwrap";
@@ -360,7 +361,7 @@ export class Palette {
         }
         const grid = this.grid[this.tab];
         this.gridBtn.setAttribute("aria-pressed", String(grid));
-        const label = grid ? "List view" : "Grid view";
+        const label = grid ? translate("List view") : translate("Grid view");
         this.gridBtn.title = label;
         this.gridBtn.setAttribute("aria-label", label);
         this.gridBtn.innerHTML = grid ? ICONS.list : ICONS.grid;
@@ -391,8 +392,8 @@ export class Palette {
         this.list.scrollTop = 0;
         this.spacer.style.height = `${Math.ceil(this.shown.length / this.cols) * ROW}px`;
         this.empty.hidden = this.shown.length > 0;
-        this.empty.textContent = this.pack ? "No results" : "No build loaded";
-        this.resultsHead.textContent = q.trim() ? `Results (${this.shown.length})` : `${KIND_ALL[this.tab]} (${this.shown.length})`;
+        this.empty.textContent = this.pack ? translate("No results") : translate("No build loaded");
+        this.resultsHead.textContent = q.trim() ? translate("Results ({{1}})", { 1: this.shown.length }) : `${KIND_ALL[this.tab]} (${this.shown.length})`;
         for (const el of this.rows.values()) el.remove();
         this.rows.clear();
         this.draw();
@@ -474,7 +475,7 @@ export class Palette {
         const row = document.createElement("div");
         row.className = "row";
         this.rowEntry.set(row, e);
-        row.title = e.missing ? `${e.id} (missing)` : cell ? `${e.name}${e.suffix ? ` ${e.suffix}` : ""}\n${e.id}` : e.id;
+        row.title = e.missing ? translate("{{1}} (missing)", { 1: e.id }) : cell ? `${e.name}${e.suffix ? ` ${e.suffix}` : ""}\n${e.id}` : e.id;
         row.draggable = !e.missing;
         row.classList.toggle("missing", !!e.missing);
         row.classList.toggle("cell", cell);
@@ -508,7 +509,7 @@ export class Palette {
             star.type = "button";
             star.className = "pal-star";
             star.classList.toggle("on", on);
-            star.title = on ? "Remove from favorites" : "Add to favorites";
+            star.title = on ? translate("Remove from favorites") : translate("Add to favorites");
             star.setAttribute("aria-label", star.title);
             star.innerHTML = on ? ICONS.starFill : ICONS.star;
             row.append(star);
@@ -619,7 +620,7 @@ export class Palette {
                 if (!rows.length) {
                     const none = document.createElement("div");
                     none.className = "pal-fempty";
-                    none.textContent = q ? "No results" : name === FAVOURITES ? "No favorites" : "Empty";
+                    none.textContent = q ? translate("No results") : name === FAVOURITES ? translate("No favorites") : translate("Empty");
                     body.append(none);
                 }
                 for (const r of rows) {
@@ -646,8 +647,8 @@ export class Palette {
         const input = document.createElement("input");
         input.type = "text";
         input.value = state.rename ?? "";
-        input.placeholder = "Category name";
-        input.setAttribute("aria-label", state.rename === null ? "New category name" : "Category name");
+        input.placeholder = translate("Category name");
+        input.setAttribute("aria-label", state.rename === null ? translate("New category name") : translate("Category name"));
         input.spellcheck = false;
         const err = document.createElement("div");
         err.className = "pal-err";
@@ -725,15 +726,15 @@ export class Palette {
         const items: MenuItem[] = [];
         if (!e.missing) {
             const fav = this.cats.has(FAVOURITES, e);
-            items.push({ label: fav ? "Remove from favorites" : "Add to favorites", run: () => this.toggleFavourite(e) });
+            items.push({ label: fav ? translate("Remove from favorites") : translate("Add to favorites"), run: () => this.toggleFavourite(e) });
             const sub: MenuItem[] = this.cats.names.filter((n) => !this.cats.has(n, e)).map((name) => ({ label: name, run: () => this.addTo(name, e) }));
-            sub.push({ label: "New category…", run: () => this.newCategory((name) => this.addTo(name, e)) });
-            items.push({ label: "Add to", sub });
+            sub.push({ label: translate("New category…"), run: () => this.newCategory((name) => this.addTo(name, e)) });
+            items.push({ label: translate("Add to"), sub });
         }
         const from = this.cats.containing(e);
         if (from.length) {
             items.push({ label: "-" });
-            for (const name of from) items.push({ label: `Remove from ${categoryLabel(name)}`, run: () => this.removeFrom(name, e) });
+            for (const name of from) items.push({ label: translate("Remove from {{1}}", { 1: categoryLabel(name) }), run: () => this.removeFrom(name, e) });
         }
         this.showMenu(items, x, y);
     }
@@ -750,13 +751,13 @@ export class Palette {
         this.showMenu(
             [
                 {
-                    label: "Rename",
+                    label: translate("Rename"),
                     run: () => {
                         this.editing = { rename: name, error: "" };
                         this.drawCats();
                     },
                 },
-                { label: "Delete", danger: true, run: () => this.deleteCategory(name) },
+                { label: translate("Delete"), danger: true, run: () => this.deleteCategory(name) },
             ],
             x,
             y,
@@ -767,11 +768,11 @@ export class Palette {
         const snap = this.cats.snapshot(name);
         if (!snap || !this.cats.delete(name)) return;
         this.changed();
-        showToast(`Deleted category "${name}"`, {
-            label: "Undo",
+        showToast(translate("Deleted category \"{{1}}\"", { 1: name }), {
+            label: translate("Undo"),
             run: () => {
                 if (this.cats.restore(snap)) this.changed();
-                else showToast(`Could not restore "${name}"`);
+                else showToast(translate("Could not restore \"{{1}}\"", { 1: name }));
             },
         });
     }
@@ -838,10 +839,10 @@ export class Palette {
             const file = input.files?.[0];
             if (!file) return;
             const parsed = parseCategories(await file.text());
-            if (!parsed) return void showToast("Could not import categories");
+            if (!parsed) return void showToast(translate("Could not import categories"));
             this.cats.merge(parsed);
             this.changed();
-            showToast("Categories imported");
+            showToast(translate("Categories imported"));
         });
         input.click();
     }

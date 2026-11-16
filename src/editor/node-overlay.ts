@@ -1,3 +1,4 @@
+import { t as translate } from "../i18n";
 import { NETWORK_KINDS, type NetworkKind, type NetworkNode, type NetworkTopology } from "../map/node-networks";
 import { PPM, SpatialIndex, type Scene } from "../render/scene";
 import { segmentVisible, type InspectionHint } from "./inspection-overlay";
@@ -79,8 +80,8 @@ export class NodeOverlay {
     }
 
     status(filter: NetworkFilter): string {
-        if (filter === "all" ? this.incomplete.size : this.incomplete.has(filter)) return "Partial topology · unsupported nodes shown in gray";
-        if (!(filter === "all" ? this.kinds.size : this.kinds.has(filter))) return "No matching nodes";
+        if (filter === "all" ? this.incomplete.size : this.incomplete.has(filter)) return translate("Partial topology · unsupported nodes shown in gray");
+        if (!(filter === "all" ? this.kinds.size : this.kinds.has(filter))) return translate("No matching nodes");
         return "";
     }
 
@@ -160,13 +161,15 @@ export class NodeOverlay {
         g.restore();
         if (!hover || !cursor) return null;
         const { node, network } = hover;
-        const type = [node.type, node.group, node.layer].filter(Boolean).join(" · ");
-        const size = this.sizes.get(network);
-        const coordinates = `Grid #${node.grid} · ${node.cell.join(", ")} · ${size} ${size === 1 ? "node" : "nodes"}`;
+        const type = [node.type, node.group, node.layer ? translate(node.layer) : ""].filter(Boolean).join(" · ");
+        const size = this.sizes.get(network)!;
+        const coordinates = translate("Grid #{{grid}} · {{coordinates}} · {{nodes}}", {
+            grid: node.grid, coordinates: node.cell.join(", "), nodes: translate("count.nodes", { count: size }),
+        });
         return {
             at: cursor,
             lines: [`${label(node.uid)} · ${node.name}`, type, coordinates,
-                ...(node.incomplete ? ["Partial topology for this node"] : node.openEnds?.length ? [`Open directions: ${node.openEnds.length}`] : [])],
+                ...(node.incomplete ? [translate("Partial topology for this node")] : node.openEnds?.length ? [translate("Open directions: {{1}}", { 1: node.openEnds.length })] : [])],
         };
     }
 }

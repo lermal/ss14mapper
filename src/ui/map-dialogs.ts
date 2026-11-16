@@ -1,5 +1,6 @@
 // Dialogs of the map library and new maps: New map, Save as (a name), and Manage library (open, rename and delete
 // maps kept in this browser).
+import { t as translate } from "../i18n";
 import { MAX_FLOOR_SIDE, newMapText, startingFloors, type NewMapKind } from "../map/new-map";
 import type { Pack } from "../pack/loader";
 import { dialog } from "./dialog";
@@ -70,8 +71,8 @@ function numberInput(value: number, min: number, max: number): HTMLInputElement 
 /** Why a typed map name cannot be used, or "" when it can; `taken` tells names already in the library. */
 export function nameProblem(typed: string, taken: (file: string) => boolean): string {
     const file = mapFileName(typed);
-    if (!file) return "Enter a name";
-    if (taken(file)) return `${file} already exists`;
+    if (!file) return translate("Enter a name");
+    if (taken(file)) return translate("{{1}} already exists", { 1: file });
     return "";
 }
 
@@ -84,9 +85,9 @@ export function askMapName(title: string, initial: string, confirm: string, take
     input.addEventListener("input", () => (error.textContent = ""));
     return dialog<string | null>(
         title,
-        [field("Name", input), error],
+        [field(translate("Name"), input), error],
         [
-            { label: "Cancel", value: null, spaceAfter: true },
+            { label: translate("Cancel"), value: null, spaceAfter: true },
             { label: confirm, value: "ok", kind: "primary" },
         ],
         null,
@@ -114,8 +115,8 @@ export interface NewMapSetup {
 }
 
 const KINDS: ReadonlyArray<[NewMapKind, string, string, string]> = [
-    ["shuttle", "Shuttle", "", "New shuttle"],
-    ["map", "Map", "", "New map"],
+    ["shuttle", translate("Shuttle"), "", translate("New shuttle")],
+    ["map", translate("Map"), "", translate("New map")],
 ];
 const MAX_SIDE = MAX_FLOOR_SIDE;
 
@@ -125,7 +126,7 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
     let kind: NewMapKind = "shuttle";
     const seg = h("div", "md-seg");
     seg.setAttribute("role", "group");
-    seg.setAttribute("aria-label", "Type");
+    seg.setAttribute("aria-label", translate("Type"));
     const hint = h("p", "md-hint");
     const name = textInput(KINDS[0]![3]);
     name.dataset.autofocus = "";
@@ -157,11 +158,11 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
     floorOn.type = "checkbox";
     floorOn.checked = true;
     const floorLabel = h("label", "md-floor");
-    floorLabel.append(floorOn, "Floor");
+    floorLabel.append(floorOn, translate("Floor"));
     const tile = h("select");
     const width = numberInput(5, 1, MAX_SIDE), height = numberInput(5, 1, MAX_SIDE);
     const floorFields = h("div", "md-floor-fields");
-    floorFields.append(field("Tile", tile, "md-tile"), field("Width", width), field("Height", height));
+    floorFields.append(field(translate("Tile"), tile, "md-tile"), field(translate("Width"), width), field(translate("Height"), height));
     floorOn.addEventListener("change", () => {
         floorFields.classList.toggle("off", !floorOn.checked);
         for (const c of [tile, width, height]) c.disabled = !floorOn.checked;
@@ -174,7 +175,7 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
         const id = build.value;
         packFor = id;
         pack = null;
-        tile.replaceChildren(new Option("Loading…", ""));
+        tile.replaceChildren(new Option(translate("Loading…"), ""));
         tile.disabled = true;
         try {
             const p = await setup.loadPack(id);
@@ -186,15 +187,15 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
             const ids = [...usual, ...rest];
             const keep = tile.dataset.chosen;
             const others = h("optgroup");
-            others.label = "Other";
+            others.label = translate("Other");
             others.append(...rest.map((t) => new Option(t, t)));
             tile.replaceChildren(...usual.map((t) => new Option(t, t)), ...(rest.length ? [others] : []));
             tile.value = keep && ids.includes(keep) ? keep : ids.includes("Plating") ? "Plating" : ids[0] ?? "";
             tile.disabled = !floorOn.checked;
         } catch (e) {
             if (packFor !== id) return;
-            tile.replaceChildren(new Option("Not available", ""));
-            error.textContent = `Could not load ${build.selectedOptions[0]?.text ?? id}: ${(e as Error).message}`;
+            tile.replaceChildren(new Option(translate("Not available"), ""));
+            error.textContent = translate("Could not load {{1}}: {{2}}", { 1: build.selectedOptions[0]?.text ?? id, 2: (e as Error).message });
         }
     };
     tile.addEventListener("change", () => (tile.dataset.chosen = tile.value));
@@ -209,7 +210,7 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
         error.textContent = nameProblem(name.value, setup.taken);
         if (error.textContent) return false;
         if (!pack) {
-            error.textContent = "Build is loading";
+            error.textContent = translate("Build is loading");
             return false;
         }
         let floor: { tile: string; width: number; height: number } | undefined;
@@ -217,11 +218,11 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
             const w = Number(width.value), hgt = Number(height.value);
             const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= MAX_SIDE;
             if (!ok(w) || !ok(hgt)) {
-                error.textContent = `Width and height must be 1 to ${MAX_SIDE}`;
+                error.textContent = translate("Width and height must be 1 to {{1}}", { 1: MAX_SIDE });
                 return false;
             }
             if (!tile.value) {
-                error.textContent = "Choose a floor tile";
+                error.textContent = translate("Choose a floor tile");
                 return false;
             }
             floor = { tile: tile.value, width: w, height: hgt };
@@ -232,18 +233,18 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
             result = { file, build: build.value, text };
             return true;
         } catch (e) {
-            error.textContent = `Could not create map: ${(e as Error).message}`;
+            error.textContent = translate("Could not create map: {{1}}", { 1: (e as Error).message });
             return false;
         }
     };
     const typeField = h("div", "dlg-field");
-    typeField.append("Type", seg, hint);
+    typeField.append(translate("Type"), seg, hint);
     return dialog<"create" | null>(
-        "New map",
-        [typeField, field("Name", name), field("Build", build), floorLabel, floorFields, error],
+        translate("New map"),
+        [typeField, field(translate("Name"), name), field(translate("Build"), build), floorLabel, floorFields, error],
         [
-            { label: "Cancel", value: null, spaceAfter: true },
-            { label: "Create", value: "create", kind: "primary" },
+            { label: translate("Cancel"), value: null, spaceAfter: true },
+            { label: translate("Create"), value: "create", kind: "primary" },
         ],
         null,
         { check, width: 460 },
@@ -271,13 +272,13 @@ export async function manageLibrary(hooks: LibraryDialogHooks): Promise<void> {
 
     const render = async () => {
         entries = await library.list();
-        if (!entries.length) list.replaceChildren(h("div", "lib-empty", "No maps"));
+        if (!entries.length) list.replaceChildren(h("div", "lib-empty", translate("No maps")));
         else list.replaceChildren(...entries.map(row));
         const maps = `${entries.length} ${entries.length === 1 ? "map" : "maps"}, ${formatSize(usedBytes(entries))}`;
         foot.textContent = `${maps}`;
         try {
             const est = await navigator.storage?.estimate?.();
-            if (est?.usage !== undefined && est.quota) foot.textContent += `. Storage: ${formatSize(est.usage)} of ${formatSize(est.quota)}`;
+            if (est?.usage !== undefined && est.quota) foot.textContent += translate(". Storage: {{1}} of {{2}}", { 1: formatSize(est.usage), 2: formatSize(est.quota) });
         } catch {
             // no estimate
         }
@@ -289,14 +290,14 @@ export async function manageLibrary(hooks: LibraryDialogHooks): Promise<void> {
         const text = h("div", "lib-text");
         const nameEl = h("span", "lib-name", e.name);
         nameEl.title = e.name;
-        if (e.id === hooks.openId) nameEl.append(h("span", "lib-badge", "Open"));
+            if (e.id === hooks.openId) nameEl.append(h("span", "lib-badge", translate("library.openBadge")));
         text.append(nameEl, h("span", "lib-meta", `${hooks.forkName(e.build)} · ${formatWhen(e.savedAt)} · ${formatSize(e.size)}`));
-        const openBtn = button("btn", "Open", `Open ${e.name}`, () => {
+        const openBtn = button("btn", translate("Open"), translate("Open {{1}}", { 1: e.name }), () => {
             close();
             hooks.open(e.id);
         });
-        const renameBtn = button("btn", "Rename", "", () => rename(e, r, text));
-        const del = button("btn danger", "Delete", e.id === hooks.openId ? "Open in the editor" : "Delete", () => void remove(e));
+        const renameBtn = button("btn", translate("Rename"), "", () => rename(e, r, text));
+        const del = button("btn danger", translate("Delete"), e.id === hooks.openId ? translate("Open in the editor") : translate("Delete"), () => void remove(e));
         del.disabled = e.id === hooks.openId;
         r.append(text, openBtn, renameBtn, del);
         return r;
@@ -309,8 +310,8 @@ export async function manageLibrary(hooks: LibraryDialogHooks): Promise<void> {
         box.append(input, err);
         text.replaceWith(box);
         for (const b of r.querySelectorAll("button")) b.hidden = true;
-        const save = button("btn primary", "Save", "", () => void commit());
-        const cancel = button("btn", "Cancel", "", () => void render());
+        const save = button("btn primary", translate("Save"), "", () => void commit());
+        const cancel = button("btn", translate("Cancel"), "", () => void render());
         r.append(save, cancel);
         input.focus();
         input.select();
@@ -339,14 +340,14 @@ export async function manageLibrary(hooks: LibraryDialogHooks): Promise<void> {
 
     const remove = async (e: LibraryEntry) => {
         const gone = await library.remove(e.id);
-        if (!gone) return showToast(`Could not delete ${e.name}`);
+        if (!gone) return showToast(translate("Could not delete {{1}}", { 1: e.name }));
         hooks.changed({ id: e.id });
         await render();
-        showToast(`Deleted ${e.name}`, {
-            label: "Undo",
+        showToast(translate("Deleted {{1}}", { 1: e.name }), {
+            label: translate("Undo"),
             run: () =>
                 void library.restore(gone).then(async (ok) => {
-                    if (!ok) return showToast(`Could not restore ${e.name}`);
+                    if (!ok) return showToast(translate("Could not restore {{1}}", { 1: e.name }));
                     hooks.changed({ id: e.id, name: gone.name });
                     if (list.isConnected) await render();
                 }),
@@ -354,7 +355,7 @@ export async function manageLibrary(hooks: LibraryDialogHooks): Promise<void> {
     };
 
     await render();
-    await dialog<void>("Library", [list, foot], [{ label: "Close", value: undefined, kind: "primary" }], undefined, {
+    await dialog<void>(translate("Library"), [list, foot], [{ label: translate("Close"), value: undefined, kind: "primary" }], undefined, {
         width: 620,
         bind: (c) => (close = c),
     });

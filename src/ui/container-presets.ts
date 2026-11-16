@@ -2,6 +2,7 @@
 // categories) and put into other containers. A preset is a list of prototypes with counts; an item that holds
 // things keeps them, by container id, so a toolbox comes with its tools.
 
+import { t as translate } from "../i18n";
 export interface PresetItem {
     proto: string;
     count: number;
@@ -47,8 +48,8 @@ export class Presets {
     /** Why `name` cannot be used for a new preset or as the new name of `except`, or null if it can. */
     nameError(name: string, except?: string): string | null {
         name = name.trim();
-        if (!name) return "Enter a name";
-        if (name !== except && this.get(name)) return "Name already exists";
+        if (!name) return translate("Enter a name");
+        if (name !== except && this.get(name)) return translate("Name already exists");
         return null;
     }
 

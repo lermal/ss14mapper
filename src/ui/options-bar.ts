@@ -1,6 +1,7 @@
 // The options bar: the active tool's name and settings (pick filter, marquee shape, what the brush places and how,
 // shapes, eraser and eyedropper kinds, what the multitool holds), and for the selection tools the selection with
 // Rotate, Copy and Delete. Rebuilt when the options change; not while one of its fields has the focus.
+import { t as translate } from "../i18n";
 import type { EditorController, EraseKind, MarqueeShape, SampleFrom, SelectedDecals, SelectFilter, ShapeKind, Tool, ToolOptions } from "../editor/controller";
 import type { DecalSnap } from "../editor/tools";
 import { layerPrototypes } from "../editor/pipe-layers";
@@ -23,35 +24,35 @@ export interface ToolDef {
 }
 
 export const TOOLS: readonly ToolDef[] = [
-    { id: "select", label: "Select", action: "tool.select", icon: ICON.select },
-    { id: "marquee", label: "Marquee", action: "tool.marquee", icon: ICON.marquee, flyout: true },
-    { id: "wand", label: "Magic wand", action: "tool.wand", icon: ICON.wand },
-    { id: "brush", label: "Brush", action: "tool.brush", icon: ICON.brush, gapBefore: true },
-    { id: "shapes", label: "Shapes", action: "tool.shapes", icon: ICON.shapes, flyout: true },
-    { id: "eraser", label: "Eraser", action: "tool.erase", icon: ICON.eraser },
-    { id: "eyedropper", label: "Eyedropper", action: "tool.eyedropper", icon: ICON.eyedropper },
-    { id: "multitool", label: "Multitool", action: "tool.multitool", icon: ICON.multitool, gapBefore: true },
-    { id: "ruler", label: "Ruler", action: "tool.ruler", icon: ICON.ruler },
+    { id: "select", label: translate("Select"), action: "tool.select", icon: ICON.select },
+    { id: "marquee", label: translate("Marquee"), action: "tool.marquee", icon: ICON.marquee, flyout: true },
+    { id: "wand", label: translate("Magic wand"), action: "tool.wand", icon: ICON.wand },
+    { id: "brush", label: translate("Brush"), action: "tool.brush", icon: ICON.brush, gapBefore: true },
+    { id: "shapes", label: translate("Shapes"), action: "tool.shapes", icon: ICON.shapes, flyout: true },
+    { id: "eraser", label: translate("Eraser"), action: "tool.erase", icon: ICON.eraser },
+    { id: "eyedropper", label: translate("Eyedropper"), action: "tool.eyedropper", icon: ICON.eyedropper },
+    { id: "multitool", label: translate("Multitool"), action: "tool.multitool", icon: ICON.multitool, gapBefore: true },
+    { id: "ruler", label: translate("Ruler"), action: "tool.ruler", icon: ICON.ruler },
 ];
 
 export const MARQUEE_SHAPES: ReadonlyArray<[MarqueeShape, string, string, string]> = [
-    ["rect", "Rectangle", ICON.rect, "tool.selectRect"],
-    ["ellipse", "Ellipse", ICON.ellipse, "tool.selectEllipse"],
-    ["lasso", "Lasso", ICON.lasso, "tool.lasso"],
+    ["rect", translate("Rectangle"), ICON.rect, "tool.selectRect"],
+    ["ellipse", translate("Ellipse"), ICON.ellipse, "tool.selectEllipse"],
+    ["lasso", translate("Lasso"), ICON.lasso, "tool.lasso"],
 ];
 
 export const SHAPE_KINDS: ReadonlyArray<[ShapeKind, string, string, string]> = [
-    ["line", "Line", ICON.line, "tool.shapeLine"],
-    ["rect", "Rectangle", ICON.rect, "tool.shapeRect"],
-    ["ellipse", "Ellipse", ICON.ellipse, "tool.shapeEllipse"],
+    ["line", translate("Line"), ICON.line, "tool.shapeLine"],
+    ["rect", translate("Rectangle"), ICON.rect, "tool.shapeRect"],
+    ["ellipse", translate("Ellipse"), ICON.ellipse, "tool.shapeEllipse"],
 ];
 
-const FILTERS: ReadonlyArray<[SelectFilter, string]> = [["all", "All"], ["entities", "Entities"], ["tiles", "Tiles"], ["decals", "Decals"]];
-const ERASE: ReadonlyArray<[EraseKind, string]> = [["tiles", "Tiles"], ["entities", "Entities"], ["decals", "Decals"]];
-const SAMPLE: ReadonlyArray<[SampleFrom, string]> = [["any", "Any"], ["entities", "Entities"], ["tiles", "Tiles"], ["decals", "Decals"]];
-const SNAPS: ReadonlyArray<[DecalSnap, string]> = [["tile", "Tile"], ["corner", "Corner"], ["free", "Off"]];
-const RULER_SNAPS: ReadonlyArray<[RulerSnap, string]> = [["centers", "Centers"], ["corners", "Corners"], ["free", "Free"]];
-const PIPE_LAYERS: ReadonlyArray<[string, string]> = [["auto", "Auto"], ["0", "Primary"], ["1", "Secondary"], ["2", "Tertiary"]];
+const FILTERS: ReadonlyArray<[SelectFilter, string]> = [["all", translate("All")], ["entities", translate("Entities")], ["tiles", translate("Tiles")], ["decals", translate("Decals")]];
+const ERASE: ReadonlyArray<[EraseKind, string]> = [["tiles", translate("Tiles")], ["entities", translate("Entities")], ["decals", translate("Decals")]];
+const SAMPLE: ReadonlyArray<[SampleFrom, string]> = [["any", translate("Any")], ["entities", translate("Entities")], ["tiles", translate("Tiles")], ["decals", translate("Decals")]];
+const SNAPS: ReadonlyArray<[DecalSnap, string]> = [["tile", translate("Tile")], ["corner", translate("Corner")], ["free", translate("Off")]];
+const RULER_SNAPS: ReadonlyArray<[RulerSnap, string]> = [["centers", translate("Centers")], ["corners", translate("Corners")], ["free", translate("Free")]];
+const PIPE_LAYERS: ReadonlyArray<[string, string]> = [["auto", translate("Auto")], ["0", translate("Primary")], ["1", translate("Secondary")], ["2", translate("Tertiary")]];
 
 const STYLE = `
 .optionsbar { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; box-sizing: border-box; background: var(--panel-2); border-bottom: 1px solid var(--border); flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
@@ -122,44 +123,44 @@ export class OptionsBar {
         const parts: Node[] = [h("span", "ob-name", def.label), h("span", "ob-sep")];
         const muted = (t: string) => h("span", "ob-muted", t);
         const selectionTool = o.tool === "select" || o.tool === "marquee" || o.tool === "wand";
-        if (selectionTool) parts.push(muted("Pick"), seg("What to select", FILTERS, o.filter, (f) => c.setFilter(f)));
+        if (selectionTool) parts.push(muted(translate("Pick")), seg(translate("What to select"), FILTERS, o.filter, (f) => c.setFilter(f)));
         // the selected decals: the brush's fields, set on all of them; Snap also says how they move
         if (selectionTool && o.decals) parts.push(h("span", "ob-sep"), ...this.decalFields(o, o.decals, true));
-        if (o.tool === "marquee") parts.push(seg("Marquee shape", MARQUEE_SHAPES.map(([v, l]) => [v, l]), o.marquee, (m) => c.setMarquee(m)), muted("Shift: add, Alt: subtract"));
-        if (o.tool === "wand") parts.push(check("Contiguous", o.contiguous, (on) => c.setContiguous(on), "Ctrl+click inverts"));
+        if (o.tool === "marquee") parts.push(seg(translate("Marquee shape"), MARQUEE_SHAPES.map(([v, l]) => [v, l]), o.marquee, (m) => c.setMarquee(m)), muted(translate("Shift: add, Alt: subtract")));
+        if (o.tool === "wand") parts.push(check(translate("Contiguous"), o.contiguous, (on) => c.setContiguous(on), translate("Ctrl+click inverts")));
         if (o.tool === "brush") parts.push(...this.brush(o, pack));
         if (o.tool === "shapes") {
             parts.push(
-                seg("Shape", SHAPE_KINDS.map(([v, l]) => [v, l]), o.shape, (k) => c.setShapeKind(k)),
-                seg("Fill", [["outline", "Outline"], ["filled", "Filled"]], o.filled ? "filled" : "outline", (v) => c.setFilled(v === "filled"), o.shape === "line"),
+                seg(translate("Shape"), SHAPE_KINDS.map(([v, l]) => [v, l]), o.shape, (k) => c.setShapeKind(k)),
+                seg(translate("Fill"), [["outline", translate("Outline")], ["filled", translate("Filled")]], o.filled ? "filled" : "outline", (v) => c.setFilled(v === "filled"), o.shape === "line"),
             );
             const with_ = h("span", "ob-muted");
             with_.style.cssText = "display: flex; align-items: center; gap: 6px";
             if (o.choice && pack) {
                 const name = h("span", "", choiceName(o.choice, pack));
                 name.style.color = "var(--text)";
-                with_.append("with", spriteCanvas(pack, choiceIcon(o.choice, pack), 20), name);
-            } else with_.append("Nothing chosen");
+                with_.append(translate("with"), spriteCanvas(pack, choiceIcon(o.choice, pack), 20), name);
+            } else with_.append(translate("Nothing chosen"));
             parts.push(with_);
         }
-        if (o.tool === "eraser") parts.push(muted("Erase"), seg("What to erase", ERASE, o.erase, (k) => c.setEraseKind(k)));
-        if (o.tool === "eyedropper") parts.push(muted("Sample from"), seg("Sample from", SAMPLE, o.sample, (k) => c.setSampleFrom(k)));
-        if (o.tool === "ruler") parts.push(muted("Snap"), seg("Ruler snap", RULER_SNAPS, o.rulerSnap, (snap) => c.setRulerSnap(snap)));
+        if (o.tool === "eraser") parts.push(muted(translate("Erase")), seg(translate("What to erase"), ERASE, o.erase, (k) => c.setEraseKind(k)));
+        if (o.tool === "eyedropper") parts.push(muted(translate("Sample from")), seg(translate("Sample from"), SAMPLE, o.sample, (k) => c.setSampleFrom(k)));
+        if (o.tool === "ruler") parts.push(muted(translate("Snap")), seg(translate("Ruler snap"), RULER_SNAPS, o.rulerSnap, (snap) => c.setRulerSnap(snap)));
         if (o.tool === "multitool") {
-            parts.push(muted("Holding"), h("span", o.holding ? "chip text" : "chip empty", o.holding ?? "nothing"));
-            parts.push(check("Show links", c.layer("links"), (on) => c.setLayer("links", on)));
+            parts.push(muted(translate("Holding")), h("span", o.holding ? "chip text" : "chip empty", o.holding ?? translate("nothing")));
+            parts.push(check(translate("Show links"), c.layer("links"), (on) => c.setLayer("links", on)));
         }
         if (o.tool === "brush" || o.tool === "eraser" || o.tool === "shapes") {
-            const modes = [["off", "Off"], ["horizontal", "Left–right"], ["vertical", "Top–bottom"], ["both", "Both"]] as const;
-            parts.push(h("span", "ob-sep"), muted("Mirror"), seg("Mirror", modes, o.mirror, (mode) => c.setMirrorMode(mode)));
+            const modes = [["off", translate("Off")], ["horizontal", translate("Left–right")], ["vertical", translate("Top–bottom")], ["both", translate("Both")]] as const;
+            parts.push(h("span", "ob-sep"), muted(translate("Mirror")), seg(translate("Mirror"), modes, o.mirror, (mode) => c.setMirrorMode(mode)));
         }
         parts.push(h("span", "ob-grow"));
         if (selectionTool) {
             const none = !o.selection;
-            parts.push(muted(o.selection ?? "Nothing selected"));
-            const rot = button("btn", "Rotate", "Rotate clockwise", () => c.run("edit.rotateCw"));
-            const copy = button("btn", "Copy", "Copy", () => c.run("edit.copy"));
-            const del = button("btn danger", "Delete", "Delete", () => c.run("edit.delete"));
+            parts.push(muted(o.selection ?? translate("Nothing selected")));
+            const rot = button("btn", translate("Rotate"), translate("Rotate clockwise"), () => c.run("edit.rotateCw"));
+            const copy = button("btn", translate("Copy"), translate("Copy"), () => c.run("edit.copy"));
+            const del = button("btn danger", translate("Delete"), translate("Delete"), () => c.run("edit.delete"));
             rot.disabled = copy.disabled = del.disabled = none;
             parts.push(rot, copy, del);
         }
@@ -170,7 +171,7 @@ export class OptionsBar {
     private brush(o: ToolOptions, pack: Pack | null): Node[] {
         const c = this.c;
         const ch = o.choice;
-        if (!ch || !pack) return [h("span", "ob-muted", "Nothing chosen")];
+        if (!ch || !pack) return [h("span", "ob-muted", translate("Nothing chosen"))];
         const chip = h("span", "chip");
         chip.append(spriteCanvas(pack, choiceIcon(ch, pack), 22));
         if (ch.kind === "entity") {
@@ -178,22 +179,22 @@ export class OptionsBar {
             const id = h("span", "ob-muted", ch.id);
             chip.append(`${def?.name || ch.id}${def?.suffix ? ` (${def.suffix})` : ""} `, id);
             chip.title = ch.id;
-            const parts: Node[] = [chip, h("span", "ob-muted", "Rotation"), button("btn small", `${o.rotation}°`, "Rotate clockwise (R)", () => c.run("edit.rotateCw"))];
+            const parts: Node[] = [chip, h("span", "ob-muted", translate("Rotation")), button("btn small", `${o.rotation}°`, translate("Rotate clockwise (R)"), () => c.run("edit.rotateCw"))];
             // pipes and atmos devices go on one of three pipe layers, picked by the cursor in the tile as in the game
             if (layerPrototypes(pack, ch.id)) {
-                const layer = seg("Pipe layer", PIPE_LAYERS, o.pipeLayer === null ? "auto" : String(o.pipeLayer), (v) => c.setPipeLayer(v === "auto" ? null : Number(v)));
-                (layer.firstChild as HTMLElement).title = "By cursor position in the tile";
-                parts.push(h("span", "ob-muted", "Layer"), layer);
+                const layer = seg(translate("Pipe layer"), PIPE_LAYERS, o.pipeLayer === null ? "auto" : String(o.pipeLayer), (v) => c.setPipeLayer(v === "auto" ? null : Number(v)));
+                (layer.firstChild as HTMLElement).title = translate("By cursor position in the tile");
+                parts.push(h("span", "ob-muted", translate("Layer")), layer);
             }
-            parts.push(h("span", "ob-muted", "Ctrl+click a container: put inside"));
+            parts.push(h("span", "ob-muted", translate("Ctrl+click a container: put inside")));
             return parts;
         }
         if (ch.kind === "tile") {
             chip.append(ch.id);
             const n = pack.tile(ch.id)?.variants ?? 1;
             const sel = h("select");
-            sel.setAttribute("aria-label", "Variant");
-            sel.add(new Option("Random", "random"));
+            sel.setAttribute("aria-label", translate("Variant"));
+            sel.add(new Option(translate("Random"), "random"));
             for (let i = 0; i < Math.max(1, n); i++) sel.add(new Option(String(i + 1), String(i)));
             sel.value = o.variant === null ? "random" : String(Math.min(o.variant, n - 1));
             sel.disabled = n <= 1;
@@ -201,11 +202,11 @@ export class OptionsBar {
                 c.setVariant(sel.value === "random" ? null : Number(sel.value));
                 sel.blur();
             });
-            return [chip, h("span", "ob-muted", "Variant"), sel];
+            return [chip, h("span", "ob-muted", translate("Variant")), sel];
         }
         chip.append(ch.id);
         const fields = this.decalFields(o, { count: 1, props: o.decal, mixed: NOT_MIXED }, false);
-        return [chip, ...fields, check("Defaults", o.auto, (on) => c.setDecalAuto(on), "Use the decal's default snap, color and cleanable")];
+        return [chip, ...fields, check(translate("Defaults"), o.auto, (on) => c.setDecalAuto(on), translate("Use the decal's default snap, color and cleanable"))];
     }
 
     /**
@@ -223,8 +224,8 @@ export class OptionsBar {
         const color = h("input");
         color.type = "color";
         color.value = rgb;
-        color.title = mixed.color ? "Mixed" : "Color";
-        const alpha = textField(mixed.alpha ? "" : String(a), "Alpha (0-255)", mixed.alpha);
+        color.title = mixed.color ? translate("Mixed") : translate("Color");
+        const alpha = textField(mixed.alpha ? "" : String(a), translate("Alpha (0-255)"), mixed.alpha);
         // a new colour keeps each decal's alpha, a new alpha each decal's colour
         color.addEventListener("change", () => {
             const value = color.value;
@@ -238,12 +239,12 @@ export class OptionsBar {
             if (selection) set((x) => ({ color: joinColor(splitColor(x.color)[0], n) }));
             else set({ color: joinColor(color.value, n) });
         });
-        const angle = textField(mixed.angle ? "" : String(toDegrees(d.angle)), "Angle in degrees", mixed.angle);
+        const angle = textField(mixed.angle ? "" : String(toDegrees(d.angle)), translate("Angle in degrees"), mixed.angle);
         angle.addEventListener("change", () => {
             const deg = Number(angle.value);
             if (angle.value.trim() !== "" && Number.isFinite(deg)) set({ angle: (deg * Math.PI) / 180 });
         });
-        const z = textField(mixed.zIndex ? "" : String(d.zIndex), "Draw order", mixed.zIndex);
+        const z = textField(mixed.zIndex ? "" : String(d.zIndex), translate("Draw order"), mixed.zIndex);
         z.addEventListener("change", () => {
             const n = Math.round(Number(z.value));
             if (z.value.trim() !== "" && Number.isFinite(n)) set({ zIndex: n });
@@ -252,25 +253,25 @@ export class OptionsBar {
         for (const [val, l] of SNAPS) snap.add(new Option(l, val));
         snap.value = o.snap;
         snap.title = selection
-            ? "Snap"
-            : "Snap";
+            ? translate("Snap")
+            : translate("Snap");
         snap.addEventListener("change", () => {
             c.setDecalSnap(snap.value as DecalSnap);
             snap.blur();
         });
-        const snapField = labelled("Snap", snap);
+        const snapField = labelled(translate("Snap"), snap);
         if (o.snapByDefaults) {
             // Defaults took the snap from the decal's prototype (defaultSnap: false gives Off), as the game does
-            snapField.title = "Snap from the decal prototype";
-            snapField.append(h("span", "ob-muted", "default"));
+            snapField.title = translate("Snap from the decal prototype");
+            snapField.append(h("span", "ob-muted", translate("default")));
         }
-        const clean = check("Cleanable", d.cleanable, (on) => set({ cleanable: on }));
+        const clean = check(translate("Cleanable"), d.cleanable, (on) => set({ cleanable: on }));
         const box = clean.querySelector("input")!;
         box.indeterminate = mixed.cleanable;
-        if (mixed.cleanable) clean.title = "Mixed";
-        const colorField = labelled("Color", color);
-        if (mixed.color) colorField.append(h("span", "ob-mixed", "mixed"));
-        return [colorField, labelled("Alpha", alpha), labelled("Angle", angle), labelled("Z", z), snapField, clean];
+        if (mixed.cleanable) clean.title = translate("Mixed");
+        const colorField = labelled(translate("Color"), color);
+        if (mixed.color) colorField.append(h("span", "ob-mixed", translate("mixed")));
+        return [colorField, labelled(translate("Alpha"), alpha), labelled(translate("Angle"), angle), labelled("Z", z), snapField, clean];
     }
 }
 
@@ -315,9 +316,9 @@ function textField(value: string, title: string, mixed = false): HTMLInputElemen
     const i = h("input");
     i.type = "text";
     i.value = value;
-    i.title = mixed ? `${title}. Mixed: the selected decals differ` : title;
+    i.title = mixed ? translate("{{1}}. Mixed: the selected decals differ", { 1: title }) : title;
     if (mixed) {
-        i.placeholder = "mixed";
+        i.placeholder = translate("mixed");
         i.classList.add("mixed");
     }
     i.spellcheck = false;

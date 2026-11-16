@@ -1,6 +1,7 @@
 // Component inspector, like the game's View Variables: the entity's components (prototype and map), and for an
 // opened component its data fields with types and values. Edits write the map's override of the component with
 // only the fields that differ from the prototype. Logic without DOM is in inspector-model.ts and inspector-fields.ts.
+import { t as translate } from "../i18n";
 import type { MapDocument } from "../map/document";
 import type { ComponentSchemas, PrototypeData } from "../pack/format";
 import type { Pack } from "../pack/loader";
@@ -241,7 +242,7 @@ export class Inspector {
         container.addEventListener("keydown", (e) => e.stopPropagation());
         container.addEventListener("keyup", (e) => e.stopPropagation());
         this.contents.onEdit = (message) => this.onEdit?.(message);
-        this.showEmpty("Select one entity");
+        this.showEmpty(translate("Select one entity"));
     }
 
     /** Shows an entity (or clears the panel with null). Re-renders on document changes that touch it. */
@@ -254,7 +255,7 @@ export class Inspector {
         this.errors.clear();
         this.list = this.links = this.head = this.heading = null;
         this.contents.show(target && { doc: target.doc, pack: target.pack, uid: target.uid, scene: target.scene ?? null });
-        if (!target) return this.showEmpty("Select one entity");
+        if (!target) return this.showEmpty(translate("Select one entity"));
         if (this.namesPack !== target.pack) {
             this.namesPack = target.pack;
             this.names = componentNames(target.pack);
@@ -291,7 +292,7 @@ export class Inspector {
 
     private build(): void {
         const { doc, uid } = this.target!;
-        if (doc.proto(uid) === undefined) return this.showEmpty("Entity deleted");
+        if (doc.proto(uid) === undefined) return this.showEmpty(translate("Entity deleted"));
         const root = this.container;
         this.head = el("div", "ins-head");
         const body = el("div", "ins-body");
@@ -328,7 +329,7 @@ export class Inspector {
         const { doc, uid } = this.target!;
         if (doc.proto(uid) === undefined) {
             this.comps.clear();
-            return this.showEmpty("Entity deleted");
+            return this.showEmpty(translate("Entity deleted"));
         }
         if (!this.list || !this.list.isConnected) return this.build();
         const focus = this.focusKey();
@@ -345,9 +346,9 @@ export class Inspector {
         const proto = current ? pack.prototypes.entities[current] : undefined;
         const meta = doc.components(uid).find((c) => c.type === "MetaData")?.data;
         // entities without a prototype: the map itself and grids
-        const kind = id ? null : doc.mapEntities().includes(uid) ? "Map" : doc.grids().includes(uid) ? "Grid" : "Entity";
+        const kind = id ? null : doc.mapEntities().includes(uid) ? translate("Map") : doc.grids().includes(uid) ? translate("Grid") : translate("Entity");
         const name = typeof meta?.name === "string" && meta.name ? meta.name : proto?.name || id || kind!;
-        const about = kind ? `${kind}, uid ${uid}` : `${id}, uid ${uid}${proto ? "" : ", not in the pack"}`;
+        const about = kind ? translate("{{1}}, uid {{2}}", { 1: kind, 2: uid }) : translate("{{1}}, uid {{2}}{{3}}", { 1: id, 2: uid, 3: proto ? "" : translate(", not in the pack") });
         this.head!.replaceChildren(el("div", "ins-name", name), el("div", "ins-meta", about));
     }
 
@@ -356,8 +357,8 @@ export class Inspector {
         const bar = el("div", "ins-tools");
         const search = el("input");
         search.type = "search";
-        search.placeholder = "Filter components";
-        search.setAttribute("aria-label", "Filter components");
+        search.placeholder = translate("Filter components");
+        search.setAttribute("aria-label", translate("Filter components"));
         search.spellcheck = false;
         search.value = this.filter;
         search.addEventListener("input", () => {
@@ -366,15 +367,15 @@ export class Inspector {
         });
         const form = el("div", "ins-addform");
         form.hidden = true;
-        const add = btn("ins-btn", "Add", "Add component", () => {
+        const add = btn("ins-btn", translate("Add"), translate("Add component"), () => {
             form.hidden = !form.hidden;
             if (!form.hidden) input.focus();
         });
         bar.append(search, add);
 
         const input = el("input");
-        input.placeholder = "Component name";
-        input.setAttribute("aria-label", "Component name");
+        input.placeholder = translate("Component name");
+        input.setAttribute("aria-label", translate("Component name"));
         input.spellcheck = false;
         const hits = el("div", "ins-hits");
         const error = el("div", "ins-error");
@@ -388,7 +389,7 @@ export class Inspector {
             const { doc, uid } = this.target!;
             const view = this.views().find((v) => v.type === name);
             if (!view && !this.names.includes(name)) {
-                error.textContent = `No component named ${name}`;
+                error.textContent = translate("No component named {{1}}", { 1: name });
                 return;
             }
             if (!view) {
@@ -398,7 +399,7 @@ export class Inspector {
                     error.textContent = e instanceof Error ? e.message : String(e);
                     return;
                 }
-                this.onEdit?.(`Added ${name}`);
+                this.onEdit?.(translate("Added {{1}}", { 1: name }));
             }
             error.textContent = "";
             input.value = "";
@@ -446,7 +447,7 @@ export class Inspector {
         const nodes: HTMLElement[] = [];
         this.heading ??= el("div", "ins-heading");
         const count = el("span", "ins-sub", String(views.length));
-        this.heading.replaceChildren("Components", count);
+        this.heading.replaceChildren(translate("Components"), count);
         nodes.push(this.heading);
         for (const v of shown) {
             const over = overrides.find((o) => o.type === v.type);
@@ -462,7 +463,7 @@ export class Inspector {
             if (open) this.refreshFields(c, v, proto[v.type], over?.text, !extra);
             nodes.push(c.root);
         }
-        if (!shown.length) nodes.push(el("div", "ins-note", q ? "No matches" : "No components"));
+        if (!shown.length) nodes.push(el("div", "ins-note", q ? translate("No matches") : translate("No components")));
         syncChildren(list, nodes);
     }
 
@@ -473,15 +474,15 @@ export class Inspector {
         row.append(icon(ICON.chevronRight, 12), el("span", "ins-cname", v.type));
         if (v.overridden) {
             const dot = el("span", "ins-dot");
-            dot.title = "Changed on the map";
+            dot.title = translate("Changed on the map");
             row.append(dot);
         }
         if (!v.inPrototype) {
-            const tag = el("span", "ins-tag", "map");
-            tag.title = "Not in the prototype";
+            const tag = el("span", "ins-tag", translate("component.mapBadge"));
+            tag.title = translate("Not in the prototype");
             row.append(tag);
         }
-        row.title = v.overridden ? (v.inPrototype ? "Changed on the map" : "Added on the map") : "";
+        row.title = v.overridden ? (v.inPrototype ? translate("Changed on the map") : translate("Added on the map")) : "";
         row.addEventListener("click", () => {
             if (opened.has(v.type)) opened.delete(v.type);
             else opened.add(v.type);
@@ -508,7 +509,7 @@ export class Inspector {
 
         const tools = el("div", "ins-ctools");
         if (schema) {
-            const yaml = btn("ins-btn" + (this.drafts.has(v.type) ? " on" : ""), "YAML", "Edit as YAML", () => {
+            const yaml = btn("ins-btn" + (this.drafts.has(v.type) ? " on" : ""), "YAML", translate("Edit as YAML"), () => {
                 if (this.drafts.has(v.type)) this.drafts.delete(v.type);
                 else this.drafts.set(v.type, overrideText ?? "");
                 this.rerender(v.type);
@@ -516,10 +517,10 @@ export class Inspector {
             tools.append(yaml);
         }
         if (v.overridden) {
-            const label = v.inPrototype ? "Remove override" : "Remove component";
-            const remove = btn("ins-btn danger", label, v.inPrototype ? "Reset all fields to the prototype" : "Remove the component from this entity", () => this.removeOverride(v.type));
+            const label = v.inPrototype ? translate("Remove override") : translate("Remove component");
+            const remove = btn("ins-btn danger", label, v.inPrototype ? translate("Reset all fields to the prototype") : translate("Remove the component from this entity"), () => this.removeOverride(v.type));
             remove.disabled = FIXED_COMPONENTS.has(v.type);
-            if (remove.disabled) remove.title = `${v.type} cannot be removed`;
+            if (remove.disabled) remove.title = translate("{{1}} cannot be removed", { 1: v.type });
             tools.append(remove);
         }
         if (tools.childElementCount) nodes.push(tools);
@@ -527,7 +528,7 @@ export class Inspector {
         nodes.push(error);
 
         if (loading) {
-            nodes.push(el("div", "ins-note", "Loading fields"));
+            nodes.push(el("div", "ins-note", translate("Loading fields")));
             c.rows.clear();
         } else if (whole) {
             nodes.push(this.wholeEditor(v, proto, overrideText, !schema));
@@ -548,7 +549,7 @@ export class Inspector {
                 nodes.push(r.el);
             }
             for (const k of [...c.rows.keys()]) if (!seen.has(k)) c.rows.delete(k);
-            if (!fields.length) nodes.push(el("div", "ins-note", "No data fields"));
+            if (!fields.length) nodes.push(el("div", "ins-note", translate("No data fields")));
         }
         syncChildren(box, nodes);
     }
@@ -571,13 +572,13 @@ export class Inspector {
         area.setAttribute("aria-label", v.type);
         area.dataset.focus = v.type;
         area.value = this.drafts.get(v.type) ?? overrideText ?? "";
-        area.placeholder = v.overridden ? "" : "Fields set on the map";
+        area.placeholder = v.overridden ? "" : translate("Fields set on the map");
         area.rows = Math.min(16, Math.max(2, area.value.split("\n").length));
         area.addEventListener("input", () => this.drafts.set(v.type, area.value));
         const target = this.target;
         const apply = () => {
             if (target !== this.target) return;
-            if (this.write(v.type, area.value.trim() === "" && v.inPrototype ? null : area.value, `Edited ${v.type}`)) {
+            if (this.write(v.type, area.value.trim() === "" && v.inPrototype ? null : area.value, translate("Edited {{1}}", { 1: v.type }))) {
                 this.drafts.delete(v.type);
                 this.rerender(v.type);
             }
@@ -590,8 +591,8 @@ export class Inspector {
         });
         const buttons = el("div", "ins-buttons");
         buttons.append(
-            btn("ins-btn primary", "Apply", "Ctrl+Enter", apply),
-            btn("ins-btn", unknown ? "Revert" : "Close", "", () => {
+            btn("ins-btn primary", translate("Apply"), "Ctrl+Enter", apply),
+            btn("ins-btn", unknown ? translate("Revert") : translate("Close"), "", () => {
                 this.drafts.delete(v.type);
                 this.errors.delete(v.type);
                 this.rerender(v.type);
@@ -599,10 +600,10 @@ export class Inspector {
         );
         wrap.append(area, buttons);
         if (proto && Object.keys(proto).length) {
-            const title = el("div", "ins-heading", "Prototype");
+            const title = el("div", "ins-heading", translate("Prototype"));
             wrap.append(title, el("pre", "", toYaml(proto)));
         }
-        if (unknown) wrap.prepend(el("div", "ins-note", "No field list for this component. Edit it as YAML."));
+        if (unknown) wrap.prepend(el("div", "ins-note", translate("No field list for this component. Edit it as YAML.")));
         return wrap;
     }
 
@@ -628,7 +629,7 @@ export class Inspector {
     private removeOverride(type: string): void {
         const { doc, uid } = this.target!;
         try {
-            if (doc.removeComponent(uid, type)) this.onEdit?.(`Removed ${type} override`);
+            if (doc.removeComponent(uid, type)) this.onEdit?.(translate("Removed {{1}} override", { 1: type }));
             this.errors.delete(type);
         } catch (e) {
             this.errors.set(type, e instanceof Error ? e.message : String(e));
@@ -657,8 +658,8 @@ export class Inspector {
         } catch (e) {
             return e instanceof Error ? e.message : String(e);
         }
-        const ok = this.write(v.type, text, input === null ? `Reset ${v.type}.${f.name}` : `Set ${v.type}.${f.name}`);
-        return ok ? null : (this.errors.get(v.type) ?? "Not applied");
+        const ok = this.write(v.type, text, input === null ? translate("Reset {{1}}.{{2}}", { 1: v.type, 2: f.name }) : translate("Set {{1}}.{{2}}", { 1: v.type, 2: f.name }));
+        return ok ? null : (this.errors.get(v.type) ?? translate("Not applied"));
     }
 
     private fieldRow(v: ComponentView, f: FieldView, order: readonly string[]): HTMLElement {
@@ -673,17 +674,17 @@ export class Inspector {
         });
         const type = el("span", "ins-ftype", f.type);
         const s = f.schema;
-        const notes = [f.type === "?" ? "Not in the component's field list" : f.type, s?.required ? "required" : "", s?.vv === "rw" ? "VV: read-write" : s?.vv === "r" ? "VV: read-only" : ""].filter(Boolean);
+        const notes = [f.type === "?" ? translate("Not in the component's field list") : f.type, s?.required ? "required" : "", s?.vv === "rw" ? translate("VV: read-write") : s?.vv === "r" ? translate("VV: read-only") : ""].filter(Boolean);
         label.title = `${f.name}: ${notes.join(", ")}`;
         label.append(name, type);
         const { value, source } = effective(f);
         const cell = el("div", "ins-value" + (source === "prototype" ? " inherited" : source === "default" || source === "none" ? " unset" : ""));
-        cell.title = { map: "Map value", prototype: "Prototype value", default: "Default value", none: "Not set" }[source];
+        cell.title = { map: translate("Map value"), prototype: translate("Prototype value"), default: translate("Default value"), none: translate("Not set") }[source];
         const reset = el("button", "ins-reset");
         reset.type = "button";
         if (f.override) {
-            reset.title = "Reset to prototype";
-            reset.setAttribute("aria-label", `Reset ${f.name} to prototype`);
+            reset.title = translate("Reset to prototype");
+            reset.setAttribute("aria-label", translate("Reset {{1}} to prototype", { 1: f.name }));
             reset.append(icon(ICON.undo, 14));
             reset.addEventListener("click", () => {
                 this.drafts.delete(`${v.type}.${f.name}`);
@@ -754,7 +755,7 @@ export class Inspector {
                 const err = el("div", "ins-error");
                 area.addEventListener("input", () => this.drafts.set(key, area.value));
                 const apply = () => {
-                    const msg = area.value.trim() === "" ? "Empty value" : this.setField(v, f, area.value, order, target);
+                    const msg = area.value.trim() === "" ? translate("Empty value") : this.setField(v, f, area.value, order, target);
                     err.textContent = msg ?? "";
                     if (!msg) {
                         this.drafts.delete(key);
@@ -772,8 +773,8 @@ export class Inspector {
                 });
                 const buttons = el("div", "ins-buttons");
                 buttons.append(
-                    btn("ins-btn primary", "Apply", "Ctrl+Enter", apply),
-                    btn("ins-btn", "Cancel", "Esc", () => {
+                    btn("ins-btn primary", translate("Apply"), "Ctrl+Enter", apply),
+                    btn("ins-btn", translate("Cancel"), "Esc", () => {
                         this.drafts.delete(key);
                         this.rerender(v.type);
                     }),
@@ -814,20 +815,20 @@ export class Inspector {
                 picker.type = "color";
                 picker.value = rgb;
                 picker.dataset.focus = key + ".rgb";
-                picker.setAttribute("aria-label", `${f.name} colour`);
+                picker.setAttribute("aria-label", translate("{{1}} colour", { 1: f.name }));
                 const field = text(hex, ".hex");
                 field.classList.add("ins-hex");
                 const a = text(String(alpha), ".a", "numeric");
                 a.className = "ins-alpha";
-                a.title = "Alpha (0-255)";
-                a.setAttribute("aria-label", `${f.name} alpha`);
+                a.title = translate("Alpha (0-255)");
+                a.setAttribute("aria-label", translate("{{1}} alpha", { 1: f.name }));
                 picker.addEventListener("change", () => commit(joinColor(picker.value, Number(a.value)), field));
                 field.addEventListener("commit", () => commit(field.value, field));
                 a.addEventListener("commit", () => {
                     const n = Number(a.value);
                     if (!/^\d+$/.test(a.value.trim()) || n > 255) {
                         a.classList.add("bad");
-                        a.title = "Alpha is 0 to 255";
+                        a.title = translate("Alpha is 0 to 255");
                         return;
                     }
                     commit(joinColor(picker.value, n), a);
@@ -848,16 +849,16 @@ export class Inspector {
             }
             case "angle": {
                 const input = text(editorText(f, value, colors), "", "decimal");
-                input.title = "Degrees";
+                input.title = translate("Degrees");
                 input.addEventListener("commit", () => commit(input.value, input));
-                cell.append(input, el("span", "ins-unit", "deg"));
+                cell.append(input, el("span", "ins-unit", translate("unit.degrees")));
                 break;
             }
             case "timespan": {
                 const input = text(editorText(f, value, colors));
-                input.title = "Seconds, or 500ms, 2m, 1h";
+                input.title = translate("Seconds, or 500ms, 2m, 1h");
                 input.addEventListener("commit", () => commit(input.value, input));
-                cell.append(input, el("span", "ins-unit", "s"));
+                cell.append(input, el("span", "ins-unit", translate("unit.seconds")));
                 break;
             }
             case "proto": {
@@ -931,36 +932,36 @@ export class Inspector {
         };
         const label = (other: number) => entityLabel(doc, other, pack);
         for (const l of r.outgoing) {
-            row(`${l.sourcePort} → ${label(l.sink)} ${l.sinkPort}`, "Unlink", () => {
+            row(`${l.sourcePort} → ${label(l.sink)} ${l.sinkPort}`, translate("Unlink"), () => {
                 doc.unlink(l.source, l.sink, l.sourcePort, l.sinkPort);
-                this.onEdit?.(`Unlinked ${l.sourcePort} → ${l.sinkPort}`);
+                this.onEdit?.(translate("Unlinked {{1}} → {{2}}", { 1: l.sourcePort, 2: l.sinkPort }));
             });
         }
         for (const l of r.incoming) {
-            row(`${label(l.source)} ${l.sourcePort} → ${l.sinkPort}`, "Unlink", () => {
+            row(`${label(l.source)} ${l.sourcePort} → ${l.sinkPort}`, translate("Unlink"), () => {
                 doc.unlink(l.source, l.sink, l.sourcePort, l.sinkPort);
-                this.onEdit?.(`Unlinked ${l.sourcePort} → ${l.sinkPort}`);
+                this.onEdit?.(translate("Unlinked {{1}} → {{2}}", { 1: l.sourcePort, 2: l.sinkPort }));
             });
         }
         for (const d of r.devices) {
-            row(`Device: ${label(d)}`, "Remove from this device list", () => {
+            row(translate("Device: {{1}}", { 1: label(d) }), translate("Remove from this device list"), () => {
                 doc.removeFromDeviceList(uid, d, pack);
-                this.onEdit?.(`Removed ${label(d)} from the device list`);
+                this.onEdit?.(translate("Removed {{1}} from the device list", { 1: label(d) }));
             });
         }
         for (const c of r.lists) {
-            row(`In the list of ${label(c)}`, "Remove from that device list", () => {
+            row(translate("In the list of {{1}}", { 1: label(c) }), translate("Remove from that device list"), () => {
                 doc.removeFromDeviceList(c, uid, pack);
-                this.onEdit?.(`Removed from the device list of ${label(c)}`);
+                this.onEdit?.(translate("Removed from the device list of {{1}}", { 1: label(c) }));
             });
         }
         const any = rows.length || ports.source.length || ports.sink.length || config;
         if (!any) return void box.replaceChildren();
-        const title = el("span", "", "Links ");
+        const title = el("span", "", translate("Links "));
         title.append(el("span", "ins-sub", String(rows.length)));
-        const sec = section("Links", title);
-        const note = [ports.source.length ? `source: ${ports.source.join(", ")}` : "", ports.sink.length ? `sink: ${ports.sink.join(", ")}` : "", config ? `device list: ${r.devices.length}` : ""].filter(Boolean).join(", ");
-        sec.body.append(el("div", "ins-note", note), ...(rows.length ? rows : [el("div", "ins-note", "No links. Link with the multitool.")]));
+        const sec = section(translate("Links"), title);
+        const note = [ports.source.length ? translate("source: {{1}}", { 1: ports.source.join(", ") }) : "", ports.sink.length ? translate("sink: {{1}}", { 1: ports.sink.join(", ") }) : "", config ? translate("device list: {{1}}", { 1: r.devices.length }) : ""].filter(Boolean).join(", ");
+        sec.body.append(el("div", "ins-note", note), ...(rows.length ? rows : [el("div", "ins-note", translate("No links. Link with the multitool."))]));
         box.replaceChildren(sec.root);
     }
 }

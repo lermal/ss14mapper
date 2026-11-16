@@ -2,6 +2,7 @@
 // document's container edits (map/containers.ts). Which container a drop goes into, several copies in one undo
 // step, where an entity taken out lands (the nearest free tile next to the container on the map), and presets
 // applied through the same checks.
+import { t as translate } from "../i18n";
 import type { Check } from "../map/devices";
 import type { ContainerInfo, ContainerPack, InsertOptions, MapPlace } from "../map/containers";
 import { containerRules, type ContainerRulesEngine } from "../map/container-rules";
@@ -83,7 +84,7 @@ export class Contents {
             if (c.ok) return { id: box.id };
             reason ||= c.reason;
         }
-        return { reason: reason || `${this.doc.proto(owner) || owner} has no containers` };
+        return { reason: reason || translate("{{1}} has no containers", { 1: this.doc.proto(owner) || owner }) };
     }
 
     /**

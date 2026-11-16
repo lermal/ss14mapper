@@ -1,6 +1,7 @@
 // Linking panel of the multitool, as the game's linking window: the source's ports on the left, the sink's on
 // the right. Click a port on one side, then one on the other: links them, or unlinks them when they are linked.
 // Existing links are listed below with buttons that remove them.
+import { t as translate } from "../i18n";
 import type { MapDocument } from "../map/document";
 import type { Pack } from "../pack/loader";
 import { entityLabel, linkPanel, togglePair, type LinkPanelModel, type PortRow } from "../editor/multitool";
@@ -95,12 +96,12 @@ export class LinkPanel {
         const { doc, pack, source, sink } = this.target!;
         const root = this.container;
         if (doc.proto(source) === undefined || doc.proto(sink) === undefined) {
-            root.replaceChildren(el("div", "lp-body", "Entity deleted"));
+            root.replaceChildren(el("div", "lp-body", translate("Entity deleted")));
             return;
         }
         const m = linkPanel(doc, source, sink, pack);
         const head = el("div", "lp-head");
-        head.append(el("div", "lp-title", "Link ports"), el("div", "lp-meta", `${entityLabel(doc, source, pack)} → ${entityLabel(doc, sink, pack)}`));
+        head.append(el("div", "lp-title", translate("Link ports")), el("div", "lp-meta", `${entityLabel(doc, source, pack)} → ${entityLabel(doc, sink, pack)}`));
         const body = el("div", "lp-body");
         root.replaceChildren(head, body);
         if (m.blocked) body.append(el("div", "lp-blocked", m.blocked));
@@ -112,31 +113,31 @@ export class LinkPanel {
             buttons.append(b);
             return b;
         };
-        button("Link defaults", "Link default ports", () => this.defaults());
-        button("Clear", "Remove all links between the two devices", () => {
+        button(translate("Link defaults"), translate("Link default ports"), () => this.defaults());
+        button(translate("Clear"), translate("Remove all links between the two devices"), () => {
             const n = doc.unlinkAll(source, sink);
-            this.say(n ? `Removed ${n} ${n === 1 ? "link" : "links"}` : "No links to remove");
+            this.say(n ? translate("links.removed", { count: n }) : translate("No links to remove"));
         }).disabled = !m.links.length;
-        if (m.reversible) button("Swap", "Reverse direction", () => this.onSwap?.());
-        button("Close", "Close", () => this.onClose?.());
+        if (m.reversible) button(translate("Swap"), translate("Reverse direction"), () => this.onSwap?.());
+        button(translate("Close"), translate("Close"), () => this.onClose?.());
         body.append(buttons);
 
         const cols = el("div", "lp-columns");
-        cols.append(this.column("Source", "source", m.sourcePorts, m), this.column("Sink", "sink", m.sinkPorts, m));
+        cols.append(this.column(translate("Source"), "source", m.sourcePorts, m), this.column(translate("Sink"), "sink", m.sinkPorts, m));
         body.append(cols);
-        body.append(el("div", "lp-note", this.picked ? `Pick a ${this.picked.side === "source" ? "sink" : "source"} port` : "Pick a port on each side"));
+        body.append(el("div", "lp-note", this.picked ? translate(this.picked.side === "source" ? "Pick a sink port" : "Pick a source port") : translate("Pick a port on each side")));
 
-        body.append(el("h4", "", `Links (${m.links.length})`));
-        if (!m.links.length) body.append(el("div", "lp-note", "None"));
+        body.append(el("h4", "", translate("Links ({{1}})", { 1: m.links.length })));
+        if (!m.links.length) body.append(el("div", "lp-note", translate("None")));
         const name = (rows: PortRow[], id: string) => rows.find((r) => r.id === id)?.name ?? id;
         for (const l of m.links) {
             const row = el("div", "lp-pair");
             const remove = el("button", "lp-x", "×");
-            remove.title = "Remove link";
-            remove.setAttribute("aria-label", "Remove link");
+            remove.title = translate("Remove link");
+            remove.setAttribute("aria-label", translate("Remove link"));
             remove.addEventListener("click", () => {
                 doc.unlink(source, sink, l.sourcePort, l.sinkPort);
-                this.say(`Unlinked ${l.sourcePort} → ${l.sinkPort}`);
+                this.say(translate("Unlinked {{1}} → {{2}}", { 1: l.sourcePort, 2: l.sinkPort }));
             });
             row.append(el("span", "", `${name(m.sourcePorts, l.sourcePort)} → ${name(m.sinkPorts, l.sinkPort)}`), remove);
             body.append(row);
@@ -147,7 +148,7 @@ export class LinkPanel {
         const { doc, pack, source, sink } = this.target!;
         const col = el("div");
         col.append(el("h4", "", title));
-        if (!rows.length) col.append(el("div", "lp-note", "No ports"));
+        if (!rows.length) col.append(el("div", "lp-note", translate("No ports")));
         const other = this.picked && this.picked.side !== side ? this.picked.id : null;
         for (const r of rows) {
             const b = el("button", "lp-port", r.name);
@@ -162,10 +163,10 @@ export class LinkPanel {
                 const check = doc.canLink(source, sink, sp, kp, pack);
                 if (linked) {
                     b.classList.add("linked");
-                    tip.push("Linked (click to unlink)");
+                    tip.push(translate("Linked (click to unlink)"));
                 } else if (!check.ok) {
                     b.classList.add("refused");
-                    tip.push(`Cannot link: ${check.reason}`);
+                    tip.push(translate("Cannot link: {{1}}", { 1: check.reason }));
                 }
             }
             b.title = tip.join("\n");
@@ -188,9 +189,9 @@ export class LinkPanel {
         // an edit re-renders through the change event; a refusal does not
         if ("reason" in r) {
             this.render();
-            return this.say(`Cannot link ${sp} → ${kp}: ${r.reason}`);
+            return this.say(translate("Cannot link {{1}} → {{2}}: {{3}}", { 1: sp, 2: kp, 3: r.reason }));
         }
-        this.say(`${r.done === "linked" ? "Linked" : "Unlinked"} ${sp} → ${kp}`);
+        this.say(`${r.done === "linked" ? translate("Linked") : translate("Unlinked")} ${sp} → ${kp}`);
     }
 
     private defaults(): void {
@@ -200,8 +201,8 @@ export class LinkPanel {
         try {
             n = doc.linkDefaults(source, sink, pack);
         } catch (e) {
-            return this.say(`Cannot link: ${e instanceof Error ? e.message : String(e)}`);
+            return this.say(translate("Cannot link: {{1}}", { 1: e instanceof Error ? e.message : String(e) }));
         }
-        this.say(n ? `Linked ${n} default ${n === 1 ? "pair" : "pairs"}` : had ? "No default links, existing links removed" : "No default links");
+        this.say(n ? translate("links.defaults", { count: n }) : had ? translate("No default links, existing links removed") : translate("No default links"));
     }
 }

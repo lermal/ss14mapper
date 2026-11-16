@@ -1,6 +1,7 @@
 // Parallax picker at the top of the map's properties: a button with the current parallax's thumbnail that opens a
 // list of the build's parallaxes. On a map it writes the map entity's `Parallax` component; in a file without a
 // map entity (a shuttle) it only changes the background the editor shows.
+import { t as translate } from "../i18n";
 import type { ParallaxData } from "../pack/format";
 import type { Pack } from "../pack/loader";
 import { h, icon, ICON } from "./icons";
@@ -55,7 +56,7 @@ export class ParallaxPicker {
         addStyle();
         this.element = h("div", "pxp");
         const head = h("div", "pxp-head");
-        this.title = h("span", "", "Parallax");
+        this.title = h("span", "", translate("Parallax"));
         head.append(this.title);
         this.btn = h("button", "pxp-btn");
         this.btn.type = "button";
@@ -74,8 +75,8 @@ export class ParallaxPicker {
         if (p?.thumbnail) thumb.src = state.pack.url(p.thumbnail);
         el.className = cls;
         el.replaceChildren(thumb, h("span", "pxp-name", id));
-        if (id === state.data.default) el.append(h("span", "pxp-tag", "Default"));
-        else if (!p) el.append(h("span", "pxp-tag", "Not in this build"));
+        if (id === state.data.default) el.append(h("span", "pxp-tag", translate("Default")));
+        else if (!p) el.append(h("span", "pxp-tag", translate("Not in this build")));
     }
 
     /** Shows a state (null: nothing to pick, e.g. while the pack's parallax data loads). */
@@ -84,12 +85,12 @@ export class ParallaxPicker {
         this.close();
         this.element.hidden = !state;
         if (!state) return;
-        this.title.textContent = state.mode === "map" ? "Parallax" : "Background preview";
-        this.note.textContent = state.mode === "map" ? "" : "View only. Not saved to the file.";
+        this.title.textContent = state.mode === "map" ? translate("Parallax") : translate("Background preview");
+        this.note.textContent = state.mode === "map" ? "" : translate("View only. Not saved to the file.");
         this.note.hidden = state.mode === "map";
         this.row("pxp-btn", state.current, state, this.btn);
         this.btn.append(icon(ICON.chevronDown, 14));
-        this.btn.title = state.mode === "map" ? "Parallax of this map" : "Background shown behind this file";
+        this.btn.title = state.mode === "map" ? translate("Parallax of this map") : translate("Background shown behind this file");
     }
 
     private open(): void {

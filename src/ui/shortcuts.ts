@@ -1,4 +1,5 @@
 // The shortcuts list (`?`): keys and mouse of the editor, with the mapper's own bindings from the keymap.
+import { t as translate } from "../i18n";
 import { chordOfKey, describeChord, formatChord, type Keymap } from "../editor/keymap";
 import { button, h, icon, ICON } from "./icons";
 
@@ -6,62 +7,62 @@ import { button, h, icon, ICON } from "./icons";
 type Row = { label: string; action: string } | { label: string; actions: string[]; defaults: string } | { label: string; text: string };
 
 const GROUPS: Array<[string, Row[]]> = [
-    ["Tools", [
-        { label: "Select", action: "tool.select" },
-        { label: "Marquee", action: "tool.marquee" },
-        { label: "Magic wand", action: "tool.wand" },
-        { label: "Brush", action: "tool.brush" },
-        { label: "Shapes", action: "tool.shapes" },
-        { label: "Eraser", action: "tool.erase" },
-        { label: "Eyedropper", action: "tool.eyedropper" },
-        { label: "Multitool", action: "tool.multitool" },
-        { label: "Ruler", action: "tool.ruler" },
+    [translate("Tools"), [
+        { label: translate("Select"), action: "tool.select" },
+        { label: translate("Marquee"), action: "tool.marquee" },
+        { label: translate("Magic wand"), action: "tool.wand" },
+        { label: translate("Brush"), action: "tool.brush" },
+        { label: translate("Shapes"), action: "tool.shapes" },
+        { label: translate("Eraser"), action: "tool.erase" },
+        { label: translate("Eyedropper"), action: "tool.eyedropper" },
+        { label: translate("Multitool"), action: "tool.multitool" },
+        { label: translate("Ruler"), action: "tool.ruler" },
     ]],
-    ["Edit", [
-        { label: "Undo", action: "edit.undo" },
-        { label: "Redo", action: "edit.redo" },
-        { label: "Copy", action: "edit.copy" },
-        { label: "Cut", action: "edit.cut" },
-        { label: "Paste", action: "edit.paste" },
-        { label: "Delete", action: "edit.delete" },
-        { label: "Select all", action: "select.all" },
-        { label: "Deselect", action: "select.none" },
+    [translate("Edit"), [
+        { label: translate("Undo"), action: "edit.undo" },
+        { label: translate("Redo"), action: "edit.redo" },
+        { label: translate("Copy"), action: "edit.copy" },
+        { label: translate("Cut"), action: "edit.cut" },
+        { label: translate("Paste"), action: "edit.paste" },
+        { label: translate("Delete"), action: "edit.delete" },
+        { label: translate("Select all"), action: "select.all" },
+        { label: translate("Deselect"), action: "select.none" },
     ]],
-    ["Transform", [
-        { label: "Rotate clockwise", action: "edit.rotateCw" },
-        { label: "Rotate counter-clockwise", action: "edit.rotateCcw" },
-        { label: "Nudge", actions: ["edit.nudgeUp", "edit.nudgeLeft", "edit.nudgeDown", "edit.nudgeRight"], defaults: "Arrows" },
-        { label: "Outline or filled", action: "tool.shapeFill" },
+    [translate("Transform"), [
+        { label: translate("Rotate clockwise"), action: "edit.rotateCw" },
+        { label: translate("Rotate counter-clockwise"), action: "edit.rotateCcw" },
+        { label: translate("Nudge"), actions: ["edit.nudgeUp", "edit.nudgeLeft", "edit.nudgeDown", "edit.nudgeRight"], defaults: translate("Arrows") },
+        { label: translate("Outline or filled"), action: "tool.shapeFill" },
     ]],
-    ["Mouse", [
-        { label: "Pick from stack", text: "Right-click" },
-        { label: "Cycle stack", text: "Click again" },
-        { label: "Move selection", text: "Ctrl+drag" },
-        { label: "Add or subtract", text: "Shift / Alt" },
-        { label: "Sample to brush", text: "Alt+click" },
-        { label: "Put in container (Brush)", text: "Ctrl+click" },
-        { label: "Drop into container", text: "Ctrl+drag" },
+    [translate("Mouse"), [
+        { label: translate("Pick from stack"), text: translate("Right-click") },
+        { label: translate("Cycle stack"), text: translate("Click again") },
+        { label: translate("Move selection"), text: translate("Ctrl+drag") },
+        { label: translate("Add or subtract"), text: "Shift / Alt" },
+        { label: translate("Sample to brush"), text: translate("Alt+click") },
+        { label: translate("Put in container (Brush)"), text: translate("Ctrl+click") },
+        { label: translate("Drop into container"), text: translate("Ctrl+drag") },
     ]],
-    ["Navigation", [
-        { label: "Pan", actions: ["view.panUp", "view.panLeft", "view.panDown", "view.panRight"], defaults: "WASD" },
-        { label: "Pan (mouse)", text: "Middle or right drag" },
-        { label: "Zoom", text: "Wheel" },
-        { label: "Zoom in", action: "view.zoomIn" },
-        { label: "Zoom out", action: "view.zoomOut" },
-        { label: "Fit map", action: "view.fit" },
+    [translate("Navigation"), [
+        { label: translate("Pan"), actions: ["view.panUp", "view.panLeft", "view.panDown", "view.panRight"], defaults: "WASD" },
+        { label: translate("Pan (mouse)"), text: translate("Middle or right drag") },
+        { label: translate("Zoom"), text: translate("Wheel") },
+        { label: translate("Zoom in"), action: "view.zoomIn" },
+        { label: translate("Zoom out"), action: "view.zoomOut" },
+        { label: translate("Fit map"), action: "view.fit" },
     ]],
-    ["View and file", [
-        { label: "Tile grid", action: "view.grid" },
-        { label: "Center of mass", action: "view.centre" },
-        { label: "Heading", action: "view.direction" },
-        { label: "Subfloor", action: "view.subfloor" },
-        { label: "Powered", action: "view.powered" },
-        { label: "Network configurator links", action: "view.configuratorLinks" },
-        { label: "Node networks", action: "view.nodes" },
-        { label: "Open", action: "file.open" },
-        { label: "Save", action: "file.save" },
-        { label: "Download .yml", action: "file.download" },
-        { label: "Shortcuts", action: "help.shortcuts" },
+    [translate("View and file"), [
+        { label: translate("Tile grid"), action: "view.grid" },
+        { label: translate("Center of mass"), action: "view.centre" },
+        { label: translate("Heading"), action: "view.direction" },
+        { label: translate("Subfloor"), action: "view.subfloor" },
+        { label: translate("Powered"), action: "view.powered" },
+        { label: translate("Network configurator links"), action: "view.configuratorLinks" },
+        { label: translate("Node networks"), action: "view.nodes" },
+        { label: translate("Open"), action: "file.open" },
+        { label: translate("Save"), action: "file.save" },
+        { label: translate("Download .yml"), action: "file.download" },
+        { label: translate("Shortcuts"), action: "help.shortcuts" },
     ]],
 ];
 
@@ -122,18 +123,18 @@ export class ShortcutsOverlay {
         const root = (this.root = h("div", "keys-overlay"));
         const sheet = h("div", "keys-sheet");
         sheet.setAttribute("role", "dialog");
-        sheet.setAttribute("aria-label", "Keyboard shortcuts");
+        sheet.setAttribute("aria-label", translate("Keyboard shortcuts"));
         const head = h("div", "ks-head");
         head.append(
-            h("h2", "", "Keyboard shortcuts"),
+            h("h2", "", translate("Keyboard shortcuts")),
             h("span", "ks-grow"),
-            button("ks-btn", "Customize…", "Edit key bindings", () => {
+            button("ks-btn", translate("Customize…"), translate("Edit key bindings"), () => {
                 this.close();
                 this.onCustomize?.();
             }),
         );
-        const close = button("ks-close", icon(ICON.close, 16), "Close (Esc)", () => this.close());
-        close.setAttribute("aria-label", "Close");
+        const close = button("ks-close", icon(ICON.close, 16), translate("Close (Esc)"), () => this.close());
+        close.setAttribute("aria-label", translate("Close"));
         head.append(close);
         const grid = h("div", "ks-grid");
         for (const [title, rows] of GROUPS) {

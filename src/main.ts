@@ -6,6 +6,7 @@ import { EditorController } from "./editor/controller";
 import { watchOtherTabs } from "./editor/cross-tab";
 import { browserStorage, Keymap } from "./editor/keymap";
 import { SettingsWindow } from "./editor/settings";
+import { i18n, language, languageUrl, t as translate } from "./i18n";
 import { MapDocument } from "./map/document";
 import { mapEntity, mapParallax, ownParallax, setMapParallax } from "./map/map-props";
 import { loadForks } from "./pack/forks";
@@ -39,6 +40,11 @@ const app = $("app");
 const fileInput = $<HTMLInputElement>("file");
 const canvasEl = $<HTMLCanvasElement>("map");
 const propertiesEl = $("properties");
+document.documentElement.lang = language();
+document.documentElement.dir = i18n.dir();
+for (const [id, label] of [["rail", "Tools"], ["palette", "Palette"], ["view", "Map"], ["properties", "Properties"]] as const) {
+    $(id).setAttribute("aria-label", translate(label));
+}
 const map = new MapCanvas(canvasEl, $<HTMLCanvasElement>("overlay"));
 const palette = new Palette($("palette"));
 const inspector = new Inspector($("inspector"));
@@ -109,7 +115,7 @@ function refreshPicker(): void {
             current: isMap ? (ownParallax(doc, uid) ?? data.default) : (previews.get(doc) ?? data.default),
             onPick: (id) => {
                 if (isMap) {
-                    if (setMapParallax(doc, uid, id, data.default)) controller.say(`Parallax: ${id}`);
+                    if (setMapParallax(doc, uid, id, data.default)) controller.say(translate("Parallax: {{1}}", { 1: id }));
                 } else {
                     previews.set(doc, id);
                     void updateParallax(doc, pack);
@@ -164,7 +170,7 @@ const RECENT_MENU = 10;
 
 function openAbout(): void {
     const f = controller.current?.pack.manifest.fork;
-    void showAbout(f ? `${forkName(f.id)}, ${f.branch} at ${f.commit.slice(0, 7)}` : "");
+    void showAbout(f ? translate("{{1}}, {{2}} at {{3}}", { 1: forkName(f.id), 2: f.branch, 3: f.commit.slice(0, 7) }) : "");
 }
 
 const shell = new Shell(
@@ -180,13 +186,14 @@ const shell = new Shell(
                 checked: m.id === current?.id ? true : undefined,
                 run: () => void reopen(m),
             }));
-            if (entries.length > RECENT_MENU) items.push("-", { label: `All ${entries.length} maps…`, run: () => void manage() });
+            if (entries.length > RECENT_MENU) items.push("-", { label: translate("All {{1}} maps…", { 1: entries.length }), run: () => void manage() });
             return items;
         },
         library: () => void manage(),
         settings: () => settings.open(),
         shortcuts: () => shortcuts.toggle(),
         about: openAbout,
+        setLanguage: (code) => void setLanguage(code),
         ...(api ? { addBuild: () => void account?.addBuild(), reportBug: () => void account?.reportBug() } : {}),
     },
 );
@@ -205,6 +212,7 @@ const start = new StartScreen($("start"), {
     manage: () => void manage(),
     shortcuts: () => shortcuts.open(),
     about: openAbout,
+    setLanguage,
     ...(api ? { addBuild: () => void account?.addBuild() } : {}),
 });
 
@@ -271,7 +279,7 @@ if (account) {
 }
 // back from a failed sign-in
 if (params.get("signin") === "failed") {
-    showToast("Sign-in failed.", undefined, 6000);
+    showToast(translate("Sign-in failed."), undefined, 6000);
     const url = new URL(location.href);
     url.searchParams.delete("signin");
     history.replaceState(null, "", url);
@@ -337,18 +345,18 @@ async function showNow(load: number): Promise<void> {
     // the editor is laid out before the map is drawn, so the view has its size
     start.container.hidden = true;
     app.hidden = false;
-    shell.loading(`Loading ${name}…`);
+    shell.loading(translate("Loading {{1}}…", { 1: name }));
     try {
-        await loadingScreen.show(name, `Loading ${forkName(fork())}`);
+        await loadingScreen.show(name, translate("Loading {{1}}", { 1: forkName(fork()) }));
         const pack = await loadPack(fork());
         if (load !== loading) return;
         if (pack !== palettePack) palette.setPack((palettePack = pack));
-        await loadingScreen.step("Building");
+        await loadingScreen.step(translate("Building"));
         const scene = new Scene(doc, pack);
-        await loadingScreen.step("Drawing");
+        await loadingScreen.step(translate("Drawing"));
         await map.show(scene, pack);
         if (load !== loading) return;
-        if (parallax.enabled) await loadingScreen.step("Loading parallax");
+        if (parallax.enabled) await loadingScreen.step(translate("Loading parallax"));
         watchParallax(doc, pack);
         await updateParallax(doc, pack);
         if (load !== loading) return;
@@ -359,7 +367,7 @@ async function showNow(load: number): Promise<void> {
         controller.fit();
         shown = true;
         syncUrl();
-        shell.loadInfo = `Loaded in ${Math.round(performance.now() - started)} ms`;
+        shell.loadInfo = translate("Loaded in {{1}} ms", { 1: Math.round(performance.now() - started) });
         shell.update();
     } catch (e) {
         if (load !== loading) return;
@@ -419,15 +427,15 @@ async function setFork(id: string): Promise<void> {
     try {
         missing = missingPrototypes(current.doc, await loadPack(id));
     } catch (e) {
-        return void showToast(`Could not load ${forkName(id)}: ${(e as Error).message}`, undefined, 6000);
+        return void showToast(translate("Could not load {{1}}: {{2}}", { 1: forkName(id), 2: (e as Error).message }), undefined, 6000);
     }
     const note = missing
-        ? `${missing} prototypes are missing in ${forkName(id)}.`
+        ? translate("{{1}} prototypes are missing in {{2}}.", { 1: missing, 2: forkName(id) })
         : "";
     const choice = await dialog<"switch" | "cancel">(
-        "Change build?",
-        [note || `Switch to ${forkName(id)}.`],
-        [{ label: "Cancel", value: "cancel", spaceAfter: true }, { label: "Change build", value: "switch", kind: "primary" }],
+        translate("Change build?"),
+        [note || translate("Switch to {{1}}.", { 1: forkName(id) })],
+        [{ label: translate("Cancel"), value: "cancel", spaceAfter: true }, { label: translate("Change build"), value: "switch", kind: "primary" }],
         "cancel",
     );
     if (choice !== "switch") return;
@@ -447,7 +455,7 @@ function useFork(id: string | undefined): void {
 
 // ---- saving
 
-const SAVE_FAILED = "Could not save to this browser";
+const SAVE_FAILED = translate("Could not save to this browser");
 
 /** Writes the open map into its library record (or a new one) and marks it saved; false when it failed. */
 async function save(): Promise<boolean> {
@@ -461,14 +469,14 @@ async function save(): Promise<boolean> {
     const entry = target.id ? await library.save({ id: target.id, name: target.name, build: fork() }, text) : await library.create(target.name, fork(), text);
     stop();
     if (!entry) {
-        showToast(SAVE_FAILED, { label: "Download", run: () => controller.run("file.download") }, 8000);
+        showToast(SAVE_FAILED, { label: translate("Download"), run: () => controller.run("file.download") }, 8000);
         return false;
     }
     target.id = entry.id;
     syncUrl();
     if (!edited) target.doc.markSaved();
-    controller.say(`Saved ${target.name}`);
-    showToast("Saved", undefined, 2500);
+    controller.say(translate("Saved {{1}}", { 1: target.name }));
+    showToast(translate("Saved"), undefined, 2500);
     void refreshLibrary();
     return true;
 }
@@ -482,7 +490,7 @@ async function saveAs(): Promise<void> {
     const base = current.name.replace(/\.ya?ml$/i, "");
     let suggestion = `${base} copy.yml`;
     for (let i = 2; taken(suggestion); i++) suggestion = `${base} copy ${i}.yml`;
-    const name = await askMapName("Save as", suggestion, "Save", taken);
+    const name = await askMapName(translate("Save as"), suggestion, translate("Save"), taken);
     if (!name || !current) return;
     const text = controller.text();
     if (text === null) return;
@@ -491,24 +499,55 @@ async function saveAs(): Promise<void> {
     const stop = target.doc.onChange(() => (edited = true));
     const entry = await library.create(name, fork(), text);
     stop();
-    if (!entry) return void showToast(SAVE_FAILED, { label: "Download", run: () => controller.run("file.download") }, 8000);
+    if (!entry) return void showToast(SAVE_FAILED, { label: translate("Download"), run: () => controller.run("file.download") }, 8000);
     target.id = entry.id;
     target.name = name;
     syncUrl();
     controller.rename(name);
     if (!edited) target.doc.markSaved();
-    controller.say(`Saved as ${name}`);
-    showToast(`Saved as ${name}`, undefined, 2500);
+    controller.say(translate("Saved as {{1}}", { 1: name }));
+    showToast(translate("Saved as {{1}}", { 1: name }), undefined, 2500);
     void refreshLibrary();
 }
 
 /** Before another map replaces the open one: Save, Discard or Cancel when it has unsaved edits. */
-async function leaveCurrent(): Promise<boolean> {
+async function leaveCurrent(note?: string): Promise<boolean> {
     if (!current || !controller.modified) return true;
-    const choice = await confirmUnsaved(current.name);
+    const choice = await confirmUnsaved(current.name, note);
     if (choice === "cancel") return false;
-    if (choice === "save") return save();
+    if (choice === "save") return (await save()) && !controller.modified;
     return true;
+}
+
+let changingLanguage = false;
+async function setLanguage(code: string): Promise<void> {
+    if (code === language() || changingLanguage) return;
+    changingLanguage = true;
+    try {
+        const target = current;
+        const reloadNote = translate("Changing the language reloads the editor and clears undo history.");
+        if (target && controller.modified) {
+            if (!(await leaveCurrent(reloadNote))) return;
+        } else if (target && (target.doc.canUndo || target.doc.canRedo)) {
+            const confirmed = await dialog(translate("Change language?"), [reloadNote], [
+                { label: translate("Cancel"), value: false }, { label: translate("Reload"), value: true, kind: "primary" },
+            ], false);
+            if (!confirmed || controller.modified) return;
+        }
+        if (target !== current) return;
+        if (target && !target.id) {
+            const confirmed = await dialog(translate("Change language?"), [translate("This map is outside the library. Reloading will close it.")], [
+                { label: translate("Cancel"), value: false }, { label: translate("Reload"), value: true, kind: "primary" },
+            ], false);
+            if (!confirmed || target !== current) return;
+        }
+        const url = languageUrl(code);
+        if (!current && fork()) url.searchParams.set("fork", fork());
+        controller.leaving = true;
+        location.replace(url);
+    } finally {
+        changingLanguage = false;
+    }
 }
 
 // ---- opening
@@ -528,7 +567,7 @@ async function openText(o: Opened): Promise<void> {
     // the question about unsaved edits must not sit under the loading screen
     if (current && controller.modified) loadingScreen.hide();
     if (!(await leaveCurrent())) return loadingScreen.hide();
-    await loadingScreen.show(o.name, "Reading map");
+    await loadingScreen.show(o.name, translate("Reading map"));
     let doc: MapDocument;
     try {
         doc = new MapDocument(o.text);
@@ -539,7 +578,7 @@ async function openText(o: Opened): Promise<void> {
     // a file of no known build is shown with the build that covers its prototypes best
     let suggested: Awaited<ReturnType<typeof betterBuild>> = null;
     if (!o.build && !o.id && !o.fresh && forks.length > 1) {
-        await loadingScreen.step("Choosing build");
+        await loadingScreen.step(translate("Choosing build"));
         suggested = await betterBuild(doc);
         if (suggested) useFork(suggested.id);
     }
@@ -548,19 +587,19 @@ async function openText(o: Opened): Promise<void> {
         // kept in the library right away, so it reopens without the file
         const entry = o.fresh ? await library.create(o.name, fork(), o.text) : await library.addOpened(o.name, fork(), o.text);
         id = entry?.id ?? null;
-        if (!entry && library.available) showToast("Could not store the map in this browser", undefined, 8000);
+        if (!entry && library.available) showToast(translate("Could not store the map in this browser"), undefined, 8000);
     }
     current = { name: o.name, doc, id };
     void refreshLibrary();
     await show();
-    if (suggested) showToast(`Opened with ${forkName(suggested.id)}`, undefined, 8000);
+    if (suggested) showToast(translate("Opened with {{1}}", { 1: forkName(suggested.id) }), undefined, 8000);
 }
 
 async function openFile(f: File | undefined): Promise<void> {
     if (!f) return;
     let text: string;
     try {
-        await loadingScreen.show(f.name, "Reading file");
+        await loadingScreen.show(f.name, translate("Reading file"));
         text = await f.text();
     } catch (e) {
         return fail(`${f.name}: ${(e as Error).message}`);
@@ -571,7 +610,7 @@ async function openFile(f: File | undefined): Promise<void> {
 async function openUrl(url: string): Promise<void> {
     const name = url.split("/").pop() ?? url;
     try {
-        await loadingScreen.show(name, "Downloading");
+        await loadingScreen.show(name, translate("Downloading"));
         const r = await fetch(url);
         if (!r.ok) return fail(`${name}: ${r.status} ${r.statusText}`);
         await openText({ name, text: await r.text() });
@@ -586,11 +625,11 @@ function pickFile(): void {
 
 /** Opens a map kept in the library. */
 async function reopen(m: LibraryEntry): Promise<void> {
-    await loadingScreen.show(m.name, "Reading map");
+    await loadingScreen.show(m.name, translate("Reading map"));
     const r = await library.open(m.id);
     if (!r) {
         await refreshLibrary();
-        return fail(`${m.name} no longer exists`);
+        return fail(translate("{{1}} no longer exists", { 1: m.name }));
     }
     await openText({ name: r.name, text: r.text, id: r.id, build: r.build });
 }

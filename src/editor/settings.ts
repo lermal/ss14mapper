@@ -1,5 +1,6 @@
 // Settings window of the editor: every action with its bindings; click a binding and press a key or a
 // mouse button to change it. Conflicts are shown with a choice to replace; edits are saved by the `Keymap`.
+import { t as translate } from "../i18n";
 import { icon, ICON } from "../ui/icons";
 import { BINDABLE_BUTTONS, chordOfKey, chordOfMouse, describeChord, formatChord, type ActionDef, type Chord, type Keymap } from "./keymap";
 
@@ -150,11 +151,11 @@ export class SettingsWindow {
         const root = this.root;
         if (!root) return;
         const dialog = el("div", { className: "keys-dialog", role: "dialog" });
-        dialog.setAttribute("aria-label", "Key bindings");
-        const close = el("button", { onclick: () => this.close(), title: "Close", className: "ks-x" });
-        close.setAttribute("aria-label", "Close");
+        dialog.setAttribute("aria-label", translate("Key bindings"));
+        const close = el("button", { onclick: () => this.close(), title: translate("Close"), className: "ks-x" });
+        close.setAttribute("aria-label", translate("Close"));
         close.append(icon(ICON.close, 14));
-        dialog.append(el("header", {}, el("h2", { textContent: "Key bindings" }), close));
+        dialog.append(el("header", {}, el("h2", { textContent: translate("Key bindings") }), close));
 
         const body = el("div", { className: "keys-body" });
         let group = "";
@@ -168,9 +169,9 @@ export class SettingsWindow {
         dialog.append(body);
 
         const hint = el("span", {
-            textContent: this.capture ? "Press a key or mouse button. Esc to cancel." : "Click a binding to change it",
+            textContent: this.capture ? translate("Press a key or mouse button. Esc to cancel.") : translate("Click a binding to change it"),
         });
-        const all = el("button", { textContent: "Reset all", onclick: () => this.keymap.resetAll() });
+        const all = el("button", { textContent: translate("Reset all"), onclick: () => this.keymap.resetAll() });
         dialog.append(el("footer", {}, hint, all));
         root.replaceChildren(dialog);
         (root.querySelector(".capturing") as HTMLElement | null)?.focus();
@@ -184,23 +185,23 @@ export class SettingsWindow {
             const capturing = this.capture?.id === a.id && this.capture.index === i;
             const chip = el("button", {
                 className: "chip" + (capturing ? " capturing" : ""),
-                textContent: capturing ? "Press a key…" : describeChord(b),
-                title: "Change",
+                textContent: capturing ? translate("Press a key…") : describeChord(b),
+                title: translate("Change"),
                 onclick: () => {
                     this.conflict = null;
                     this.capture = { id: a.id, index: i };
                     this.render();
                 },
             });
-            row.append(chip, el("button", { className: "mini", textContent: "×", title: "Remove", onclick: () => this.keymap.set(a.id, list.filter((_, j) => j !== i)) }));
+            row.append(chip, el("button", { className: "mini", textContent: "×", title: translate("Remove"), onclick: () => this.keymap.set(a.id, list.filter((_, j) => j !== i)) }));
         });
-        if (!list.length) row.append(el("span", { className: "unbound", textContent: "Unbound" }));
+        if (!list.length) row.append(el("span", { className: "unbound", textContent: translate("Unbound") }));
         const adding = this.capture?.id === a.id && this.capture.index < 0;
         row.append(
             el("button", {
                 className: "mini" + (adding ? " capturing" : ""),
-                textContent: adding ? "Press a key…" : "+",
-                title: "Add",
+                textContent: adding ? translate("Press a key…") : "+",
+                title: translate("Add"),
                 onclick: () => {
                     this.conflict = null;
                     this.capture = { id: a.id, index: -1 };
@@ -208,15 +209,15 @@ export class SettingsWindow {
                 },
             }),
         );
-        if (!this.keymap.isDefault(a.id)) row.append(el("button", { className: "mini", textContent: "Reset", title: "Reset to default", onclick: () => this.keymap.reset(a.id) }));
+        if (!this.keymap.isDefault(a.id)) row.append(el("button", { className: "mini", textContent: translate("Reset"), title: translate("Reset to default"), onclick: () => this.keymap.reset(a.id) }));
         const c = this.conflict;
         if (c && c.id === a.id) {
             const names = c.others.map((o) => o.label).join(", ");
             const warn = el("div", { className: "warn" });
             warn.append(
-                `${describeChord(formatChord(c.chord))} is already assigned to ${names}`,
-                el("button", { textContent: "Replace", onclick: () => this.apply(c, c.chord, c.others) }),
-                el("button", { textContent: "Cancel", onclick: () => (this.cancelCapture(), this.render()) }),
+                translate("{{1}} is already assigned to {{2}}", { 1: describeChord(formatChord(c.chord)), 2: names }),
+                el("button", { textContent: translate("Replace"), onclick: () => this.apply(c, c.chord, c.others) }),
+                el("button", { textContent: translate("Cancel"), onclick: () => (this.cancelCapture(), this.render()) }),
             );
             row.append(warn);
         }

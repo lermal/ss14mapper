@@ -1,10 +1,11 @@
 // The author's credit: a link to the project page, shown on the start screen and in the editor's status bar.
+import { t as translate } from "../i18n";
 import { h } from "./icons";
 
 export const CREDIT_URL = "https://forged.by/projects/ss14mapper";
 
 export function creditLink(cls: string): HTMLAnchorElement {
-    const a = h("a", cls, "Developed by Forged");
+    const a = h("a", cls, translate("Developed by Forged"));
     a.href = CREDIT_URL;
     a.target = "_blank";
     a.rel = "noopener noreferrer";

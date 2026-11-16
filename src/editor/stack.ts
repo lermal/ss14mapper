@@ -1,5 +1,6 @@
 // What lies under one point of the map, topmost first (for the pick menu and for cycling through overlapping
 // things with repeated clicks). Pure logic over the scene, no DOM.
+import { t as translate } from "../i18n";
 import type { Frame, Pack } from "../pack/loader";
 import { Scene, type SpriteLayer } from "../render/scene";
 import { decalIconFrame, entityIconFrame, tileIconFrame } from "../ui/palette-search";
@@ -163,7 +164,7 @@ export interface ItemInfo {
 export function describe(item: StackItem, pack: Pack): ItemInfo {
     if (item.kind === "entity") {
         const def = pack.prototypes.entities[item.proto];
-        return { name: def?.name || item.proto || `uid ${item.uid}`, id: `${item.proto} · uid ${item.uid}`, tag: "entity", icon: entityIconFrame(pack, item.proto) };
+        return { name: def?.name || item.proto || translate("uid {{1}}", { 1: item.uid }), id: translate("{{1}} · uid {{2}}", { 1: item.proto, 2: item.uid }), tag: "entity", icon: entityIconFrame(pack, item.proto) };
     }
     if (item.kind === "decal") return { name: item.proto, id: item.id, tag: "decal", icon: decalIconFrame(pack, item.proto) };
     return { name: pack.prototypes.tiles[item.id]?.name || item.id, id: item.id, tag: "tile", icon: tileIconFrame(pack, item.id) };

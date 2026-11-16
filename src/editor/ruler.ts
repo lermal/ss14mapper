@@ -1,3 +1,4 @@
+import { language, t as translate } from "../i18n";
 import type { Point } from "./shapes";
 import type { OverlayContext } from "./selection-overlay";
 import type { Scene } from "../render/scene";
@@ -30,8 +31,11 @@ export function rulerMeasurement(scene: Pick<Scene, "toLocal">, from: RulerPoint
 
 export function rulerLabel(scene: Pick<Scene, "toLocal">, from: RulerPoint, to: RulerPoint): string {
     const { grid, dx, dy, distance } = rulerMeasurement(scene, from, to);
-    const number = (n: number) => Number(n.toFixed(2)).toString();
-    return `${number(distance)} tiles · ΔX ${number(dx)} · ΔY ${number(dy)} · ${grid === null ? "World axes" : `Grid #${grid}`}`;
+    const decimal = new Intl.NumberFormat(language(), { maximumFractionDigits: 2, useGrouping: false });
+    const number = (n: number) => decimal.format(Number(n.toFixed(2)) || 0);
+    const unit = translate("distance.tiles", { count: Number(distance.toFixed(2)), distance: number(distance) });
+    const axes = grid === null ? translate("World axes") : translate("Grid #{{1}}", { 1: grid });
+    return translate("{{distance}} · ΔX {{dx}} · ΔY {{dy}} · {{axes}}", { distance: unit, dx: number(dx), dy: number(dy), axes });
 }
 
 export function drawRuler(c: OverlayContext, from: RulerPoint, to: RulerPoint, fixed: boolean): void {

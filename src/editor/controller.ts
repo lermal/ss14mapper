@@ -31,6 +31,7 @@
 // Copy, cut and paste go through the browser's clipboard events when bound to Ctrl+C/X/V, so the clipboard
 // text reaches other tabs without asking for permission; other bindings use the Clipboard API, and an
 // in-memory copy stands in when neither is available.
+import { t as translate } from "../i18n";
 import { fixGridAtmosphere } from "../map/atmosphere";
 import type { DecalProps } from "../map/decals";
 import type { MapDocument } from "../map/document";
@@ -194,14 +195,14 @@ const NATIVE_CLIPBOARD: Record<string, string> = { "edit.copy": "Ctrl+KeyC", "ed
 
 /** "3 entities, 12 tiles" (kinds with none left out). */
 function counted(n: { entities: number; tiles: number; decals: number }): string {
-    const part = (k: number, one: string, many: string) => (k ? `${k} ${k === 1 ? one : many}` : "");
-    return [part(n.entities, "entity", "entities"), part(n.tiles, "tile", "tiles"), part(n.decals, "decal", "decals")].filter(Boolean).join(", ") || "nothing";
+    const part = (key: string, count: number) => count ? translate(key, { count }) : "";
+    return [part("count.entities", n.entities), part("count.tiles", n.tiles), part("count.decals", n.decals)].filter(Boolean).join(", ") || translate("nothing");
 }
 const MARQUEES: readonly MarqueeShape[] = ["rect", "ellipse", "lasso"];
 const SHAPES: readonly ShapeKind[] = ["line", "rect", "ellipse"];
 const SAMPLE_KINDS: Record<SampleFrom, StackKind[]> = { any: ["entity", "decal", "tile"], entities: ["entity"], tiles: ["tile"], decals: ["decal"] };
 const CHOICE_KIND: Record<"entity" | "tile" | "decal", StackKind> = { entity: "entity", tile: "tile", decal: "decal" };
-const PICK_FIRST = "Nothing chosen in the palette";
+const PICK_FIRST = translate("Nothing chosen in the palette");
 /** How long a message replaces the tool hint in the status bar. */
 const MESSAGE_MS = 6000;
 
@@ -531,7 +532,7 @@ export class EditorController {
         if (!doc) return [];
         return doc.listedGrids().filter((uid) => doc.proto(uid) !== undefined).map((uid) => {
             const name = doc.components(uid).find((c) => c.type === "MetaData")?.data.name;
-            return { uid, name: typeof name === "string" && name ? name : `Grid ${uid}` };
+            return { uid, name: typeof name === "string" && name ? name : translate("Grid {{1}}", { 1: uid }) };
         });
     }
 
@@ -539,21 +540,21 @@ export class EditorController {
         const s = this.session;
         if (!s || this.gesture || this.editor?.busy || !s.scene.grids.includes(uid)) return;
         const grid = this.gridList().find((g) => g.uid === uid);
-        const confirmed = await dialog("Fix grid atmosphere", [
-            `Reset the starting atmosphere of ${grid?.name ?? "this grid"} (#${uid}) using its tiles and atmosphere markers? This replaces its saved gas mixtures.`,
-        ], [{ label: "Cancel", value: false }, { label: "Rebuild", value: true, kind: "primary" }], false);
+        const confirmed = await dialog(translate("Fix grid atmosphere"), [
+            translate("Reset the starting atmosphere of {{1}} (#{{2}}) using its tiles and atmosphere markers? This replaces its saved gas mixtures.", { 1: grid?.name ?? translate("this grid"), 2: uid }),
+        ], [{ label: translate("Cancel"), value: false }, { label: translate("Rebuild"), value: true, kind: "primary" }], false);
         if (!confirmed || this.session !== s) return;
-        this.say("Loading atmosphere data…");
+        this.say(translate("Loading atmosphere data…"));
         try {
             const data = await s.pack.prototypeData();
             if (this.session !== s || this.editor?.busy || this.gesture) return;
-            if (!data) return this.say("This build lacks prototype data. Rebuild the asset pack and try again.");
+            if (!data) return this.say(translate("This build lacks prototype data. Rebuild the asset pack and try again."));
             const result = fixGridAtmosphere(s.doc, s.scene, s.pack, data, uid);
             if (result.changed) {
-                this.say(`Atmosphere rebuilt for grid #${uid} · ${result.filled} assigned, ${result.exposed} exposed, ${result.sealed} airtight`);
-            } else this.say("Grid atmosphere is already up to date");
+                this.say(translate("Atmosphere rebuilt for grid #{{1}} · {{2}} assigned, {{3}} exposed, {{4}} airtight", { 1: uid, 2: result.filled, 3: result.exposed, 4: result.sealed }));
+            } else this.say(translate("Grid atmosphere is already up to date"));
         } catch (error) {
-            if (this.session === s) this.say(`Could not fix grid atmosphere: ${(error as Error).message}`);
+            if (this.session === s) this.say(translate("Could not fix grid atmosphere: {{1}}", { 1: (error as Error).message }));
         }
     }
 
@@ -569,28 +570,28 @@ export class EditorController {
         if (this.session !== s || this.editor?.selection !== uid || !this.canColorPipeNetwork) return;
         const ports = s.scene.pipePorts(uid);
         const select = h("select");
-        for (const port of ports) select.add(new Option(`${port.name} (${port.layer})`, port.name));
+        for (const port of ports) select.add(new Option(`${port.name} (${translate(port.layer)})`, port.name));
         const color = h("input");
         color.type = "color";
         const summary = h("p", "dlg-muted");
         const update = () => {
             const pipes = s.scene.pipeNetwork(uid, select.value, prototypes ?? undefined);
             color.value = s.scene.pipeColor(pipes.includes(uid) ? uid : pipes[0] ?? uid);
-            summary.textContent = pipes.length === 1 ? "1 paintable pipe in this network" : `${pipes.length} paintable pipes in this network`;
+            summary.textContent = translate("network.paintablePipes", { count: pipes.length });
         };
         select.addEventListener("change", update);
         update();
-        const node = h("label", "dlg-field", "Pipe node");
+        const node = h("label", "dlg-field", translate("Pipe node"));
         node.append(select);
-        const picker = h("label", "dlg-field", "Network color");
+        const picker = h("label", "dlg-field", translate("Network color"));
         picker.append(color);
-        const confirmed = await dialog("Color pipe network", [
+        const confirmed = await dialog(translate("Color pipe network"), [
             ...(ports.length > 1 ? [node] : []), picker, summary,
-            ...(!prototypes ? ["Prototype defaults for valves are unavailable in this build."] : []),
-        ], [{ label: "Cancel", value: false }, { label: "Apply", value: true, kind: "primary" }], false);
+            ...(!prototypes ? [translate("Prototype defaults for valves are unavailable in this build.")] : []),
+        ], [{ label: translate("Cancel"), value: false }, { label: translate("Apply"), value: true, kind: "primary" }], false);
         if (!confirmed || this.session !== s || this.editor?.busy || this.gesture) return;
         const changed = colorPipeNetwork(s.doc, s.scene.pipeNetwork(uid, select.value, prototypes ?? undefined), color.value);
-        this.say(changed ? `Colored ${changed} ${changed === 1 ? "pipe" : "pipes"}` : "No pipes changed");
+        this.say(changed ? translate("network.coloredPipes", { count: changed }) : translate("No pipes changed"));
     }
 
     /** Opens an entity (the map, a grid) in the Properties column; the selection is cleared. */
@@ -833,7 +834,7 @@ export class EditorController {
     /** Sets fields of every selected decal, as one undo step (the options bar). */
     setSelectedDecals(props: Partial<DecalProps> | ((d: DecalProps) => Partial<DecalProps>)): void {
         const n = this.editor?.setDecalProps(props) ?? 0;
-        if (n) this.say(`Changed ${n} ${n === 1 ? "decal" : "decals"}`);
+        if (n) this.say(translate("Changed {{1}} {{2}}", { 1: n, 2: n === 1 ? "decal" : "decals" }));
     }
 
     /** The selected decals' fields, from the first one, with those that differ marked. */
@@ -900,8 +901,8 @@ export class EditorController {
     }
 
     get networkStatus(): string {
-        if (this.nodeData === undefined) return "Loading node data…";
-        if (this.nodeData === null) return "Partial topology · prototype data unavailable";
+        if (this.nodeData === undefined) return translate("Loading node data…");
+        if (this.nodeData === null) return translate("Partial topology · prototype data unavailable");
         return this.nodeOverlay?.status(this.nodeFilter) ?? "";
     }
 
@@ -1022,7 +1023,7 @@ export class EditorController {
         this.handle("tool.shapeEllipse", () => this.setShapeKind("ellipse"));
         this.handle("tool.shapeFill", () => {
             this.filled = !this.filled;
-            this.say(this.filled ? "Filled shapes" : "Outlined shapes");
+            this.say(this.filled ? translate("Filled shapes") : translate("Outlined shapes"));
         });
         this.handle("tool.erase", () => this.setTool("eraser"));
         this.handle("tool.eyedropper", () => this.setTool("eyedropper"));
@@ -1114,7 +1115,7 @@ export class EditorController {
             return;
         }
         const item = editor.stackAt(...w, { kinds })[0];
-        if (!item) return this.say("Nothing to sample");
+        if (!item) return this.say(translate("Nothing to sample"));
         this.sampleItem(item);
     }
 
@@ -1134,15 +1135,15 @@ export class EditorController {
         }
         if (item.kind === "tile") {
             this.el.palette.select({ kind: "tile", id: item.id });
-            return this.say(`Picked ${item.id}`);
+            return this.say(translate("Picked {{1}}", { 1: item.id }));
         }
         const proto = s.doc.proto(item.uid);
         const id = proto ? s.pack.migrate(proto) : null;
-        if (!id) return this.say("Nothing to pick");
+        if (!id) return this.say(translate("Nothing to pick"));
         const rot = s.doc.transform(item.uid).rotation;
         this.el.palette.select({ kind: "entity", id });
         this.placeRotation = rot;
-        this.say(`Picked ${id}`);
+        this.say(translate("Picked {{1}}", { 1: id }));
     }
 
     /** Makes a decal's look the brush. */
@@ -1151,7 +1152,7 @@ export class EditorController {
         this.pasting = null;
         this.el.palette.select({ kind: "decal", id: d.proto });
         this.decalBrush = { proto: d.proto, color: d.color, angle: d.angle, zIndex: d.zIndex, cleanable: d.cleanable };
-        this.say(`Picked ${d.proto}`);
+        this.say(translate("Picked {{1}}", { 1: d.proto }));
     }
 
     setFilter(filter: SelectFilter): void {
@@ -1176,7 +1177,7 @@ export class EditorController {
             const norm = ((deg % 360) + 360) % 360;
             this.decalBrush = { ...this.decalBrush, angle: (norm * Math.PI) / 180 };
             this.refresh();
-        } else if (this.editor.rotateSelection(turns)) this.say(turns < 0 ? "Rotated clockwise" : "Rotated counter-clockwise");
+        } else if (this.editor.rotateSelection(turns)) this.say(turns < 0 ? translate("Rotated clockwise") : translate("Rotated counter-clockwise"));
     }
 
     private flip(axis: MirrorAxis): void {
@@ -1194,11 +1195,11 @@ export class EditorController {
         const decals = this.editor.selection === null ? this.editor.selected.decalCount : 0;
         const removed = this.editor.deleteSelection();
         const parts = [
-            removed.length > 1 ? `${removed.length} entities (with contents)` : removed.length ? "1 entity" : "",
-            tiles ? `${tiles} tiles` : "",
-            decals ? `${decals} ${decals === 1 ? "decal" : "decals"}` : "",
+            removed.length > 1 ? translate("{{1}} entities (with contents)", { 1: removed.length }) : removed.length ? translate("count.entities", { count: removed.length }) : "",
+            tiles ? translate("count.tiles", { count: tiles }) : "",
+            decals ? translate("count.decals", { count: decals }) : "",
         ].filter(Boolean);
-        if (parts.length) this.say(`Deleted ${parts.join(" and ")}`);
+        if (parts.length) this.say(translate("Deleted {{1}}", { 1: parts.join(translate(" and ")) }));
     }
 
     // -----------------------------------------------------------------------------------------
@@ -1213,7 +1214,7 @@ export class EditorController {
     private release(): void {
         const had = this.holding !== null || !!this.linkPair;
         this.holding = this.linkPair = null;
-        this.say(had ? "Released" : "");
+        this.say(had ? translate("Released") : "");
     }
 
     /** Devices the multitool picks: entities with signal ports, a device list or on a network. */
@@ -1241,7 +1242,7 @@ export class EditorController {
         if (items.length < 2) return false;
         const i = nextIndex(items, editor.selected);
         editor.selectItem(items[i]!, "replace");
-        this.message = `${i + 1} of ${items.length}: ${describe(items[i]!, pack).name}`;
+        this.message = translate("{{1}} of {{2}}: {{3}}", { 1: i + 1, 2: items.length, 3: describe(items[i]!, pack).name });
         return true;
     }
 
@@ -1249,7 +1250,7 @@ export class EditorController {
     private openMenu(at: [number, number], w: Point, opts: StackOptions, choose: (item: StackItem, e: MouseEvent | KeyboardEvent) => void): boolean {
         const items = this.editor?.stackAt(...w, opts) ?? [];
         if (!items.length) {
-            this.say("Nothing here");
+            this.say(translate("Nothing here"));
             return false;
         }
         this.menu.onChoose = choose;
@@ -1286,7 +1287,7 @@ export class EditorController {
         const uid = this.deviceAt(w);
         const label = (u: number) => entityLabel(doc, u, pack);
         if (uid === null) {
-            this.message = "No device here";
+            this.message = translate("No device here");
             return;
         }
         if (this.holding === null) {
@@ -1302,11 +1303,13 @@ export class EditorController {
         else if (r.kind === "refuse") this.message = r.reason;
         else if (r.kind === "list") {
             const t = toggleDevice(doc, r.config, r.device, pack);
-            this.message = "reason" in t ? t.reason : `${t.done === "added" ? "Added" : "Removed"} ${label(r.device)} ${t.done === "added" ? "to" : "from"} ${label(r.config)}`;
+            this.message = "reason" in t ? t.reason : translate(t.done === "added" ? "Added {{device}} to {{list}}" : "Removed {{device}} from {{list}}", {
+                device: label(r.device), list: label(r.config),
+            });
         } else {
             this.linkPair = { source: r.source, sink: r.sink };
             const blocked = linkPanel(doc, r.source, r.sink, pack).blocked;
-            this.message = blocked ?? `Linking ${label(r.source)} → ${label(r.sink)}`;
+            this.message = blocked ?? translate("Linking {{1}} → {{2}}", { 1: label(r.source), 2: label(r.sink) });
         }
     }
 
@@ -1334,7 +1337,7 @@ export class EditorController {
         if (!editor || editor.busy) return null;
         const clip = editor.copy();
         if (!clip) {
-            this.say("Nothing selected");
+            this.say(translate("Nothing selected"));
             return null;
         }
         const text = clipText(clip);
@@ -1345,7 +1348,7 @@ export class EditorController {
             // no Clipboard API: the copy event and the memory carry it
         }
         if (cut) editor.deleteSelection();
-        this.say(`${cut ? "Cut" : "Copied"} ${counted(clipCounts(clip))}`);
+        this.say(`${cut ? translate("Cut") : translate("Copied")} ${counted(clipCounts(clip))}`);
         return text;
     }
 
@@ -1353,7 +1356,7 @@ export class EditorController {
     private startPaste(text: string | null): void {
         if (!this.editor) return;
         const clip = readClip(text) ?? readClip(this.clipMemory);
-        if (!clip) return this.say("Clipboard is empty");
+        if (!clip) return this.say(translate("Clipboard is empty"));
         // what is pasted becomes the selection: a selection tool takes it from there
         if (this.tool !== "select" && this.tool !== "marquee" && this.tool !== "wand") this.setTool("select");
         this.endGesture(true);
@@ -1375,33 +1378,33 @@ export class EditorController {
             decal: (proto) => !!pack.prototypes.decals[proto],
         };
         const r = editor.paste(p.clip, ...w, p.turns, known);
-        if (!r) return this.say("No grid to paste on");
+        if (!r) return this.say(translate("No grid to paste on"));
         this.pasting = null;
-        const parts = [`Pasted ${counted({ entities: r.entities.length, tiles: r.tiles.length, decals: r.decals.length })}`];
-        if (r.missing.length) parts.push(`${r.missing.length} missing in this build: ${r.missing.slice(0, 6).join(", ")}${r.missing.length > 6 ? ", …" : ""}`);
-        if (r.onSpace) parts.push(`${r.onSpace} ${r.onSpace === 1 ? "decal" : "decals"} on space skipped`);
-        if (r.entitiesOnSpace) parts.push(`${r.entitiesOnSpace} not pasted: no tile under ${r.entitiesOnSpace === 1 ? "it" : "them"}`);
-        if (r.dropped) parts.push(`${r.dropped} ${r.dropped === 1 ? "link" : "links"} dropped`);
+        const parts = [translate("Pasted {{1}}", { 1: counted({ entities: r.entities.length, tiles: r.tiles.length, decals: r.decals.length }) })];
+        if (r.missing.length) parts.push(translate("{{1}} missing in this build: {{2}}{{3}}", { 1: r.missing.length, 2: r.missing.slice(0, 6).join(", "), 3: r.missing.length > 6 ? ", …" : "" }));
+        if (r.onSpace) parts.push(translate("{{1}} {{2}} on space skipped", { 1: r.onSpace, 2: r.onSpace === 1 ? "decal" : "decals" }));
+        if (r.entitiesOnSpace) parts.push(translate("{{1}} not pasted: no tile under {{2}}", { 1: r.entitiesOnSpace, 2: r.entitiesOnSpace === 1 ? "it" : "them" }));
+        if (r.dropped) parts.push(translate("{{1}} {{2}} dropped", { 1: r.dropped, 2: r.dropped === 1 ? "link" : "links" }));
         this.say(parts.join(", "));
     }
 
     /** Moves the selection a tile in a screen direction (as the world goes: y up). */
     nudge(dx: number, dy: number): void {
         if (!this.editor || this.editor.busy || this.gesture) return;
-        if (this.editor.nudge(dx, dy)) this.say("Moved");
+        if (this.editor.nudge(dx, dy)) this.say(translate("Moved"));
     }
 
     undo(): void {
         if (!this.editor) return;
         if (this.editor.busy) return this.endGesture(true);
         const label = this.editor.undo();
-        if (label) this.say(`Undid ${label.toLowerCase()}`);
+        if (label) this.say(translate("Undid {{1}}", { 1: translate(label).toLowerCase() }));
     }
 
     redo(): void {
         if (!this.editor || this.editor.busy) return;
         const label = this.editor.redo();
-        if (label) this.say(`Redid ${label.toLowerCase()}`);
+        if (label) this.say(translate("Redid {{1}}", { 1: translate(label).toLowerCase() }));
     }
 
     /**
@@ -1418,7 +1421,7 @@ export class EditorController {
         a.download = name;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-        this.say(`Downloaded ${name}`);
+        this.say(translate("Downloaded {{1}}", { 1: name }));
     }
 
     /** The open map's text as it would be saved now (an open gesture is closed first), or null. */
@@ -1481,7 +1484,7 @@ export class EditorController {
         if (owner === null) return null;
         const t = c.target(owner, item);
         const name = typeof item === "number" ? this.nameOf(item) : this.protoName(item.proto);
-        return "id" in t ? { uid: owner, ok: true, text: `Put ${name} in ${this.nameOf(owner)}` } : { uid: owner, ok: false, text: t.reason };
+        return "id" in t ? { uid: owner, ok: true, text: translate("Put {{1}} in {{2}}", { 1: name, 2: this.nameOf(owner) }) } : { uid: owner, ok: false, text: t.reason };
     }
 
     /** The Ctrl target of the pointer: the brush's entity or the dragged one, over a container. */
@@ -1505,7 +1508,7 @@ export class EditorController {
     private showMirrorHint(): void {
         if (this.mirrorHintShown) return;
         this.mirrorHintShown = true;
-        this.say("Entity sprites use the closest available rotation when mirrored");
+        this.say(translate("Entity sprites use the closest available rotation when mirrored"));
     }
 
     private setInto(into: { uid: number; ok: boolean; text: string } | null): void {
@@ -1527,9 +1530,9 @@ export class EditorController {
             showToast(r.reason, undefined, 4000);
             return false;
         }
-        const text = `Put ${name} in ${this.nameOf(owner)}`;
+        const text = translate("Put {{1}} in {{2}}", { 1: name, 2: this.nameOf(owner) });
         this.say(text);
-        showToast(text, { label: "Undo", run: () => this.undo() }, 4000);
+        showToast(text, { label: translate("Undo"), run: () => this.undo() }, 4000);
         return true;
     }
 
@@ -1572,14 +1575,14 @@ export class EditorController {
         else if (w) {
             const proto = typeof item === "number" ? s.doc.proto(item)! : this.layered(item.proto, w);
             const t = editor.placeTarget(proto, ...w);
-            if (!t) this.message = "Needs a tile";
+            if (!t) this.message = translate("Needs a tile");
             else if (typeof item === "number") {
                 if (s.doc.containerOf(item)) {
                     s.doc.removeFromContainer(item, { grid: t.grid, x: t.x, y: t.y }, this.contents?.kit.pack);
-                    this.message = `Took out ${this.nameOf(item)}`;
+                    this.message = translate("Took out {{1}}", { 1: this.nameOf(item) });
                 }
-            } else if (editor.place(proto, ...w, this.placeRotation) !== null) this.message = `Placed ${this.protoName(proto)}`;
-            else this.message = `${proto} is already there`;
+            } else if (editor.place(proto, ...w, this.placeRotation) !== null) this.message = translate("Placed {{1}}", { 1: this.protoName(proto) });
+            else this.message = translate("{{1}} is already there", { 1: proto });
         }
         this.refresh();
     }
@@ -1655,7 +1658,7 @@ export class EditorController {
             const item = { proto: this.choice.id };
             const into = this.intoAt(w, item);
             if (into) this.putInto(into.uid, item);
-            else this.message = this.contents ? "No container here" : "Loading container data";
+            else this.message = this.contents ? translate("No container here") : translate("Loading container data");
         }
         else if (mode === "shape") {
             const brush = this.brush();
@@ -1674,7 +1677,7 @@ export class EditorController {
             this.message = "";
             editor.beginStroke("Place");
             if (editor.place(proto, ...w, this.placeRotation) === null) {
-                this.message = editor.placeTarget(proto, ...w) ? `${proto} is already there` : "Needs a tile";
+                this.message = editor.placeTarget(proto, ...w) ? translate("{{1}} is already there", { 1: proto }) : translate("Needs a tile");
             }
         } else if (mode === "paint" && this.choice) this.startPaint(this.choice.id, w);
         else if (mode === "erase") {
@@ -1726,9 +1729,9 @@ export class EditorController {
         const line = g.moved ? editor.decalLine(g.start, g.end, this.decalSnap) : null;
         const one = line ? null : editor.decalTarget(...g.start, this.decalSnap);
         const grid = line?.grid ?? one?.grid;
-        if (grid === undefined) return void (this.message = "No grid to place on");
+        if (grid === undefined) return void (this.message = translate("No grid to place on"));
         const ids = editor.placeDecals(this.decalBrush, grid, line ? line.points : [[one!.x, one!.y]]);
-        this.message = !ids.length ? "Decals need a tile" : ids.length > 1 ? `Placed ${ids.length} ${this.decalBrush.proto}` : "";
+        this.message = !ids.length ? translate("Decals need a tile") : ids.length > 1 ? translate("Placed {{1}} {{2}}", { 1: ids.length, 2: this.decalBrush.proto }) : "";
     }
 
     /** Shift pressed or let go while a shape is drawn: the preview follows at once. */
@@ -1873,8 +1876,8 @@ export class EditorController {
             else if (g?.kind === "decal") this.placeDecalGesture(g);
             else if (g?.kind === "shape") {
                 const n = editor.drawShape(g.shape, g.filled, g.brush, g.start, g.end, this.placeRotation, g.constrain);
-                const what = g.brush.kind !== "tile" ? `Placed ${n} ${g.brush.id}` : g.brush.id === "Space" ? `Erased ${n} tiles` : `Painted ${n} tiles`;
-                this.message = n ? what : "Nothing changed";
+                const what = g.brush.kind !== "tile" ? translate("Placed {{1}} {{2}}", { 1: n, 2: g.brush.id }) : g.brush.id === "Space" ? translate("Erased {{1}} tiles", { 1: n }) : translate("Painted {{1}} tiles", { 1: n });
+                this.message = n ? what : translate("Nothing changed");
                 if (n && g.brush.kind === "entity" && this.mirrorMode !== "off") this.showMirrorHint();
             }
         }
@@ -1889,7 +1892,7 @@ export class EditorController {
         if (editor?.busy) {
             if (revert) editor.cancel();
             else if (editor.finish()) {
-                if (g?.kind === "move" || g?.kind === "groupMove") this.message = "Moved";
+                if (g?.kind === "move" || g?.kind === "groupMove") this.message = translate("Moved");
                 if (g?.kind === "place" && this.mirrorMode !== "off") this.showMirrorHint();
             }
         }
@@ -1986,10 +1989,10 @@ export class EditorController {
 
     private rulerHint(): string {
         const s = this.session, from = this.rulerStart;
-        if (!s || !from) return "Click to start measuring";
+        if (!s || !from) return translate("Click to start measuring");
         const to = this.rulerTarget();
         const label = to ? rulerLabel(s.scene, from, to) + " · " : "";
-        return label + (this.rulerEnd ? "Click to start again" : "Click to finish") + " · Esc to clear";
+        return label + (this.rulerEnd ? translate("Click to start again") : translate("Click to finish")) + translate(" · Esc to clear");
     }
 
     private refresh(): void {
@@ -2008,7 +2011,7 @@ export class EditorController {
 
         this.hint = this.into?.text ?? (mode === "ruler" ? this.rulerHint() : this.message);
         const t = this.hover && editor ? editor.tileTarget(...this.hover) : null;
-        this.cursorText = t ? `${t.x}, ${t.y}  grid ${t.grid}` : "";
+        this.cursorText = t ? translate("{{1}}, {{2}}  grid {{3}}", { 1: t.x, 2: t.y, 3: t.grid }) : "";
         map.drawOverlay();
         this.refreshSide();
         this.notify();

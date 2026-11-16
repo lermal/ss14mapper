@@ -1,4 +1,5 @@
 // Personal palette categories without DOM: model, validation, import merge, (de)serialisation.
+import { t as translate } from "../i18n";
 import { ENTRY_KINDS, type EntryKind } from "./palette-search";
 
 /** Reserved name of the built-in favourites category in the stored format. */
@@ -53,9 +54,9 @@ export class Categories {
     /** Why `name` cannot be used for a new category or as the new name of `except`, or null if it can. */
     nameError(name: string, except?: string): string | null {
         name = name.trim();
-        if (!name) return "Enter a name";
-        if (name === FAVOURITES || name.toLowerCase() === "favorites" || name.toLowerCase() === "favourites") return "Name is reserved";
-        if (name !== except && this.find(name)) return "Name already exists";
+        if (!name) return translate("Enter a name");
+        if (name === FAVOURITES || name.toLowerCase() === "favorites" || name.toLowerCase() === "favourites") return translate("Name is reserved");
+        if (name !== except && this.find(name)) return translate("Name already exists");
         return null;
     }
 

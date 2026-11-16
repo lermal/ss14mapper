@@ -1,5 +1,6 @@
 // The account in the headers of the start screen and the editor: Sign in with GitHub, or the user's menu (Your
 // builds, Add a build, Manage builds for the maintainer, Sign out), and the dialogs behind it.
+import { t as translate } from "../i18n";
 import { adminMeta, BUG_TABS, KIND_TABS, bugMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
 import { ApiError, type AdminFork, type Api, type BugImage, type BugReport, type BugKind, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
 import { addImages, IMAGE_TYPES, MAX_IMAGES } from "../api/feedback-images";
@@ -171,7 +172,7 @@ export class Account {
             }
             if (!this.me) {
                 const b = button("tb-signin", icon(ICON.github, 16), "", () => void this.signIn());
-                b.append(h("span", "", "Sign in"));
+                b.append(h("span", "", translate("Sign in")));
                 box.replaceChildren(b);
                 continue;
             }
@@ -184,7 +185,7 @@ export class Account {
         b.type = "button";
         b.setAttribute("aria-haspopup", "menu");
         b.setAttribute("aria-expanded", "false");
-        b.title = `Signed in as ${me.login}`;
+        b.title = translate("Signed in as {{1}}", { 1: me.login });
         const letter = () => h("span", "tb-avatar", me.login.slice(0, 1).toUpperCase());
         if (me.avatar) {
             const img = h("img", "tb-avatar");
@@ -229,17 +230,17 @@ export class Account {
 
     private menuItems(me: Me): MenuItem[] {
         const items: MenuItem[] = [
-            { label: "Your builds…", run: () => void this.yourBuilds() },
-            { label: "Add a build…", run: () => void this.addBuild() },
-            { label: "Send feedback…", run: () => void this.reportBug() },
+            { label: translate("Your builds…"), run: () => void this.yourBuilds() },
+            { label: translate("Add a build…"), run: () => void this.addBuild() },
+            { label: translate("Send feedback…"), run: () => void this.reportBug() },
         ];
         if (me.maintainer) {
             const n = me.pending ?? 0;
-            items.push({ label: "Manage builds…", ...(n > 0 ? { note: `${n} waiting for approval` } : {}), run: () => void this.manageBuilds() });
+            items.push({ label: translate("Manage builds…"), ...(n > 0 ? { note: translate("{{1}} waiting for approval", { 1: n }) } : {}), run: () => void this.manageBuilds() });
             const bugs = me.bugs ?? 0;
-            items.push({ label: "Feedback…", ...(bugs > 0 ? { note: `${bugs} new` } : {}), run: () => void this.bugReports() });
+            items.push({ label: translate("Feedback…"), ...(bugs > 0 ? { note: translate("{{1}} new", { 1: bugs }) } : {}), run: () => void this.bugReports() });
         }
-        items.push("-", { label: "Sign out", run: () => void this.signOut() });
+        items.push("-", { label: translate("Sign out"), run: () => void this.signOut() });
         return items;
     }
 
@@ -254,7 +255,7 @@ export class Account {
             await this.api.logout();
         } catch (e) {
             // already signed out on the server: the same as success here
-            if (!(e instanceof ApiError && e.status === 401)) return void showToast("Could not sign out.");
+            if (!(e instanceof ApiError && e.status === 401)) return void showToast(translate("Could not sign out."));
         }
         this.me = null;
         this.render();
@@ -277,10 +278,10 @@ export class Account {
         if (this.me) return true;
         const go = await dialog(
             title,
-            [`Sign in with GitHub to ${what}.`],
+            [translate("Sign in with GitHub to {{1}}.", { 1: what })],
             [
-                { label: "Cancel", value: false },
-                { label: "Sign in", value: true, kind: "primary" },
+                { label: translate("Cancel"), value: false },
+                { label: translate("Sign in"), value: true, kind: "primary" },
             ],
             false,
         );
@@ -289,10 +290,10 @@ export class Account {
     }
 
     async addBuild(): Promise<void> {
-        if (!(await this.needSignIn("Add a build", "add a build"))) return;
+        if (!(await this.needSignIn(translate("Add a build"), translate("add a build")))) return;
         const repo = textInput("", "https://github.com/owner/repository");
         repo.dataset.autofocus = "";
-        const branch = textInput("", "Default branch");
+        const branch = textInput("", translate("Default branch"));
         const error = h("div", "fb-error");
         error.hidden = true;
         error.setAttribute("role", "alert");
@@ -304,44 +305,44 @@ export class Account {
         const check = async (submit: boolean): Promise<boolean> => {
             if (!submit) return true;
             const url = repo.value.trim();
-            if (!url) return fail("Enter the address of a GitHub repository.");
+            if (!url) return fail(translate("Enter the address of a GitHub repository."));
             try {
                 await this.api.submitFork(url, branch.value.trim());
             } catch (e) {
                 if (e instanceof ApiError && e.status === 401) {
                     this.lost();
-                    return fail("You are signed out. Sign in with GitHub to add a build.");
+                    return fail(translate("You are signed out. Sign in with GitHub to add a build."));
                 }
                 return fail(messageOf(e));
             }
             return true;
         };
         const ok = await dialog(
-            "Add a build",
+            translate("Add a build"),
             [
-                field("GitHub repository", repo),
-                field("Branch", branch),
+                field(translate("GitHub repository"), repo),
+                field(translate("Branch"), branch),
                 error,
-                h("p", "fb-hint", "The build is added after the maintainer approves it. Its pack is then built from the repository and updated when the branch changes."),
+                h("p", "fb-hint", translate("The build is added after the maintainer approves it. Its pack is then built from the repository and updated when the branch changes.")),
             ],
             [
-                { label: "Cancel", value: false },
-                { label: "Submit", value: true, kind: "primary" },
+                { label: translate("Cancel"), value: false },
+                { label: translate("Submit"), value: true, kind: "primary" },
             ],
             false,
             { check },
         );
         if (!ok) return;
         if (this.me?.maintainer) this.me.pending = (this.me.pending ?? 0) + 1;
-        showToast("Build submitted. It will appear after approval.", undefined, 6000);
+        showToast(translate("Build submitted. It will appear after approval."), undefined, 6000);
     }
 
     // ---- Report a bug
 
     async reportBug(): Promise<void> {
-        if (!(await this.needSignIn("Send feedback", "send feedback"))) return;
+        if (!(await this.needSignIn(translate("Send feedback"), translate("send feedback")))) return;
         const ctx = this.hooks.bugContext();
-        const title = textInput("", "Short summary");
+        const title = textInput("", translate("Short summary"));
         title.dataset.autofocus = "";
         title.maxLength = 150;
         const text = h("textarea");
@@ -351,13 +352,13 @@ export class Account {
         let kind: BugKind = "bug";
         const seg = h("div", "fb-seg");
         const kinds: Array<[BugKind, string]> = [
-            ["bug", "Bug"],
-            ["idea", "Suggestion"],
+            ["bug", translate("Bug")],
+            ["idea", translate("Suggestion")],
         ];
         const setKind = (k: BugKind) => {
             kind = k;
             for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.kind === k));
-            text.placeholder = k === "bug" ? "What happened, and what you expected instead" : "What you would like the editor to do, and why";
+            text.placeholder = k === "bug" ? translate("What happened, and what you expected instead") : translate("What you would like the editor to do, and why");
             // a map helps to reproduce a bug; a suggestion rarely needs one
             attach.checked = k === "bug";
         };
@@ -377,7 +378,7 @@ export class Account {
         picker.accept = IMAGE_TYPES.join(",");
         picker.multiple = true;
         picker.hidden = true;
-        const addBtn = button("btn", "Add images…", "", () => picker.click());
+        const addBtn = button("btn", translate("Add images…"), "", () => picker.click());
         addBtn.type = "button";
         const drawImages = () => {
             const thumbs = files.map((f) => {
@@ -387,7 +388,7 @@ export class Account {
                 const img = h("img");
                 img.src = url;
                 img.alt = f.name;
-                const rm = button("fb-rm", icon(ICON.close, 10), "Remove image", () => {
+                const rm = button("fb-rm", icon(ICON.close, 10), translate("Remove image"), () => {
                     files = files.filter((x) => x !== f);
                     URL.revokeObjectURL(previews.get(f)!);
                     previews.delete(f);
@@ -398,7 +399,7 @@ export class Account {
                 return t;
             });
             addBtn.disabled = files.length >= MAX_IMAGES;
-            strip.replaceChildren(addBtn, ...thumbs, h("span", "fb-count", `${files.length} of ${MAX_IMAGES}`));
+            strip.replaceChildren(addBtn, ...thumbs, h("span", "fb-count", translate("{{1}} of {{2}}", { 1: files.length, 2: MAX_IMAGES })));
         };
         const take = (list: File[]) => {
             const r = addImages(files, list);
@@ -434,10 +435,10 @@ export class Account {
         document.addEventListener("dragover", onOver);
         document.addEventListener("drop", onDrop);
         const imagesField = h("div", "dlg-field");
-        imagesField.append("Images", strip, picker);
+        imagesField.append(translate("Images"), strip, picker);
         drawImages();
         const check = h("label", "fb-check");
-        check.append(attach, `Attach the open map (${ctx.mapName ?? ""})`);
+        check.append(attach, translate("Attach the open map ({{1}})", { 1: ctx.mapName ?? "" }));
         check.hidden = ctx.mapName === null;
         const error = h("div", "fb-error");
         error.hidden = true;
@@ -451,13 +452,13 @@ export class Account {
             if (!submit) return true;
             const subject = title.value.trim();
             const description = text.value.trim();
-            if (!subject) return fail("Enter a title.");
-            if (!description) return fail(kind === "bug" ? "Describe the problem." : "Describe the suggestion.");
+            if (!subject) return fail(translate("Enter a title."));
+            if (!description) return fail(kind === "bug" ? translate("Describe the problem.") : translate("Describe the suggestion."));
             const report: BugReportInput = { kind, title: subject, description, page_url: location.href, build: ctx.build, user_agent: navigator.userAgent };
             if (ctx.mapName !== null && attach.checked) {
                 const map = ctx.mapText();
                 if (map !== null) {
-                    if (map.length > MAX_MAP) return fail("The map is larger than 20 MB. Send it without the map.");
+                    if (map.length > MAX_MAP) return fail(translate("The map is larger than 20 MB. Send it without the map."));
                     report.map_name = ctx.mapName;
                     report.map = map;
                 }
@@ -467,26 +468,26 @@ export class Account {
             } catch (e) {
                 if (e instanceof ApiError && e.status === 401) {
                     this.lost();
-                    return fail("You are signed out. Sign in with GitHub to send feedback.");
+                    return fail(translate("You are signed out. Sign in with GitHub to send feedback."));
                 }
                 return fail(messageOf(e));
             }
             return true;
         };
         const ok = await dialog(
-            "Send feedback",
+            translate("Send feedback"),
             [
                 seg,
-                field("Title", title),
-                field("Description", text),
+                field(translate("Title"), title),
+                field(translate("Description"), text),
                 imagesField,
                 check,
                 error,
-                h("p", "fb-hint", "The page address, the build and your browser version are sent with it."),
+                h("p", "fb-hint", translate("The page address, the build and your browser version are sent with it.")),
             ],
             [
-                { label: "Cancel", value: false },
-                { label: "Send", value: true, kind: "primary" },
+                { label: translate("Cancel"), value: false },
+                { label: translate("Send"), value: true, kind: "primary" },
             ],
             false,
             { check: send, width: 480 },
@@ -495,18 +496,18 @@ export class Account {
         document.removeEventListener("dragover", onOver);
         document.removeEventListener("drop", onDrop);
         for (const u of previews.values()) URL.revokeObjectURL(u);
-        if (ok) showToast("Thanks. Your feedback was sent.", undefined, 6000);
+        if (ok) showToast(translate("Thanks. Your feedback was sent."), undefined, 6000);
     }
 
     // ---- Your builds
 
     async yourBuilds(): Promise<void> {
         const list = h("div", "fb-list");
-        list.append(h("p", "dlg-muted", "Loading…"));
-        const shown = dialog<void>("Your builds", [list], [{ label: "Close", value: undefined }], undefined, { width: 560 });
+        list.append(h("p", "dlg-muted", translate("Loading…")));
+        const shown = dialog<void>(translate("Your builds"), [list], [{ label: translate("Close"), value: undefined }], undefined, { width: 560 });
         try {
             const forks = await this.api.myForks();
-            list.replaceChildren(...(forks.length ? forks.map((f) => this.myRow(f)) : [h("div", "fb-empty", "You have not added any builds.")]));
+            list.replaceChildren(...(forks.length ? forks.map((f) => this.myRow(f)) : [h("div", "fb-empty", translate("You have not added any builds."))]));
         } catch (e) {
             if (e instanceof ApiError && e.status === 401) this.lost();
             list.replaceChildren(h("div", "fb-error", messageOf(e)));
@@ -532,7 +533,7 @@ export class Account {
         const bar = h("div", "fb-bar");
         bar.append(tabs, kindTabs);
         const list = h("div", "fb-list");
-        list.append(h("p", "dlg-muted", "Loading…"));
+        list.append(h("p", "dlg-muted", translate("Loading…")));
 
         const render = () => {
             const all = (reports ?? []).filter((r) => kindTab === null || r.kind === kindTab);
@@ -559,7 +560,7 @@ export class Account {
             );
             if (!reports) return;
             const shown = tab ? all.filter((r) => r.status === tab) : all;
-            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", "Nothing here")]));
+            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", translate("Nothing here"))]));
         };
 
         const refresh = async () => {
@@ -599,11 +600,11 @@ export class Account {
 
         const remove = async (r: BugReport, el: HTMLElement) => {
             const sure = await dialog(
-                "Delete report?",
-                [`${r.title} and its attached map and images will be deleted.`],
+                translate("Delete report?"),
+                [translate("{{1}} and its attached map and images will be deleted.", { 1: r.title })],
                 [
-                    { label: "Cancel", value: false },
-                    { label: "Delete", value: true, kind: "danger" },
+                    { label: translate("Cancel"), value: false },
+                    { label: translate("Delete"), value: true, kind: "danger" },
                 ],
                 false,
             );
@@ -620,16 +621,16 @@ export class Account {
         const view = async (r: BugReport, start: number) => {
             let at = start;
             const img = h("img");
-            const prev = button("btn", "Previous", "", () => step(-1));
-            const next = button("btn", "Next", "", () => step(1));
+            const prev = button("btn", translate("Previous"), "", () => step(-1));
+            const next = button("btn", translate("Next"), "", () => step(1));
             const n = r.images.length;
             const wrap = h("div", "fb-view");
             wrap.append(prev, img, next);
             const show = async () => {
                 const dlgEl = wrap.closest(".dlg");
-                dlgEl?.setAttribute("aria-label", `Image ${at + 1} of ${n}`);
+                dlgEl?.setAttribute("aria-label", translate("Image {{1}} of {{2}}", { 1: at + 1, 2: n }));
                 const title = dlgEl?.querySelector("h2");
-                if (title) title.textContent = `Image ${at + 1} of ${n}`;
+                if (title) title.textContent = translate("Image {{1}} of {{2}}", { 1: at + 1, 2: n });
                 prev.disabled = at === 0;
                 next.disabled = at === n - 1;
                 const want = at;
@@ -651,7 +652,7 @@ export class Account {
                 step(e.key === "ArrowLeft" ? -1 : 1);
             };
             window.addEventListener("keydown", keys, true);
-            const closed = dialog<void>(`Image ${at + 1} of ${n}`, [wrap], [{ label: "Close", value: undefined }], undefined, { width: 960 });
+            const closed = dialog<void>(translate("Image {{1}} of {{2}}", { 1: at + 1, 2: n }), [wrap], [{ label: translate("Close"), value: undefined }], undefined, { width: 960 });
             void show();
             await closed;
             window.removeEventListener("keydown", keys, true);
@@ -659,10 +660,10 @@ export class Account {
         const thumbs = (r: BugReport): HTMLElement => {
             const box = h("div", "fb-row-images");
             r.images.forEach((i, idx) => {
-                const b = button("", "", `Image ${idx + 1} of ${r.images.length}`, () => void view(r, idx));
+                const b = button("", "", translate("Image {{1}} of {{2}}", { 1: idx + 1, 2: r.images.length }), () => void view(r, idx));
                 b.type = "button";
                 const img = h("img");
-                img.alt = `Image ${idx + 1}`;
+                img.alt = translate("Image {{1}}", { 1: idx + 1 });
                 b.append(img);
                 box.append(b);
                 void imageUrl(r, i).then((u) => (img.src = u), () => undefined);
@@ -678,15 +679,15 @@ export class Account {
             n.title = r.title;
             t.append(n, h("span", "fb-meta", bugMeta(r, this.hooks.bugContext().buildName)), h("span", "fb-desc", r.description));
             if (r.images.length) t.append(thumbs(r));
-            el.append(h("span", `fb-kind ${r.kind === "idea" ? "idea" : "bug"}`, r.kind === "idea" ? "Suggestion" : "Bug"), t);
-            if (r.hasMap) el.append(button("btn", "Map", "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
-            if (r.status === "new") el.append(button("btn", "Mark done", "", () => void act(el, () => this.api.markBugFixed(r.id))));
-            el.append(button("btn danger", "Delete", "", () => void remove(r, el)));
+            el.append(h("span", `fb-kind ${r.kind === "idea" ? "idea" : "bug"}`, r.kind === "idea" ? translate("Suggestion") : translate("Bug")), t);
+            if (r.hasMap) el.append(button("btn", translate("Map"), "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
+            if (r.status === "new") el.append(button("btn", translate("Mark done"), "", () => void act(el, () => this.api.markBugFixed(r.id))));
+            el.append(button("btn danger", translate("Delete"), "", () => void remove(r, el)));
             return el;
         };
 
         render();
-        const shown = dialog<void>("Feedback", [bar, list], [{ label: "Close", value: undefined }], undefined, { width: 720 });
+        const shown = dialog<void>(translate("Feedback"), [bar, list], [{ label: translate("Close"), value: undefined }], undefined, { width: 720 });
         try {
             await refresh();
         } catch (e) {
@@ -705,8 +706,8 @@ export class Account {
         let approving: number | null = null;
         const tabs = h("div", "fb-tabs");
         const list = h("div", "fb-list");
-        list.append(h("p", "dlg-muted", "Loading…"));
-        const note = h("p", "fb-note", "The ID names the build in links and saved maps and cannot be changed after the first build.");
+        list.append(h("p", "dlg-muted", translate("Loading…")));
+        const note = h("p", "fb-note", translate("The ID names the build in links and saved maps and cannot be changed after the first build."));
 
         const render = () => {
             const all = forks ?? [];
@@ -725,7 +726,7 @@ export class Account {
             note.hidden = tab !== "pending";
             if (!forks) return;
             const shown = all.filter((f) => f.status === tab);
-            list.replaceChildren(...(shown.length ? shown.map((f) => (f.id === approving ? approveRow(f) : row(f))) : [h("div", "fb-empty", "No builds")]));
+            list.replaceChildren(...(shown.length ? shown.map((f) => (f.id === approving ? approveRow(f) : row(f))) : [h("div", "fb-empty", translate("No builds"))]));
         };
 
         const refresh = async () => {
@@ -758,22 +759,22 @@ export class Account {
             const r = h("div", "fb-row");
             r.dataset.id = String(f.id);
             const btn = (label: string, run: () => void, kind = "") => button(`btn${kind ? ` ${kind}` : ""}`, label, "", run);
-            const del = btn("Delete", () => void remove(f, r), "danger");
+            const del = btn(translate("Delete"), () => void remove(f, r), "danger");
             if (f.status === "pending") {
-                r.append(rowText(f.title, adminMeta(f)), btn("Approve", () => startApprove(f)), btn("Decline", () => void act(r, () => this.api.act(f.id, "reject"))));
+                r.append(rowText(f.title, adminMeta(f)), btn(translate("Approve"), () => startApprove(f)), btn(translate("Decline"), () => void act(r, () => this.api.act(f.id, "reject"))));
             } else if (f.status === "approved") {
                 const s = stateLabel(f.status, f.build);
                 r.append(
                     rowText(f.title, adminMeta(f), s.reason),
                     badge(s),
-                    btn("Rebuild", () => void act(r, () => this.api.act(f.id, "rebuild"))),
-                    btn("Hide", () => void act(r, () => this.api.act(f.id, "hide"))),
+                    btn(translate("Rebuild"), () => void act(r, () => this.api.act(f.id, "rebuild"))),
+                    btn(translate("Hide"), () => void act(r, () => this.api.act(f.id, "hide"))),
                     del,
                 );
             } else if (f.status === "hidden") {
-                r.append(rowText(f.title, adminMeta(f)), btn("Unhide", () => void act(r, () => this.api.act(f.id, "unhide"))), del);
+                r.append(rowText(f.title, adminMeta(f)), btn(translate("Unhide"), () => void act(r, () => this.api.act(f.id, "unhide"))), del);
             } else {
-                r.append(rowText(f.title, adminMeta(f)), btn("Approve", () => startApprove(f)), del);
+                r.append(rowText(f.title, adminMeta(f)), btn(translate("Approve"), () => startApprove(f)), del);
             }
             return r;
         };
@@ -786,13 +787,13 @@ export class Account {
             const id = textInput(f.slug);
             // the ID is fixed once a build exists
             id.disabled = !!f.build;
-            if (id.disabled) id.title = "The ID cannot be changed after the first build.";
-            form.append(field("Name", name), field("ID", id, "id"));
+            if (id.disabled) id.title = translate("The ID cannot be changed after the first build.");
+            form.append(field(translate("Name"), name), field("ID", id, "id"));
             const approve = async () => {
                 const title = name.value.trim();
                 const slug = id.value.trim();
-                if (!title) return showToast("Enter a name.");
-                if (slug !== f.slug && !SLUG_PATTERN.test(slug)) return showToast("The ID can have lowercase letters, digits and hyphens, and starts with a letter or digit.", undefined, 6000);
+                if (!title) return showToast(translate("Enter a name."));
+                if (slug !== f.slug && !SLUG_PATTERN.test(slug)) return showToast(translate("The ID can have lowercase letters, digits and hyphens, and starts with a letter or digit."), undefined, 6000);
                 await act(r, () => this.api.approve(f.id, slug !== f.slug ? { title, slug } : { title }));
             };
             const cancel = () => {
@@ -812,17 +813,17 @@ export class Account {
                     }
                 });
             }
-            r.append(form, button("btn primary", "Approve", "", () => void approve()), button("btn", "Cancel", "", cancel));
+            r.append(form, button("btn primary", translate("Approve"), "", () => void approve()), button("btn", translate("Cancel"), "", cancel));
             return r;
         };
 
         const remove = async (f: AdminFork, r: HTMLElement) => {
             const sure = await dialog(
-                "Delete build?",
-                [`${f.title} and its packs will be deleted.`],
+                translate("Delete build?"),
+                [translate("{{1}} and its packs will be deleted.", { 1: f.title })],
                 [
-                    { label: "Cancel", value: false },
-                    { label: "Delete", value: true, kind: "danger" },
+                    { label: translate("Cancel"), value: false },
+                    { label: translate("Delete"), value: true, kind: "danger" },
                 ],
                 false,
             );
@@ -830,7 +831,7 @@ export class Account {
         };
 
         render();
-        const shown = dialog<void>("Manage builds", [tabs, list, note], [{ label: "Close", value: undefined }], undefined, { width: 720 });
+        const shown = dialog<void>(translate("Manage builds"), [tabs, list, note], [{ label: translate("Close"), value: undefined }], undefined, { width: 720 });
         try {
             await refresh();
         } catch (e) {

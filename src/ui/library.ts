@@ -3,6 +3,8 @@
 // reads only the small metadata store. Every storage call is guarded: a failure answers null or false and the
 // editor goes on (Download still makes a file).
 
+import { language, shortDate, t as translate } from "../i18n";
+
 export interface LibraryEntry {
     id: string;
     /** File name, e.g. "barnacle.yml". */
@@ -225,7 +227,7 @@ function openDb(): Promise<IDBDatabase> {
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
-        req.onblocked = () => reject(new Error("Close other tabs using the library"));
+        req.onblocked = () => reject(new Error(translate("Close other tabs using the library")));
     });
 }
 
@@ -251,7 +253,7 @@ export function indexedDbBackend(): LibraryBackend | null {
             const t = d.transaction(stores, mode);
             const req = body(t);
             t.oncomplete = () => resolve(req ? req.result : undefined);
-            t.onerror = t.onabort = () => reject(t.error ?? new Error("Storage error"));
+            t.onerror = t.onabort = () => reject(t.error ?? new Error(translate("Storage error")));
         });
     };
     return {
@@ -274,22 +276,21 @@ export function indexedDbBackend(): LibraryBackend | null {
 
 // ---- text for people
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 /** "today, 14:02", "yesterday", "12 Nov" or "12 Nov 2025" (local time). */
 export function formatWhen(time: number, now = Date.now()): string {
     const d = new Date(time), n = new Date(now);
     const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const days = Math.round((day(n) - day(d)) / 86_400_000);
-    if (days === 0) return `today, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    if (days === 1) return "yesterday";
-    return `${d.getDate()} ${MONTHS[d.getMonth()]}${d.getFullYear() === n.getFullYear() ? "" : ` ${d.getFullYear()}`}`;
+    if (days === 0) return translate("today, {{1}}:{{2}}", { 1: String(d.getHours()).padStart(2, "0"), 2: String(d.getMinutes()).padStart(2, "0") });
+    if (days === 1) return translate("yesterday");
+    return shortDate(d, d.getFullYear() !== n.getFullYear());
 }
 
 /** "820 B", "14 KB", "1.4 MB". */
 export function formatSize(bytes: number): string {
-    if (bytes < 1000) return `${bytes} B`;
-    if (bytes < 1_000_000) return `${Math.round(bytes / 1000)} KB`;
+    if (bytes < 1000) return translate("{{1}} B", { 1: bytes });
+    if (bytes < 1_000_000) return translate("{{1}} KB", { 1: Math.round(bytes / 1000) });
     const mb = bytes / 1_000_000;
-    return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+    const size = mb < 10 ? mb.toLocaleString(language(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Math.round(mb);
+    return translate("{{1}} MB", { 1: size });
 }

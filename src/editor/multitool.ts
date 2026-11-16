@@ -3,6 +3,7 @@
 // other's membership in its list, anything else opens the linking panel of the two (source ports on the left,
 // sink ports on the right). Pure logic over the document; the controller keeps the held entity, the link panel
 // shows `linkPanel`, the overlay draws `linkLines`.
+import { t as translate } from "../i18n";
 import type { Check, DevicePack, SignalLink } from "../map/devices";
 import type { MapDocument } from "../map/document";
 import type { EntityPrototype } from "../pack/format";
@@ -47,11 +48,11 @@ export function linkable(doc: MapDocument, uid: number, pack: DevicePack): boole
 
 /** Whether an entity can be held as the first end: it has signal ports or a device list. */
 export function canHold(doc: MapDocument, uid: number, pack: DevicePack): Check {
-    if (!exists(doc, uid)) return fail(`No entity ${uid}`);
-    if (!pack.prototypes.ports) return fail("No port data in this build");
+    if (!exists(doc, uid)) return fail(translate("No entity {{1}}", { 1: uid }));
+    if (!pack.prototypes.ports) return fail(translate("No port data in this build"));
     const p = doc.signalPorts(uid, pack);
     if (p.source.length || p.sink.length || isConfigurator(doc, uid, pack)) return { ok: true };
-    return fail(`${entityLabel(doc, uid, pack)} has no signal ports and no device list`);
+    return fail(translate("{{1}} has no signal ports and no device list", { 1: entityLabel(doc, uid, pack) }));
 }
 
 /**
@@ -83,8 +84,8 @@ export type SecondClick =
  */
 export function secondClick(doc: MapDocument, held: number, uid: number, pack: DevicePack, preferLink = false): SecondClick {
     if (uid === held) return { kind: "release" };
-    if (!exists(doc, held)) return fail2(`No entity ${held}`);
-    if (!exists(doc, uid)) return fail2(`No entity ${uid}`);
+    if (!exists(doc, held)) return fail2(translate("No entity {{1}}", { 1: held }));
+    if (!exists(doc, uid)) return fail2(translate("No entity {{1}}", { 1: uid }));
     const heldConfig = isConfigurator(doc, held, pack);
     const list = heldConfig ? { config: held, device: uid } : isConfigurator(doc, uid, pack) ? { config: uid, device: held } : null;
     const direction = linkDirection(doc, held, uid, pack);
@@ -101,7 +102,7 @@ export function secondClick(doc: MapDocument, held: number, uid: number, pack: D
     const a = doc.signalPorts(held, pack), b = doc.signalPorts(uid, pack);
     const [source, sink, ports] = a.source.length ? [held, uid, a] : b.source.length ? [uid, held, b] : [held, uid, a];
     const check = doc.canLink(source, sink, ports.source[0] ?? "", doc.signalPorts(sink, pack).sink[0] ?? "", pack);
-    return fail2(check.ok ? "These cannot be linked" : check.reason);
+    return fail2(check.ok ? translate("These cannot be linked") : check.reason);
 }
 
 const fail2 = (reason: string): SecondClick => ({ kind: "refuse", reason });
@@ -158,7 +159,7 @@ export function linkPanel(doc: MapDocument, source: number, sink: number, pack: 
             else reasons.add(c.reason);
         }
     }
-    const blocked = !any && reasons.size === 1 ? [...reasons][0]! : !any && !a.source.length ? `${entityLabel(doc, source, pack)} has no source ports` : !any && !b.sink.length ? `${entityLabel(doc, sink, pack)} has no sink ports` : null;
+    const blocked = !any && reasons.size === 1 ? [...reasons][0]! : !any && !a.source.length ? translate("{{1}} has no source ports", { 1: entityLabel(doc, source, pack) }) : !any && !b.sink.length ? translate("{{1}} has no sink ports", { 1: entityLabel(doc, sink, pack) }) : null;
     return {
         source,
         sink,
