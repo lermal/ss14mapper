@@ -15,6 +15,7 @@ const GROUPS: Array<[string, Row[]]> = [
         { label: "Eraser", action: "tool.erase" },
         { label: "Eyedropper", action: "tool.eyedropper" },
         { label: "Multitool", action: "tool.multitool" },
+        { label: "Ruler", action: "tool.ruler" },
     ]],
     ["Edit", [
         { label: "Undo", action: "edit.undo" },
@@ -55,6 +56,8 @@ const GROUPS: Array<[string, Row[]]> = [
         { label: "Heading", action: "view.direction" },
         { label: "Subfloor", action: "view.subfloor" },
         { label: "Powered", action: "view.powered" },
+        { label: "Network configurator links", action: "view.configuratorLinks" },
+        { label: "Node networks", action: "view.nodes" },
         { label: "Open", action: "file.open" },
         { label: "Save", action: "file.save" },
         { label: "Download .yml", action: "file.download" },

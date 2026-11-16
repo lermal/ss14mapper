@@ -34,6 +34,8 @@
 import { fixGridAtmosphere } from "../map/atmosphere";
 import type { DecalProps } from "../map/decals";
 import type { MapDocument } from "../map/document";
+import { mapNodeTopology } from "../map/node-networks";
+import type { PrototypeData } from "../pack/format";
 import type { Frame, Pack } from "../pack/loader";
 import type { MapCanvas } from "../render/canvas";
 import { PPM, Scene, type DecalLayer, type SpriteLayer, type TileLayer } from "../render/scene";
@@ -46,11 +48,15 @@ import { decalIcon, entityIcon, tileIcon, type Palette, type PaletteChoice } fro
 import { dragged, isOurs, setDragged } from "../ui/drag";
 import { showToast } from "../ui/toast";
 import { Contents, contentsKit } from "./contents";
+import { ConfiguratorLinks, drawConfiguratorLinks } from "./configurator-overlay";
 import { turnTileRotation } from "./group";
+import { drawInspectionHint } from "./inspection-overlay";
 import { chordOfKey, chordOfMouse, formatChord, type Keymap, type KeyStorage } from "./keymap";
 import { decalSize, type MirrorAxis, type MirrorMode } from "./mirror";
+import { NodeOverlay, type NetworkFilter } from "./node-overlay";
 import { colorPipeNetwork } from "./pipe-network";
 import { loadPrefs, savePrefs } from "./prefs";
+import { drawRuler, rulerLabel, rulerPoint, type RulerPoint, type RulerSnap } from "./ruler";
 import { clipCounts, flipClip, clipText, readClip, type Clip, type PasteKnown } from "./clipboard";
 import { cellOf, FILTER_KINDS, type Combine, type Kind, type SelectFilter } from "./selection";
 import { ClickCycle, describe, nextIndex, type StackItem, type StackKind, type StackOptions } from "./stack";
@@ -124,14 +130,14 @@ export function decalFields(decals: readonly DecalProps[]): SelectedDecals | nul
 }
 
 /** Tools of the rail. */
-export type Tool = "select" | "marquee" | "wand" | "brush" | "shapes" | "eraser" | "eyedropper" | "multitool";
+export type Tool = "select" | "marquee" | "wand" | "brush" | "shapes" | "eraser" | "eyedropper" | "multitool" | "ruler";
 export type MarqueeShape = "rect" | "ellipse" | "lasso";
 export type EraseKind = "tiles" | "entities" | "decals";
 export type SampleFrom = "any" | "entities" | "tiles" | "decals";
 
 /** View layers: drawing options of the map and aids on the overlay. */
-export type Layer = "subfloor" | "markers" | "powered" | "grid" | "centre" | "direction" | "links" | "decals" | "parallax";
-export const LAYERS: readonly Layer[] = ["subfloor", "markers", "powered", "grid", "centre", "direction", "links", "decals", "parallax"];
+export type Layer = "subfloor" | "markers" | "powered" | "grid" | "centre" | "direction" | "links" | "configuratorLinks" | "nodes" | "decals" | "parallax";
+export const LAYERS: readonly Layer[] = ["subfloor", "markers", "powered", "grid", "centre", "direction", "links", "configuratorLinks", "nodes", "decals", "parallax"];
 
 /** View aids drawn on the overlay. */
 export type Aid = "grid" | "centre" | "direction";
@@ -165,6 +171,7 @@ export interface ToolOptions {
     filled: boolean;
     erase: EraseKind;
     sample: SampleFrom;
+    rulerSnap: RulerSnap;
     /** Label of the entity the multitool holds. */
     holding: string | null;
     /** What is selected ("3 entities, 12 tiles"), or null. */
@@ -172,7 +179,7 @@ export interface ToolOptions {
     pasting: boolean;
 }
 
-type Mode = "select" | "erase" | "place" | "paint" | "decal" | "link" | "shape" | "sample" | "idle";
+type Mode = "select" | "erase" | "place" | "paint" | "decal" | "link" | "shape" | "sample" | "ruler" | "idle";
 
 /** Centres of mass the Centre aid draws. */
 export type CentreMode = MassMode | "both";
@@ -292,6 +299,16 @@ export class EditorController {
     private readonly aids: Record<Aid, boolean> = { grid: false, centre: false, direction: false };
     /** Links of the held or selected entity drawn on the overlay. */
     private showLinks = true;
+    private showConfiguratorLinks = false;
+    private configuratorLinks: ConfiguratorLinks | null = null;
+    private showNodes = false;
+    private nodeData: PrototypeData | null | undefined;
+    private nodeDataLoading = false;
+    private nodeOverlay: NodeOverlay | null = null;
+    private nodeFilter: NetworkFilter = "all";
+    private rulerSnap: RulerSnap = "centers";
+    private rulerStart: RulerPoint | null = null;
+    private rulerEnd: RulerPoint | null = null;
     /** Tile areas of the grids (for grid lines and arrow lengths). */
     private areas: GridMass | null = null;
     private mass: MassCache | null = null;
@@ -421,6 +438,12 @@ export class EditorController {
         const { map } = this.el;
         const keep = this.session?.doc === doc ? this.editor?.selected.clone() ?? null : null;
         this.session = session;
+        this.rulerStart = this.rulerEnd = null;
+        this.configuratorLinks = this.showConfiguratorLinks ? new ConfiguratorLinks(doc) : null;
+        this.nodeOverlay = null;
+        this.nodeData = undefined;
+        this.nodeDataLoading = false;
+        if (this.showNodes) this.loadNodeData();
         this.editor = new Editor(doc, scene, session.pack, {
             visible: (s) => map.visible(s),
             tilesShown: () => map.options.tiles,
@@ -452,6 +475,10 @@ export class EditorController {
         });
         this.unsubscribe = doc.onChange((change) => {
             const areas = scene.apply(change);
+            if (change.entities.length) {
+                this.configuratorLinks?.update(change.entities);
+                this.nodeOverlay = null;
+            }
             // a rebuilt scene may have other grids; tile and entity edits move the centres of mass
             if (areas === null) {
                 this.areas?.invalidate();
@@ -596,6 +623,7 @@ export class EditorController {
     get mode(): Mode {
         switch (this.tool) {
             case "multitool": return "link";
+            case "ruler": return "ruler";
             case "brush": return this.choice?.kind === "entity" ? "place" : this.choice?.kind === "tile" ? "paint" : this.choice?.kind === "decal" ? "decal" : "idle";
             case "shapes": return "shape";
             case "eraser": return "erase";
@@ -637,6 +665,7 @@ export class EditorController {
             filled: this.filled,
             erase: this.eraseKind,
             sample: this.sampleFrom,
+            rulerSnap: this.rulerSnap,
             holding: s && this.holding !== null ? entityLabel(s.doc, this.holding, s.pack) : null,
             selection: sel && !sel.isEmpty ? counted({ entities: sel.entities.size, tiles: sel.tileCount, decals: sel.decalCount }) : null,
             pasting: !!this.pasting,
@@ -647,9 +676,15 @@ export class EditorController {
     setTool(tool: Tool): void {
         this.endGesture(true);
         this.pasting = null;
+        if (tool !== this.tool) this.rulerStart = this.rulerEnd = null;
         if (tool !== "multitool" || this.tool !== "multitool") this.stopLinking();
         this.tool = tool;
         this.message = "";
+        this.refresh();
+    }
+
+    setRulerSnap(snap: RulerSnap): void {
+        this.rulerSnap = snap;
         this.refresh();
     }
 
@@ -833,6 +868,8 @@ export class EditorController {
             case "powered": return o.powered;
             case "decals": return o.decals;
             case "links": return this.showLinks;
+            case "configuratorLinks": return this.showConfiguratorLinks;
+            case "nodes": return this.showNodes;
             case "parallax": return this.el.parallax?.enabled ?? false;
             default: return this.aids[l];
         }
@@ -841,9 +878,43 @@ export class EditorController {
     setLayer(l: Layer, on: boolean): void {
         if (l === "subfloor" || l === "markers" || l === "powered" || l === "decals") this.el.map.setOptions({ [l]: on });
         else if (l === "links") this.showLinks = on;
+        else if (l === "configuratorLinks") {
+            this.showConfiguratorLinks = on;
+            if (on && this.session) this.configuratorLinks ??= new ConfiguratorLinks(this.session.doc);
+        } else if (l === "nodes") {
+            this.showNodes = on;
+            if (on) this.loadNodeData();
+        }
         else if (l === "parallax") this.el.parallax?.setEnabled(on);
         else this.aids[l] = on;
         this.refresh();
+    }
+
+    get networkFilter(): NetworkFilter {
+        return this.nodeFilter;
+    }
+
+    setNetworkFilter(filter: NetworkFilter): void {
+        this.nodeFilter = filter;
+        this.refresh();
+    }
+
+    get networkStatus(): string {
+        if (this.nodeData === undefined) return "Loading node data…";
+        if (this.nodeData === null) return "Partial topology · prototype data unavailable";
+        return this.nodeOverlay?.status(this.nodeFilter) ?? "";
+    }
+
+    private loadNodeData(): void {
+        const s = this.session;
+        if (!s || this.nodeDataLoading || this.nodeData !== undefined) return;
+        this.nodeDataLoading = true;
+        void s.pack.prototypeData().catch(() => null).then((data) => {
+            if (this.session !== s) return;
+            this.nodeData = data;
+            this.nodeDataLoading = false;
+            this.refresh();
+        });
     }
 
     /** Whether scrolling parallax layers drift (View > Animate parallax). */
@@ -899,6 +970,7 @@ export class EditorController {
         // choosing turns the brush on (the Shapes tool keeps drawing, with the new choice)
         if (choice && this.tool !== "brush" && this.tool !== "shapes") {
             this.stopLinking();
+            this.rulerStart = this.rulerEnd = null;
             this.tool = "brush";
         }
         this.message = "";
@@ -955,6 +1027,7 @@ export class EditorController {
         this.handle("tool.erase", () => this.setTool("eraser"));
         this.handle("tool.eyedropper", () => this.setTool("eyedropper"));
         this.handle("tool.multitool", () => this.setTool("multitool"));
+        this.handle("tool.ruler", () => this.setTool("ruler"));
         this.handle("select.all", () => {
             if (!this.editor || this.editor.busy) return;
             this.editor.selectAll(this.filter);
@@ -992,6 +1065,10 @@ export class EditorController {
                 this.pasting = null;
                 return this.say("");
             }
+            if (this.tool === "ruler") {
+                this.rulerStart = this.rulerEnd = null;
+                return this.refresh();
+            }
             if (this.tool === "multitool" && (this.holding !== null || this.linkPair)) return this.release();
             this.propertiesOf = null;
             this.editor?.deselect();
@@ -1012,6 +1089,8 @@ export class EditorController {
         toggle("view.centre", "centre");
         toggle("view.direction", "direction");
         toggle("view.links", "links");
+        toggle("view.configuratorLinks", "configuratorLinks");
+        toggle("view.nodes", "nodes");
         toggle("view.decals", "decals");
         toggle("view.parallax", "parallax");
     }
@@ -1547,7 +1626,7 @@ export class EditorController {
                 );
             }
         } else if (e.button === 0) {
-            const axis = !e.altKey && !e.ctrlKey && !e.metaKey && this.mirrorLineAt(w);
+            const axis = mode !== "ruler" && !e.altKey && !e.ctrlKey && !e.metaKey && this.mirrorLineAt(w);
             if (axis) {
                 this.gesture = { kind: "mirrorAxis", grid: axis.grid, axis: axis.axis, original: editor.mirrorCentre(axis.grid), press: e, start: w, moved: false };
                 return this.refresh();
@@ -1561,6 +1640,14 @@ export class EditorController {
         const editor = this.editor!, mode = this.mode;
         const at: [number, number] = [e.clientX, e.clientY];
         if (this.pasting) this.placePaste(w);
+        else if (mode === "ruler" && this.session) {
+            const point = rulerPoint(this.session.scene, w, this.rulerSnap);
+            if (this.rulerStart && !this.rulerEnd) this.rulerEnd = point;
+            else {
+                this.rulerStart = point;
+                this.rulerEnd = null;
+            }
+        }
         else if (mode === "link") this.multitoolClick(w, e.shiftKey);
         else if (mode === "sample") this.sample(w, at);
         else if (e.altKey && this.choice && (mode === "place" || mode === "paint" || mode === "decal")) this.sample(w, at, [CHOICE_KIND[this.choice.kind]]);
@@ -1884,6 +1971,27 @@ export class EditorController {
     // -----------------------------------------------------------------------------------------
     // Toolbar, status line and overlay
 
+    private inspectionCursor(): Point | null {
+        if (!this.hover || !this.hoverClient) return null;
+        const { left, top } = this.el.canvas.getBoundingClientRect();
+        return [this.hoverClient[0] - left, this.hoverClient[1] - top];
+    }
+
+    private rulerTarget(): RulerPoint | null {
+        if (this.rulerEnd) return this.rulerEnd;
+        const cursor = this.inspectionCursor(), s = this.session;
+        const world = cursor && this.el.map.worldAt(...cursor);
+        return s && world ? rulerPoint(s.scene, world, this.rulerSnap) : this.rulerStart;
+    }
+
+    private rulerHint(): string {
+        const s = this.session, from = this.rulerStart;
+        if (!s || !from) return "Click to start measuring";
+        const to = this.rulerTarget();
+        const label = to ? rulerLabel(s.scene, from, to) + " · " : "";
+        return label + (this.rulerEnd ? "Click to start again" : "Click to finish") + " · Esc to clear";
+    }
+
     private refresh(): void {
         const { canvas, map } = this.el;
         const editor = this.editor;
@@ -1892,13 +2000,13 @@ export class EditorController {
         canvas.style.cursor =
             g?.kind === "pan" ? "grabbing"
             : this.spaceHeld ? "grab"
-            : g?.kind === "move" || g?.kind === "groupMove" || g?.kind === "mirrorAxis" || (!g && editor && this.hover && this.mirrorLineAt(this.hover)) ? "move"
+            : g?.kind === "move" || g?.kind === "groupMove" || g?.kind === "mirrorAxis" || (mode !== "ruler" && !g && editor && this.hover && this.mirrorLineAt(this.hover)) ? "move"
             : mode === "select" && this.selTool === "pointer" && g?.kind !== "marquee" && !this.pasting ? "default"
             : mode === "link" ? (this.hoverDevice !== null ? "pointer" : "default")
             : mode === "idle" ? "not-allowed"
             : "crosshair";
 
-        this.hint = this.into?.text ?? this.message;
+        this.hint = this.into?.text ?? (mode === "ruler" ? this.rulerHint() : this.message);
         const t = this.hover && editor ? editor.tileTarget(...this.hover) : null;
         this.cursorText = t ? `${t.x}, ${t.y}  grid ${t.grid}` : "";
         map.drawOverlay();
@@ -1967,6 +2075,18 @@ export class EditorController {
         this.drawMirrorLines(c);
         this.drawSelection(c);
         this.drawLinks(c);
+        const cursor = this.gesture ? null : this.inspectionCursor();
+        const linkHint = this.showConfiguratorLinks && this.configuratorLinks ? drawConfiguratorLinks(c, this.configuratorLinks, s.doc, s.pack, cursor) : null;
+        let nodeHint = null;
+        if (this.showNodes && this.nodeData !== undefined && !editor.busy) {
+            if (!this.nodeOverlay) {
+                this.nodeOverlay = new NodeOverlay(s.scene, mapNodeTopology(s.doc, s.scene, s.pack, this.nodeData));
+                this.notify();
+            }
+            nodeHint = this.nodeOverlay.draw(c, this.nodeFilter, cursor, (uid) => entityLabel(s.doc, uid, s.pack));
+        }
+        const inspection = nodeHint ?? linkHint;
+        if (inspection) drawInspectionHint(c, inspection);
         this.drawMenuHover(c);
         if (this.into) boxEntities(c, [this.into.uid], this.into.ok ? INTO_COLOR : ERASE_COLOR, 2.5);
         const gesture = this.gesture;
@@ -1974,6 +2094,11 @@ export class EditorController {
         if (gesture?.kind === "shape") return this.drawShapeGhost(c, gesture);
         if (gesture?.kind === "decal") return this.drawDecalGhost(c, gesture.start, gesture.moved ? gesture.end : null);
         if (this.pasting && this.hover && !gesture) return this.drawPasteGhost(c, this.pasting, this.hover);
+        if (mode === "ruler") {
+            const end = this.rulerTarget();
+            if (this.rulerStart && end) drawRuler(c, this.rulerStart, end, this.rulerEnd !== null);
+            return;
+        }
         if (!this.hover || gesture?.kind === "pan" || gesture?.kind === "move" || gesture?.kind === "groupMove" || gesture?.kind === "mirrorAxis") return;
         if (mode === "decal") return this.drawDecalGhost(c, this.hover, null);
         if (mode === "place" && this.choice) {
@@ -2145,7 +2270,8 @@ export class EditorController {
      */
     private drawLinks(c: OverlayContext): void {
         const f = this.focusLines();
-        if (f) drawLinkLines(c, f.lines);
+        const global = this.showConfiguratorLinks ? this.configuratorLinks?.lists : undefined;
+        if (f) drawLinkLines(c, global ? f.lines.filter((line) => line.kind !== "device" || !global.get(line.from)?.includes(line.to)) : f.lines);
         if (this.mode !== "link") return;
         if (f) boxEntities(c, f.members, LINK_COLORS.device);
         const p = this.linkPair;

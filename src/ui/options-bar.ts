@@ -4,6 +4,7 @@
 import type { EditorController, EraseKind, MarqueeShape, SampleFrom, SelectedDecals, SelectFilter, ShapeKind, Tool, ToolOptions } from "../editor/controller";
 import type { DecalSnap } from "../editor/tools";
 import { layerPrototypes } from "../editor/pipe-layers";
+import type { RulerSnap } from "../editor/ruler";
 import type { DecalProps } from "../map/decals";
 import type { Pack } from "../pack/loader";
 import { joinColor, splitColor } from "./color";
@@ -30,6 +31,7 @@ export const TOOLS: readonly ToolDef[] = [
     { id: "eraser", label: "Eraser", action: "tool.erase", icon: ICON.eraser },
     { id: "eyedropper", label: "Eyedropper", action: "tool.eyedropper", icon: ICON.eyedropper },
     { id: "multitool", label: "Multitool", action: "tool.multitool", icon: ICON.multitool, gapBefore: true },
+    { id: "ruler", label: "Ruler", action: "tool.ruler", icon: ICON.ruler },
 ];
 
 export const MARQUEE_SHAPES: ReadonlyArray<[MarqueeShape, string, string, string]> = [
@@ -48,6 +50,7 @@ const FILTERS: ReadonlyArray<[SelectFilter, string]> = [["all", "All"], ["entiti
 const ERASE: ReadonlyArray<[EraseKind, string]> = [["tiles", "Tiles"], ["entities", "Entities"], ["decals", "Decals"]];
 const SAMPLE: ReadonlyArray<[SampleFrom, string]> = [["any", "Any"], ["entities", "Entities"], ["tiles", "Tiles"], ["decals", "Decals"]];
 const SNAPS: ReadonlyArray<[DecalSnap, string]> = [["tile", "Tile"], ["corner", "Corner"], ["free", "Off"]];
+const RULER_SNAPS: ReadonlyArray<[RulerSnap, string]> = [["centers", "Centers"], ["corners", "Corners"], ["free", "Free"]];
 const PIPE_LAYERS: ReadonlyArray<[string, string]> = [["auto", "Auto"], ["0", "Primary"], ["1", "Secondary"], ["2", "Tertiary"]];
 
 const STYLE = `
@@ -141,6 +144,7 @@ export class OptionsBar {
         }
         if (o.tool === "eraser") parts.push(muted("Erase"), seg("What to erase", ERASE, o.erase, (k) => c.setEraseKind(k)));
         if (o.tool === "eyedropper") parts.push(muted("Sample from"), seg("Sample from", SAMPLE, o.sample, (k) => c.setSampleFrom(k)));
+        if (o.tool === "ruler") parts.push(muted("Snap"), seg("Ruler snap", RULER_SNAPS, o.rulerSnap, (snap) => c.setRulerSnap(snap)));
         if (o.tool === "multitool") {
             parts.push(muted("Holding"), h("span", o.holding ? "chip text" : "chip empty", o.holding ?? "nothing"));
             parts.push(check("Show links", c.layer("links"), (on) => c.setLayer("links", on)));

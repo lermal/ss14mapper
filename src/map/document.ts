@@ -374,7 +374,8 @@ export class MapDocument {
     }
 
     private component(uid: number, type: string): YItem | undefined {
-        return this.componentList(uid).list.items.find((i) => text(get(i.value, "type")) === type);
+        const entity = this.records.get(uid)?.item.value;
+        return asSeq(get(entity, "components"))?.items.find((c) => text(get(c.value, "type")) === type);
     }
 
     private record(uid: number): EntityRecord {
@@ -545,9 +546,13 @@ export class MapDocument {
 
     /** A single override, without converting or formatting the other components of the entity. */
     componentOverride(uid: number, type: string): ComponentOverride | undefined {
-        const entity = this.records.get(uid)?.item.value;
-        const item = asSeq(get(entity, "components"))?.items.find((c) => text(get(c.value, "type")) === type);
+        const item = this.component(uid, type);
         return item && this.describeComponent(item);
+    }
+
+    /** A saved component field with its original YAML tags. */
+    componentField(uid: number, type: string, field: string): YNode | undefined {
+        return get(this.component(uid, type)?.value, field);
     }
 
     private describeComponent(item: YItem): ComponentOverride {

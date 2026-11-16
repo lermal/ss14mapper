@@ -3,6 +3,7 @@
 // the Shipyard renderer (github.com/lermal/map_viewer, tools/map-renderer/lib/render-data.mjs).
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ENGINE_PROTOTYPES, decalOrder } from "../map/decals";
+import type { NetworkNode, NetworkTopology } from "../map/node-networks";
 import type { PrototypeData } from "../pack/format";
 import type { Frame, Pack } from "../pack/loader";
 
@@ -1019,11 +1020,29 @@ export class Scene {
         return (this.pipeNodes.get(uid) ?? []).map(([, layer, , name]) => ({ name, layer: PIPE_LAYER_NAMES[layer] ?? String(layer) }));
     }
 
+    private *connectedPipeNodes(owner: number, node: PipeNode, prototypes?: PrototypeData): IterableIterator<[number, PipeNode, number]> {
+        const { g, tx, ty } = this.info.get(owner)!;
+        if (g === null) return;
+        yield* this.pipeNeighbors(g, tx, ty, node);
+
+        // An open GasValve joins its inlet and outlet. Other multi-port devices have distinct networks.
+        const ports = this.pipeNodes.get(owner)!;
+        if (ports.length < 2) return;
+        const entity = this.ents.get(owner)!;
+        const base = prototypes && entity.proto ? this.pack.fullComponents(prototypes, entity.proto).GasValve : undefined;
+        if (!base && !entity.c.GasValve) return;
+        const valve = { ...base, ...entity.c.GasValve };
+        if (isFalse(valve.open)) return;
+        const inlet = valve.inlet ?? "inlet", outlet = valve.outlet ?? "outlet";
+        const name = node[3] === inlet ? outlet : node[3] === outlet ? inlet : null;
+        const other = ports.find((p) => p !== node && p[3] === name && p[0] === node[0]);
+        if (other) yield [owner, other, 0];
+    }
+
     /** Trace a single pipe node. Separate nodes on a pump or manifold belong to separate networks. */
     pipeNetwork(uid: number, port: string, prototypes?: PrototypeData): number[] {
         const root = this.pipeNodes.get(uid)?.find((node) => node[3] === port);
-        const grid = this.info.get(uid)?.g;
-        if (!root || grid == null) return [];
+        if (!root) return [];
         const found = new Set<number>();
         const seen = new Set<PipeNode>();
         const pending: Array<[number, PipeNode]> = [[uid, root]];
@@ -1031,29 +1050,41 @@ export class Scene {
             const [owner, node] = pending.pop()!;
             if (seen.has(node)) continue;
             seen.add(node);
-            const entity = this.ents.get(owner)!;
-            if (entity.c.AtmosPipeColor) found.add(owner);
-
-            // An open GasValve joins its inlet and outlet. Other multi-port devices have distinct networks.
-            const ports = this.pipeNodes.get(owner)!;
-            if (ports.length > 1) {
-                const base = prototypes && entity.proto ? this.pack.fullComponents(prototypes, entity.proto).GasValve : undefined;
-                if (base || entity.c.GasValve) {
-                    const valve = { ...base, ...entity.c.GasValve };
-                    if (!isFalse(valve.open)) {
-                        const inlet = valve.inlet ?? "inlet", outlet = valve.outlet ?? "outlet";
-                        const name = node[3] === inlet ? outlet : node[3] === outlet ? inlet : null;
-                        const other = ports.find((p) => p[3] === name && p[0] === node[0]);
-                        if (other && !seen.has(other)) pending.push([owner, other]);
-                    }
-                }
-            }
-            const { tx, ty } = this.info.get(owner)!;
-            for (const [next, neighbor] of this.pipeNeighbors(grid, tx, ty, node)) {
+            if (this.ents.get(owner)!.c.AtmosPipeColor) found.add(owner);
+            for (const [next, neighbor] of this.connectedPipeNodes(owner, node, prototypes)) {
                 if (!seen.has(neighbor)) pending.push([next, neighbor]);
             }
         }
         return [...found];
+    }
+
+    /** Vertices and edges of the same pipe networks used by the color command. */
+    pipeTopology(prototypes?: PrototypeData): NetworkTopology {
+        const nodes: NetworkNode[] = [], edges: NetworkTopology["edges"] = [];
+        const ids = new Map<PipeNode, number>();
+        for (const [uid, pipes] of this.pipeNodes) {
+            const { g, tx, ty } = this.info.get(uid)!;
+            if (g === null) continue;
+            for (const node of pipes) {
+                const [group, layer, , name] = node;
+                ids.set(node, nodes.length);
+                nodes.push({
+                    uid, name, type: "Pipe node", kind: "pipes", group, grid: g, cell: [tx, ty],
+                    layer: PIPE_LAYER_NAMES[layer] ?? String(layer), incomplete: true,
+                });
+            }
+        }
+        for (const [node, id] of ids) {
+            const info = nodes[id]!;
+            let linked = 0;
+            for (const [, neighbor, direction] of this.connectedPipeNodes(info.uid, node, prototypes)) {
+                linked |= direction;
+                const to = ids.get(neighbor)!;
+                if (to > id) edges.push([info, nodes[to]!]);
+            }
+            if (prototypes) info.openEnds = PIPE_STEP.filter(([dir]) => (node[2] & dir) && !(linked & dir)).map(([, dx, dy]) => [dx, dy]);
+        }
+        return { nodes, edges };
     }
 
     /** Effective pipe color, encoded for a native color input. */

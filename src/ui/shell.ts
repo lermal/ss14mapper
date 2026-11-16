@@ -7,6 +7,7 @@ import { MenuBar, popupMenu, type MenuItem } from "./menus";
 import { creditLink } from "./credit";
 import { button, h, icon, ICON } from "./icons";
 import { MARQUEE_SHAPES, OptionsBar, SHAPE_KINDS, TOOLS } from "./options-bar";
+import type { NetworkFilter } from "../editor/node-overlay";
 
 export interface Fork {
     id: string;
@@ -40,6 +41,8 @@ const LAYER_DEFS: ReadonlyArray<[Layer, string, string]> = [
     ["centre", "Center of mass", "view.centre"],
     ["direction", "Heading", "view.direction"],
     ["links", "Device links", "view.links"],
+    ["configuratorLinks", "Network configurator links", "view.configuratorLinks"],
+    ["nodes", "Node networks", "view.nodes"],
     ["decals", "Decals", "view.decals"],
     ["parallax", "Parallax", "view.parallax"],
 ];
@@ -78,11 +81,15 @@ const STYLE = `
 .properties > * { flex: none; }
 .properties > #inspector { flex: 1; min-height: 0; }
 .map-controls { position: absolute; right: 14px; bottom: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.map-controls .mc-layers { width: 210px; padding: 8px; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow); }
+.map-controls .mc-layers { width: 236px; padding: 8px; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow); }
 .map-controls .mc-layers label { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px; border-radius: var(--radius-s); cursor: pointer; }
 .map-controls .mc-layers label:hover { background: var(--raised); }
 .map-controls .mc-layers .mc-key { margin-left: auto; color: #6f7a8b; font-size: 11px; }
 .map-controls .mc-bar { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.map-controls .mc-networks { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.map-controls .mc-networks label { display: flex; align-items: center; gap: 8px; }
+.map-controls .mc-networks select { padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); color: var(--text); }
+.map-controls .mc-network-status { color: var(--muted); font-size: 12px; }
 .map-controls .mc-bar button { height: 28px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text); }
 .map-controls .mc-bar button:hover { background: var(--raised); }
 .map-controls .mc-bar .mc-zoom { width: 30px; font-size: 15px; }
@@ -131,11 +138,14 @@ export class Shell {
     private readonly pct: HTMLElement;
     private readonly layersPanel: HTMLElement;
     private readonly layersToggle: HTMLButtonElement;
+    private readonly networkPanel: HTMLElement;
+    private readonly networkFilter: HTMLSelectElement;
+    private readonly networkStatus: HTMLElement;
     private readonly layerBoxes = new Map<Layer, HTMLInputElement>();
     private readonly layerKeys = new Map<Layer, HTMLElement>();
     private missing: string[] = [];
     private missingList: HTMLElement | null = null;
-    private last = { name: "", modified: false, canUndo: false, canRedo: false, open: false, tool: "", counts: "", pct: "", cursor: "", hint: "" };
+    private last = { name: "", modified: false, canUndo: false, canRedo: false, open: false, tool: "", counts: "", pct: "", cursor: "", hint: "", networkStatus: "" };
     private forks: Fork[] = [];
     /** How long the open map took to load and draw, for the counts' tooltip. */
     loadInfo = "";
@@ -325,6 +335,19 @@ export class Shell {
             this.layerKeys.set(l, key);
             this.layersPanel.append(row);
         }
+        this.networkPanel = h("div", "mc-networks");
+        this.networkPanel.hidden = true;
+        this.networkFilter = h("select");
+        this.networkFilter.setAttribute("aria-label", "Filter node networks");
+        const filters: ReadonlyArray<[NetworkFilter, string]> = [["all", "All"], ["pipes", "Pipes"], ["hv", "HV"], ["mv", "MV"], ["lv", "LV / APC"]];
+        for (const [id, label] of filters) this.networkFilter.add(new Option(label, id));
+        this.networkFilter.addEventListener("change", () => c.setNetworkFilter(this.networkFilter.value as NetworkFilter));
+        this.networkStatus = h("div", "mc-network-status");
+        this.networkStatus.hidden = true;
+        this.networkStatus.setAttribute("role", "status");
+        const networkLabel = h("label", "", "Node networks");
+        networkLabel.append(this.networkFilter);
+        this.networkPanel.append(networkLabel, this.networkStatus);
         const bar = h("div", "mc-bar");
         this.layersToggle = button("mc-toggle", icon(ICON.layers, 16), "View layers", () => this.toggleLayers());
         this.layersToggle.append("Layers");
@@ -337,7 +360,7 @@ export class Shell {
         const fit = button("mc-fit", "Fit", "", () => c.run("view.fit"));
         fit.dataset.fit = "";
         bar.append(this.layersToggle, h("span", "mc-sep"), out, this.pct, inn, fit);
-        controls.append(this.layersPanel, bar);
+        controls.append(this.networkPanel, this.layersPanel, bar);
         // the controls are not part of the map: no map gestures start on them
         controls.addEventListener("wheel", (e) => e.stopPropagation());
 
@@ -476,6 +499,13 @@ export class Shell {
         }
         this.buildLabel.textContent = this.forks.find((x) => x.id === this.forkSelect.value)?.name ?? this.forkSelect.value;
         if (set("pct", s ? `${Math.round(c.zoom * 100)}%` : "")) this.pct.textContent = last.pct;
+        this.networkPanel.hidden = !c.layer("nodes");
+        if (this.networkFilter.value !== c.networkFilter) this.networkFilter.value = c.networkFilter;
+        const networkStatus = this.networkPanel.hidden ? "" : c.networkStatus;
+        if (set("networkStatus", networkStatus)) {
+            this.networkStatus.textContent = networkStatus;
+            this.networkStatus.hidden = !networkStatus;
+        }
         if (!this.layersPanel.hidden) for (const l of LAYERS) this.layerBoxes.get(l)!.checked = c.layer(l);
     }
 }
