@@ -1,6 +1,7 @@
 // Palette of placeable entities, tiles and decals of the open build, with search.
 // API contract shared by the editor (src/editor, src/main.ts); logic without DOM is in palette-search.ts.
-import { t as translate } from "../i18n";
+import { language, t as translate } from "../i18n";
+import type { PaletteText } from "../pack/format";
 import type { Frame, Pack } from "../pack/loader";
 import { Categories, FAVOURITES, loadCategories, parseCategories, saveCategories } from "./categories";
 import { ENTRY_TYPE, setDragged } from "./drag";
@@ -85,6 +86,7 @@ const STYLE = `
 .palette .pal-star:hover { color: var(--text); }
 .palette .pal-star.on { color: var(--selection); opacity: 1; }
 .palette .pal-empty { padding: 12px 14px; color: var(--faint); }
+.palette .pal-description { flex: none; max-height: 7em; overflow-y: auto; padding: 8px 12px; border-top: 1px solid var(--border); color: var(--text-2); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pal-menu { position: fixed; z-index: 1000; min-width: 170px; padding: 4px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius); font: 13px/1.35 var(--font); box-shadow: var(--shadow); }
 .pal-menu .item { position: relative; display: flex; justify-content: space-between; gap: 16px; padding: 5px 10px; border-radius: var(--radius-s); cursor: pointer; white-space: nowrap; }
 .pal-menu .item:hover { background: var(--accent-soft); }
@@ -153,6 +155,7 @@ export class Palette {
     private current: PaletteChoice = null;
 
     private pack: Pack | null = null;
+    private text: PaletteText = {};
     private all: Record<EntryKind, PaletteEntry[]> = { entity: [], tile: [], decal: [] };
     private tab: EntryKind = "entity";
     private shown: Row[] = [];
@@ -179,6 +182,7 @@ export class Palette {
     private readonly list: HTMLDivElement;
     private readonly spacer: HTMLDivElement;
     private readonly empty: HTMLDivElement;
+    private readonly description: HTMLDivElement;
     private readonly rows = new Map<number, HTMLElement>();
     private frame = 0;
 
@@ -260,9 +264,13 @@ export class Palette {
         this.spacer.className = "pal-spacer";
         this.empty = document.createElement("div");
         this.empty.className = "pal-empty";
+        this.description = document.createElement("div");
+        this.description.className = "pal-description";
+        this.description.setAttribute("aria-live", "polite");
+        this.description.hidden = true;
         this.list.append(this.spacer);
 
-        container.append(tabs, searchRow, head, this.catWrap, this.resultsHead, this.list, this.empty);
+        container.append(tabs, searchRow, head, this.catWrap, this.resultsHead, this.list, this.empty, this.description);
         new ResizeObserver(() => this.onResize()).observe(this.list);
         this.empty.hidden = true;
         this.updateTabs();
@@ -272,15 +280,25 @@ export class Palette {
     /** Lists the placeable entities and tiles of a build; clears the choice. */
     setPack(pack: Pack): void {
         this.pack = pack;
+        this.text = {};
         this.fork = pack.manifest.fork.id;
         this.cats = loadCategories(this.fork);
         this.open = loadOpen(this.fork);
         this.editing = null;
-        this.drawCats();
         this.all = { entity: entityEntries(pack), tile: tileEntries(pack), decal: decalEntries(pack) };
         this.input.value = "";
         this.refilter();
         this.clear();
+        this.drawCats();
+
+        const locale = language();
+        void pack.paletteText(locale).then((text) => {
+            if (this.pack !== pack || !Object.keys(text).length) return;
+            this.text = text;
+            this.all.entity = entityEntries(pack, text, locale);
+            if (this.tab === "entity") this.refilter();
+            else this.drawCats();
+        });
     }
 
     get choice(): PaletteChoice {
@@ -444,6 +462,12 @@ export class Palette {
 
     /** Creates the rows of the visible range, drops the others and refreshes the highlight. */
     private draw(): void {
+        const choice = this.current;
+        const description = this.tab === "entity" && choice?.kind === "entity" ? this.text[choice.id]?.description ?? "" : "";
+        if (this.description.textContent !== description) {
+            this.description.textContent = description;
+            this.description.hidden = !description;
+        }
         const cols = this.cols;
         const firstRow = Math.max(0, Math.floor(this.list.scrollTop / ROW) - OVERSCAN);
         const lastRow = Math.ceil((this.list.scrollTop + (this.list.clientHeight || 600)) / ROW) + OVERSCAN;
@@ -475,7 +499,10 @@ export class Palette {
         const row = document.createElement("div");
         row.className = "row";
         this.rowEntry.set(row, e);
-        row.title = e.missing ? translate("{{1}} (missing)", { 1: e.id }) : cell ? `${e.name}${e.suffix ? ` ${e.suffix}` : ""}\n${e.id}` : e.id;
+        const caption = e.suffix ? `${e.name} ${e.suffix}` : e.name;
+        row.title = e.missing ? translate("{{1}} (missing)", { 1: e.id })
+            : cell || e.kind === "entity" ? [caption, e.id, e.description].filter(Boolean).join("\n")
+            : e.id;
         row.draggable = !e.missing;
         row.classList.toggle("missing", !!e.missing);
         row.classList.toggle("cell", cell);

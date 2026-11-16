@@ -1,5 +1,5 @@
 // Loads an asset pack in the browser: manifest, prototypes and texture index first, texture pages on demand.
-import type { BuildIndex, ComponentSchemas, ContainerRules, PackManifest, ParallaxData, PrototypeData, PrototypeIndex, TextureIndex } from "./format";
+import type { BuildIndex, ComponentSchemas, ContainerRules, PackManifest, PaletteText, ParallaxData, PrototypeData, PrototypeIndex, TextureIndex } from "./format";
 import { type Components, resolveComponents } from "./prototype-data";
 
 /** A frame of a texture page: [page, x, y, width, height]. */
@@ -9,6 +9,7 @@ export class Pack {
     private readonly pages = new Map<number, Promise<ImageBitmap>>();
     private schemas: Promise<ComponentSchemas | null> | null = null;
     private full: Promise<PrototypeData | null> | null = null;
+    private readonly paletteLocales = new Map<string, Promise<PaletteText | null>>();
     private parallaxes: Promise<ParallaxData | null> | null = null;
     private rules: Promise<ContainerRules | null> | null = null;
     private readonly images = new Map<string, Promise<ImageBitmap>>();
@@ -58,6 +59,45 @@ export class Pack {
         const name = this.manifest.files.prototypeData;
         this.full ??= name ? (this.read(name) as Promise<PrototypeData>).catch((e: unknown) => ((this.full = null), Promise.reject(e))) : Promise.resolve(null);
         return this.full;
+    }
+
+    /** Translated entity fields, with English descriptions from the new file or an older pack's prototype data. */
+    async paletteText(language: string): Promise<PaletteText> {
+        const files = this.manifest.files.paletteLocales ?? {};
+        const requested = language.toLowerCase();
+        const primary = requested.split("-")[0]!;
+        const codes = Object.keys(files);
+        const code = codes.find((code) => code.toLowerCase() === requested)
+            ?? codes.find((code) => code.toLowerCase() === primary)
+            ?? codes.find((code) => code.toLowerCase().startsWith(primary + "-"));
+        const [base, local] = await Promise.all([
+            this.readPaletteLocale(files.en),
+            this.readPaletteLocale(code && code !== "en" ? files[code] : undefined),
+        ]);
+        const english: PaletteText = base ?? {};
+        if (!base) {
+            const legacy = await this.prototypeData().catch(() => null);
+            for (const [id, prototype] of Object.entries(legacy?.entities ?? {})) {
+                if (prototype.description) english[id] = { description: prototype.description };
+            }
+        }
+        if (!local) return english;
+        const result = { ...english };
+        for (const [id, text] of Object.entries(local)) result[id] = { ...english[id], ...text };
+        return result;
+    }
+
+    private readPaletteLocale(file: string | undefined): Promise<PaletteText | null> {
+        if (!file) return Promise.resolve(null);
+        let pending = this.paletteLocales.get(file);
+        if (!pending) {
+            pending = (this.read(file) as Promise<PaletteText>).catch(() => {
+                this.paletteLocales.delete(file);
+                return null;
+            });
+            this.paletteLocales.set(file, pending);
+        }
+        return pending;
     }
 
     /** Parallax prototypes and their layer images' file names, loaded on first use; null when the pack has none. */

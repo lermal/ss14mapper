@@ -27,7 +27,9 @@ Copy [`src/locales/en.json`](src/locales/en.json) to `src/locales/<language-tag>
 Translate the values and keep the keys and interpolation tokens such as `{{1}}` and `{{count}}`.
 For pluralized keys, use the [i18next JSON v4 plural forms](https://www.i18next.com/translation-function/plurals) for the target language.
 Vite picks up new catalogs at build time. They appear in the language selector, and any missing translation falls back to English.
-Game prototypes, build names, and map files come from their source data.
+The entity palette uses names, descriptions, and suffixes from the selected fork's Fluent resources.
+It tries the interface language and falls back to English for individual missing fields.
+Rebuild an asset pack to include these translations.
 
 ## Asset packs
 
@@ -38,7 +40,7 @@ The builder works on any fork; which forks are built is configured in `tools/for
 npm run build-pack -- --checkout /path/to/fork --out /path/to/packs/<id> --id <id> [--repo <url>]
 ```
 
-The checkout needs `Resources/{Prototypes,Textures,Locale/en-US}`, the root `Resources/*migration*.yml`, the
+The checkout needs `Resources/{Prototypes,Textures,Locale}`, the root `Resources/*migration*.yml`, the
 `Content.*` sources (read as text: component categories, signal ports that systems add, grid and tile masses)
 and, from the `RobustToolbox` submodule, `Resources/EnginePrototypes` and `Robust.Shared.Maths/Color.cs`.
 Nothing in the checkout is executed.

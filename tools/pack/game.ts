@@ -2,6 +2,7 @@
 // Nothing in the checkout is executed or modified.
 import fs from "node:fs";
 import path from "node:path";
+import { FluentBundle, FluentResource } from "@fluent/bundle";
 import yaml from "js-yaml";
 
 // Polymorphic data is tagged `!type:Name`; a tagged mapping keeps its type in `!type` (so do the container kinds
@@ -99,7 +100,9 @@ export class Checkout {
     /** Entity id → the ids of the `!type:CreateVariants` definition it came from, in order (a variant collection). */
     private readonly collections = new Map<string, string[]>();
     private readonly resolved = new Map<string, ResolvedEntity>();
-    readonly loc = new Map<string, string>();
+    private readonly localeDirs = new Map<string, string>();
+    private readonly locales = new Map<string, FluentBundle>();
+    private readonly english: string;
     readonly colors = new Map<string, [number, number, number, number]>();
     /** Component name → categories given to every entity with it (`[EntityCategory(...)]` on the C# class). */
     readonly componentCategories = new Map<string, string[]>();
@@ -119,7 +122,19 @@ export class Checkout {
         for (const dir of [path.join(root, "RobustToolbox", "Resources", "EnginePrototypes"), path.join(this.resources, "Prototypes")]) {
             this.loadPrototypes(dir);
         }
-        this.loadLocale();
+        const locale = path.join(this.resources, "Locale");
+        if (fs.existsSync(locale)) {
+            for (const entry of fs.readdirSync(locale, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "en"))) {
+                if (!entry.isDirectory()) continue;
+                try {
+                    const [code] = Intl.getCanonicalLocales(entry.name);
+                    if (code) this.localeDirs.set(code, path.join(locale, entry.name));
+                } catch (error) {
+                    if (!(error instanceof RangeError)) throw error;
+                }
+            }
+        }
+        this.english = ["en-US", "en", ...this.localeDirs.keys()].find((code) => (code === "en" || code.startsWith("en-")) && this.localeDirs.has(code)) ?? "en-US";
         this.loadColors();
         this.loadComponentCategories();
     }
@@ -189,7 +204,7 @@ export class Checkout {
 
     /** Localised description of an entity prototype (MetaData's `desc`), if it has one. */
     displayDescription(id: string): string | undefined {
-        return this.localize(`ent-${id}.desc`) ?? this.entity(id).description ?? undefined;
+        return this.localize(`${this.entityLocId(id)}.desc`) ?? this.entity(id).description ?? undefined;
     }
 
     /** Text of every C# file of the content projects (`Content.*`, forks' own included), read once. */
@@ -321,48 +336,49 @@ export class Checkout {
         return [...e.categories].some((c) => truthy(this.proto("entityCategory", c)?.hideSpawnMenu ?? false));
     }
 
-    private loadLocale(): void {
-        const dir = path.join(this.resources, "Locale", "en-US");
-        for (const file of walk(dir, ".ftl")) {
-            let current: string | null = null;
-            for (const line of fs.readFileSync(file, "utf8").replace(/^﻿/, "").split("\n")) {
-                const msg = /^([A-Za-z][A-Za-z0-9_-]*)\s*=\s*(.*?)\s*$/.exec(line);
-                if (msg) {
-                    current = msg[1]!;
-                    this.loc.set(current, msg[2]!);
-                    continue;
-                }
-                const attr = /^\s+\.([A-Za-z][A-Za-z0-9_-]*)\s*=\s*(.*?)\s*$/.exec(line);
-                if (attr && current) this.loc.set(`${current}.${attr[1]}`, attr[2]!);
-                else if (line.trim() && !line.startsWith(" ")) current = null;
-            }
-        }
+    get translationLocales(): string[] {
+        return [...this.localeDirs.keys()].filter((code) => code !== this.english && code !== "en");
     }
 
-    /** A localised string, following "{ ent-Other }" references. */
-    localize(key: string): string | undefined {
-        let v = this.loc.get(key);
-        const seen = new Set<string>();
-        let m: RegExpExecArray | null;
-        while (v && (m = /^\{\s*([A-Za-z][A-Za-z0-9_.-]*)\s*\}$/.exec(v)) && !seen.has(m[1]!)) {
-            seen.add(m[1]!);
-            v = this.loc.get(m[1]!);
+    /** A static Fluent message or attribute. Unresolvable patterns can fall back to English in the palette. */
+    localize(key: string, code = this.english): string | undefined {
+        const dir = this.localeDirs.get(code);
+        if (!dir) return undefined;
+        let bundle = this.locales.get(code);
+        if (!bundle) {
+            bundle = new FluentBundle(code, { useIsolating: false });
+            for (const file of walk(dir, ".ftl")) {
+                bundle.addResource(new FluentResource(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "")), { allowOverrides: true });
+            }
+            this.locales.set(code, bundle);
         }
-        return v || undefined;
+        const [id, attr] = key.split(".");
+        const message = bundle.getMessage(id!);
+        const pattern = attr ? message?.attributes[attr] : message?.value;
+        if (pattern == null) return undefined;
+        const errors: Error[] = [];
+        const value = bundle.formatPattern(pattern, null, errors).trim();
+        return errors.length ? undefined : value;
+    }
+
+    entityLocId(id: string): string {
+        const key = this.proto("entity", id)?.localizationId;
+        return typeof key === "string" && key ? key : `ent-${id}`;
     }
 
     displayName(id: string): string {
-        return this.localize(`ent-${id}`) ?? this.entity(id).name ?? id;
+        return this.localize(this.entityLocId(id)) || this.entity(id).name || id;
     }
 
     /** Suffix shown in spawn menus: the entity's own and those of its categories. */
-    displaySuffix(id: string): string | undefined {
+    displaySuffix(id: string, locale = this.english): string | undefined {
         const parts: string[] = [];
-        const own = this.localize(`ent-${id}.suffix`) ?? this.entity(id).suffix;
+        const key = `${this.entityLocId(id)}.suffix`;
+        const own = this.localize(key, locale) ?? this.localize(key) ?? this.entity(id).suffix;
         if (own) parts.push(own);
         for (const c of [...this.entity(id).categories].sort()) {
             const key = this.proto("entityCategory", c)?.suffix;
-            if (key) parts.push(this.localize(String(key)) ?? String(key));
+            if (key) parts.push(this.localize(String(key), locale) || this.localize(String(key)) || String(key));
         }
         return parts.length ? parts.join(", ") : undefined;
     }

@@ -93,6 +93,7 @@ beforeAll(async () => {
             "  id: Prop",
             "  categories: [ DoNotMap ]",
             "  name: prop",
+            "  localizationId: prop-text",
             "- type: tile",
             "  id: FloorSteel",
             "  name: tiles-steel-floor",
@@ -102,7 +103,22 @@ beforeAll(async () => {
     );
     write(
         "Resources/Locale/en-US/entities.ftl",
-        "ent-WallSolid = solid wall\n    .desc = A wall.\n    .suffix = Station\nent-WallSolidChild = { ent-WallSolid }\nentity-category-suffix-donotmap = DO NOT MAP\ntiles-steel-floor = steel floor\n",
+        "ent-WallSolid = solid wall\n    .desc = A wall.\n    .suffix = Station\nent-WallSolidChild = { ent-WallSolid }\nprop-text = station prop\nentity-category-suffix-donotmap = DO NOT MAP\ntiles-steel-floor = steel floor\n",
+    );
+    write(
+        "Resources/Locale/ru-RU/entities.ftl",
+        [
+            "-wall = стена",
+            "ent-WallSolid = прочная { -wall }",
+            "    .desc = Держит воздух.",
+            "        Не пропускает ассистентов.",
+            "    .suffix = Станция",
+            "ent-WallSolidChild =",
+            "    .desc = { ent-WallSolid.desc }",
+            "prop-text =",
+            "    .desc = { $target }",
+            "",
+        ].join("\n"),
     );
     write(
         "Content.Shared/Actions/ActionComponent.cs",
@@ -419,6 +435,18 @@ describe("checkout", () => {
         expect(game.displaySuffix("Prop")).toBe("DO NOT MAP");
         expect(game.localize("tiles-steel-floor")).toBe("steel floor");
         expect(game.colors.get("green")).toEqual([0, 128 / 255, 0, 1]);
+    });
+
+    it("reads static Fluent translations and attributes from each fork locale", () => {
+        const game = new Checkout(root);
+        expect(game.translationLocales).toEqual(["ru-RU"]);
+        expect(game.localize(game.entityLocId("WallSolid"), "ru-RU")).toBe("прочная стена");
+        expect(game.localize("ent-WallSolidChild.desc", "ru-RU")).toBe("Держит воздух.\nНе пропускает ассистентов.");
+        expect(game.localize("ent-WallSolidChild", "ru-RU")).toBeUndefined();
+        expect(game.displaySuffix("WallSolid", "ru-RU")).toBe("Станция");
+        expect(game.displaySuffix("Prop", "ru-RU")).toBe("DO NOT MAP");
+        expect(game.displayName("Prop")).toBe("station prop");
+        expect(game.localize(`${game.entityLocId("Prop")}.desc`, "ru-RU")).toBeUndefined();
     });
 });
 

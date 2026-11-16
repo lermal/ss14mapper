@@ -16,6 +16,8 @@ export interface PackManifest {
         componentSchemas?: string;
         /** Every entity prototype's own components and parents (`PrototypeData`), loaded on demand. Absent in older packs. */
         prototypeData?: string;
+        /** BCP 47 language tag → palette text file. `en` adds descriptions to the names in the prototype index. */
+        paletteLocales?: Record<string, string>;
         /** Parallax prototypes with their layer images (`ParallaxData`), loaded on demand. Absent in older packs. */
         parallax?: string;
         /** Item sizes, entity storage defaults and body sizes for checking container operations (`ContainerRules`), loaded on demand. Absent in older packs. */
@@ -28,6 +30,9 @@ export interface PackManifest {
 
 /** Components of an entity after inheritance, limited to what drawing and placing need. */
 export type ComponentData = Record<string, unknown>;
+
+/** Localized entity fields supplied by one palette text file, keyed by prototype ID. */
+export type PaletteText = Record<string, { name?: string; description?: string; suffix?: string }>;
 
 export interface EntityPrototype {
     name: string;

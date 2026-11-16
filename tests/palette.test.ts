@@ -1,11 +1,58 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
+import type { PackManifest } from "../src/pack/format";
+import { Pack } from "../src/pack/loader";
 import { decalEntries, decalIconFrame, entityEntries, entityIconFrame, entryIconFrame, search, tileEntries, tileIconFrame } from "../src/ui/palette-search";
 import { packFor } from "./pack-files";
 
 const upstream = packFor("upstream");
 const frontier = packFor("frontier");
 const goob = packFor("goob");
+
+describe("palette translations", () => {
+    const makePack = (files: PackManifest["files"], read: (file: string) => Promise<unknown>) => Pack.fromData({
+        format: 1,
+        fork: { id: "test", repo: "", branch: "", commit: "", engineCommit: null },
+        builtAt: "",
+        files,
+        stats: { entities: 3, placeable: 3, tiles: 0, decals: 0, rsi: 0, frames: 0, pages: 0 },
+    }, {
+        entities: {
+            WallSolid: { name: "solid wall", suffix: "Station", components: {} },
+            AirAlarm: { name: "air alarm", components: {} },
+            Prop: { name: "office desk", components: {} },
+        },
+        tiles: {}, decals: {}, stacks: {}, colors: {}, migrations: {}, tileAliases: {},
+    }, { pages: [], textures: {}, rsi: {} }, read);
+
+    it("matches a regional translation and falls back separately for name, suffix and description", async () => {
+        const reads: string[] = [];
+        const files = { prototypes: "", textures: "", paletteLocales: { en: "en.json", "ru-RU": "ru.json", "fr-FR": "fr.json" } };
+        const pack = makePack(files, async (file) => {
+            reads.push(file);
+            if (file === "en.json") return { WallSolid: { description: "Keeps air inside." }, AirAlarm: { description: "An alarm." } };
+            if (file === "ru.json") return { WallSolid: { name: "прочная стена" }, AirAlarm: { description: "Следит за воздухом." } };
+            throw new Error("Missing file");
+        });
+        const rows = entityEntries(pack, await pack.paletteText("ru"), "ru");
+        expect(search(rows, "прочная стена")[0]).toMatchObject({ id: "WallSolid", name: "прочная стена", suffix: "Station", description: "Keeps air inside." });
+        expect(search(rows, "solid wall")[0]?.id).toBe("WallSolid");
+        expect(search(rows, "AIRALARM")[0]).toMatchObject({ name: "air alarm", description: "Следит за воздухом." });
+        expect(search(rows, "office desk")[0]).toMatchObject({ name: "office desk" });
+        expect(reads).toEqual(["en.json", "ru.json"]);
+        await expect(pack.paletteText("fr")).resolves.toEqual(await pack.paletteText("en"));
+        expect(reads).toEqual(["en.json", "ru.json", "fr.json"]);
+    });
+
+    it("uses English descriptions from packs built before palette locale files were added", async () => {
+        const pack = makePack({ prototypes: "", textures: "", prototypeData: "full.json" }, async () => ({
+            entities: { WallSolid: { components: {}, description: "Keeps air inside." } },
+        }));
+        expect(entityEntries(pack, await pack.paletteText("ru"))).toContainEqual(expect.objectContaining({
+            id: "WallSolid", name: "solid wall", description: "Keeps air inside.",
+        }));
+    });
+});
 
 describe.skipIf(!upstream)("palette (upstream)", () => {
     const pack = upstream!;

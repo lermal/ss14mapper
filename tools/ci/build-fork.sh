@@ -76,12 +76,12 @@ if [ "${ALLOW_ANY_REMOTE:-}" != 1 ]; then
     [[ "$SUB_URL" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "the RobustToolbox submodule is not on github.com"
 fi
 
-# non-cone patterns: Resources/{Prototypes,Textures,Locale/en-US}, root Resources/*migration*.yml, Content.* C# sources
+# non-cone patterns: Resources/{Prototypes,Textures,Locale}, root Resources/*migration*.yml, Content.* C# sources
 g sparse-checkout init --no-cone
 g sparse-checkout set --no-cone --stdin <<'PATTERNS'
 /Resources/Prototypes/
 /Resources/Textures/
-/Resources/Locale/en-US/
+/Resources/Locale/
 /Resources/*migration*.yml
 /Content.*/**/*.cs
 PATTERNS

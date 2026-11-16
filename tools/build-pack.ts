@@ -2,13 +2,13 @@
 //
 //   build-pack --checkout <dir> --out <dir> --id <fork id> [--repo <url>] [--branch <name>] [--commit <sha>] [--engine <dir>]
 //
-// The checkout needs Resources/{Prototypes,Textures,Locale/en-US} and, from the RobustToolbox submodule,
+// The checkout needs Resources/{Prototypes,Textures,Locale} and, from the RobustToolbox submodule,
 // Resources/EnginePrototypes and Robust.Shared.Maths/Color.cs. Engine components' fields come from the submodule's
 // `Robust.*` sources, or from another engine checkout given with --engine. Nothing in either is executed.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type BuildIndex, type PackManifest, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
+import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type BuildIndex, type PackManifest, type PaletteText, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
 import { ContainerData } from "./pack/containers";
 import { DeviceData } from "./pack/devices";
 import { Checkout, truthy, type Raw } from "./pack/game";
@@ -232,6 +232,35 @@ async function main(): Promise<void> {
     const fullName = hashName("prototype-data", "json", fullJson);
     fs.writeFileSync(path.join(outDir, fullName), fullJson);
 
+    const paletteLocales: Record<string, string> = {};
+    const writePaletteLocale = (code: string, fields: PaletteText) => {
+        const json = JSON.stringify(fields);
+        const file = hashName(`palette-${code}`, "json", json);
+        fs.writeFileSync(path.join(outDir, file), json);
+        paletteLocales[code] = file;
+    };
+    const english: PaletteText = {};
+    for (const id of Object.keys(entities)) {
+        const description = full.entities[id]?.description;
+        if (description) english[id] = { description };
+    }
+    writePaletteLocale("en", english);
+    for (const code of game.translationLocales) {
+        const fields: PaletteText = {};
+        for (const [id, proto] of Object.entries(entities)) {
+            const key = game.entityLocId(id);
+            const name = game.localize(key, code);
+            const description = game.localize(`${key}.desc`, code);
+            const suffix = game.displaySuffix(id, code);
+            const text: PaletteText[string] = {};
+            if (name && name !== proto.name) text.name = name;
+            if (description && description !== english[id]?.description) text.description = description;
+            if (suffix && suffix !== proto.suffix) text.suffix = suffix;
+            if (Object.keys(text).length) fields[id] = text;
+        }
+        if (Object.keys(fields).length) writePaletteLocale(code, fields);
+    }
+
     const { schemas, stats: schemaStats } = componentSchemas([...game.csharp(), ...game.engineCsharp()], game.colors);
     for (const type of schemaStats.protoTypes) {
         const ids = [...game.all(type).keys()].sort();
@@ -272,7 +301,7 @@ async function main(): Promise<void> {
             engineCommit: git(checkoutDir, "ls-tree", "HEAD", "RobustToolbox")?.split(/\s+/)[2] ?? null,
         },
         builtAt: new Date().toISOString(),
-        files: { prototypes: prototypesName, textures: texturesName, componentSchemas: schemasName, prototypeData: fullName, parallax: parallaxName, containerRules: rulesName, index: indexName },
+        files: { prototypes: prototypesName, textures: texturesName, componentSchemas: schemasName, prototypeData: fullName, parallax: parallaxName, containerRules: rulesName, index: indexName, paletteLocales },
         stats: {
             entities: Object.keys(entities).length,
             placeable,
