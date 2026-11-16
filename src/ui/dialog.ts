@@ -8,6 +8,7 @@ const STYLE = `
 .dlg { width: min(var(--dlg-w, 440px), 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 20px 16px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow); font: 13px/1.45 var(--font); }
 .dlg { position: relative; }
 .dlg h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.dlg h3 { margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
 .dlg .dlg-x { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted); }
 .dlg .dlg-x:hover { background: var(--raised); color: var(--text); }
 .dlg p { margin: 0 0 6px; color: var(--text-2); }
@@ -151,14 +152,21 @@ export function confirmUnsaved(name: string): Promise<UnsavedChoice> {
     );
 }
 
-/** About: what the editor is and which build data is loaded. */
-export function showAbout(build: string): Promise<void> {
+/** About the editor and the current build data. */
+export async function showAbout(build: string): Promise<void> {
+    const trigger = document.activeElement;
     const head = h("div", "dlg-muted", build ? `Build: ${build}` : "No build loaded");
-    return dialog<void>(
+    await dialog<void>(
         "About SS14 Mapper",
-        ["Map editor for Space Station 14.", head],
+        [
+            "Map editor for Space Station 14.",
+            head,
+            h("h3", "", "AI in development"),
+            "AI tools helped write code and tests for parts of SS14 Mapper. The project maintainer decides what gets merged and released.",
+        ],
         [{ label: "Close", value: undefined, kind: "primary" }],
         undefined,
     );
+    if (trigger instanceof HTMLElement) trigger.focus();
 }
 

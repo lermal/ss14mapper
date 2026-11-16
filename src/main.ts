@@ -162,6 +162,11 @@ const fork = () => shell.forkSelect.value;
 const forkName = (id: string) => forks.find((f) => f.id === id)?.name ?? id;
 const RECENT_MENU = 10;
 
+function openAbout(): void {
+    const f = controller.current?.pack.manifest.fork;
+    void showAbout(f ? `${forkName(f.id)}, ${f.branch} at ${f.commit.slice(0, 7)}` : "");
+}
+
 const shell = new Shell(
     { topbar: $("topbar"), optionsbar: $("optionsbar"), rail: $("rail"), statusbar: $("statusbar"), controls: $("map-controls") },
     controller,
@@ -181,10 +186,7 @@ const shell = new Shell(
         library: () => void manage(),
         settings: () => settings.open(),
         shortcuts: () => shortcuts.toggle(),
-        about: () => {
-            const f = controller.current?.pack.manifest.fork;
-            void showAbout(f ? `${forkName(f.id)}, ${f.branch} at ${f.commit.slice(0, 7)}` : "");
-        },
+        about: openAbout,
         ...(api ? { addBuild: () => void account?.addBuild(), reportBug: () => void account?.reportBug() } : {}),
     },
 );
@@ -202,6 +204,7 @@ const start = new StartScreen($("start"), {
     reopen: (m) => void reopen(m),
     manage: () => void manage(),
     shortcuts: () => shortcuts.open(),
+    about: openAbout,
     ...(api ? { addBuild: () => void account?.addBuild() } : {}),
 });
 

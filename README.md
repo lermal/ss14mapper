@@ -6,6 +6,10 @@ building and running the game client and server.
 
 Status: early prototype.
 
+## AI in development
+
+AI tools helped write code and tests for parts of SS14 Mapper. The project maintainer decides what gets merged and released.
+
 ## Development
 
 ```bash

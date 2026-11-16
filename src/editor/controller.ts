@@ -31,21 +31,25 @@
 // Copy, cut and paste go through the browser's clipboard events when bound to Ctrl+C/X/V, so the clipboard
 // text reaches other tabs without asking for permission; other bindings use the Clipboard API, and an
 // in-memory copy stands in when neither is available.
-import { turnTileRotation } from "./group";
-import { decalSize, type MirrorAxis, type MirrorMode } from "./mirror";
+import { fixGridAtmosphere } from "../map/atmosphere";
 import type { DecalProps } from "../map/decals";
 import type { MapDocument } from "../map/document";
 import type { Frame, Pack } from "../pack/loader";
 import type { MapCanvas } from "../render/canvas";
 import { PPM, Scene, type DecalLayer, type SpriteLayer, type TileLayer } from "../render/scene";
 import { splitColor } from "../ui/color";
+import { dialog } from "../ui/dialog";
+import { h } from "../ui/icons";
 import type { Inspector } from "../ui/inspector";
 import type { LinkPanel } from "../ui/link-panel";
 import { decalIcon, entityIcon, tileIcon, type Palette, type PaletteChoice } from "../ui/palette";
 import { dragged, isOurs, setDragged } from "../ui/drag";
 import { showToast } from "../ui/toast";
 import { Contents, contentsKit } from "./contents";
+import { turnTileRotation } from "./group";
 import { chordOfKey, chordOfMouse, formatChord, type Keymap, type KeyStorage } from "./keymap";
+import { decalSize, type MirrorAxis, type MirrorMode } from "./mirror";
+import { colorPipeNetwork } from "./pipe-network";
 import { loadPrefs, savePrefs } from "./prefs";
 import { clipCounts, flipClip, clipText, readClip, type Clip, type PasteKnown } from "./clipboard";
 import { cellOf, FILTER_KINDS, type Combine, type Kind, type SelectFilter } from "./selection";
@@ -502,6 +506,64 @@ export class EditorController {
             const name = doc.components(uid).find((c) => c.type === "MetaData")?.data.name;
             return { uid, name: typeof name === "string" && name ? name : `Grid ${uid}` };
         });
+    }
+
+    async rebuildAtmosphere(uid: number): Promise<void> {
+        const s = this.session;
+        if (!s || this.gesture || this.editor?.busy || !s.scene.grids.includes(uid)) return;
+        const grid = this.gridList().find((g) => g.uid === uid);
+        const confirmed = await dialog("Fix grid atmosphere", [
+            `Reset the starting atmosphere of ${grid?.name ?? "this grid"} (#${uid}) using its tiles and atmosphere markers? This replaces its saved gas mixtures.`,
+        ], [{ label: "Cancel", value: false }, { label: "Rebuild", value: true, kind: "primary" }], false);
+        if (!confirmed || this.session !== s) return;
+        this.say("Loading atmosphere data…");
+        try {
+            const data = await s.pack.prototypeData();
+            if (this.session !== s || this.editor?.busy || this.gesture) return;
+            if (!data) return this.say("This build lacks prototype data. Rebuild the asset pack and try again.");
+            const result = fixGridAtmosphere(s.doc, s.scene, s.pack, data, uid);
+            if (result.changed) {
+                this.say(`Atmosphere rebuilt for grid #${uid} · ${result.filled} assigned, ${result.exposed} exposed, ${result.sealed} airtight`);
+            } else this.say("Grid atmosphere is already up to date");
+        } catch (error) {
+            if (this.session === s) this.say(`Could not fix grid atmosphere: ${(error as Error).message}`);
+        }
+    }
+
+    get canColorPipeNetwork(): boolean {
+        const uid = this.editor?.selection;
+        return !!this.session && !this.editor?.busy && !this.gesture && uid != null && this.session.scene.pipePorts(uid).length > 0;
+    }
+
+    async editPipeNetworkColor(): Promise<void> {
+        const s = this.session, uid = this.editor?.selection;
+        if (!s || uid == null || !this.canColorPipeNetwork) return;
+        const prototypes = await s.pack.prototypeData().catch(() => null);
+        if (this.session !== s || this.editor?.selection !== uid || !this.canColorPipeNetwork) return;
+        const ports = s.scene.pipePorts(uid);
+        const select = h("select");
+        for (const port of ports) select.add(new Option(`${port.name} (${port.layer})`, port.name));
+        const color = h("input");
+        color.type = "color";
+        const summary = h("p", "dlg-muted");
+        const update = () => {
+            const pipes = s.scene.pipeNetwork(uid, select.value, prototypes ?? undefined);
+            color.value = s.scene.pipeColor(pipes.includes(uid) ? uid : pipes[0] ?? uid);
+            summary.textContent = pipes.length === 1 ? "1 paintable pipe in this network" : `${pipes.length} paintable pipes in this network`;
+        };
+        select.addEventListener("change", update);
+        update();
+        const node = h("label", "dlg-field", "Pipe node");
+        node.append(select);
+        const picker = h("label", "dlg-field", "Network color");
+        picker.append(color);
+        const confirmed = await dialog("Color pipe network", [
+            ...(ports.length > 1 ? [node] : []), picker, summary,
+            ...(!prototypes ? ["Prototype defaults for valves are unavailable in this build."] : []),
+        ], [{ label: "Cancel", value: false }, { label: "Apply", value: true, kind: "primary" }], false);
+        if (!confirmed || this.session !== s || this.editor?.busy || this.gesture) return;
+        const changed = colorPipeNetwork(s.doc, s.scene.pipeNetwork(uid, select.value, prototypes ?? undefined), color.value);
+        this.say(changed ? `Colored ${changed} ${changed === 1 ? "pipe" : "pipes"}` : "No pipes changed");
     }
 
     /** Opens an entity (the map, a grid) in the Properties column; the selection is cleared. */

@@ -540,15 +540,23 @@ export class MapDocument {
      * the file, without the `type:` line, unindented) and as plain data (see `toPlain`).
      */
     components(uid: number): ComponentOverride[] {
-        return this.componentList(uid).list.items.map((item) => {
-            const fields = asMap(item.value)?.entries ?? [];
-            const rest = fields.filter((e) => e.key.value !== "type");
-            return {
-                type: text(get(item.value, "type")) ?? "",
-                text: dedent(rest.map((e) => entryText(e, FIELD_INDENT)).join("\n"), FIELD_INDENT),
-                data: Object.fromEntries(rest.map((e) => [e.key.value, toPlain(e.value)])),
-            };
-        });
+        return this.componentList(uid).list.items.map((item) => this.describeComponent(item));
+    }
+
+    /** A single override, without converting or formatting the other components of the entity. */
+    componentOverride(uid: number, type: string): ComponentOverride | undefined {
+        const entity = this.records.get(uid)?.item.value;
+        const item = asSeq(get(entity, "components"))?.items.find((c) => text(get(c.value, "type")) === type);
+        return item && this.describeComponent(item);
+    }
+
+    private describeComponent(item: YItem): ComponentOverride {
+        const fields = asMap(item.value)?.entries.filter((e) => e.key.value !== "type") ?? [];
+        return {
+            type: text(get(item.value, "type")) ?? "",
+            text: dedent(fields.map((e) => entryText(e, FIELD_INDENT)).join("\n"), FIELD_INDENT),
+            data: Object.fromEntries(fields.map((e) => [e.key.value, toPlain(e.value)])),
+        };
     }
 
     // -----------------------------------------------------------------------------------------

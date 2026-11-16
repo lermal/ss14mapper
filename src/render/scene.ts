@@ -3,6 +3,7 @@
 // the Shipyard renderer (github.com/lermal/map_viewer, tools/map-renderer/lib/render-data.mjs).
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ENGINE_PROTOTYPES, decalOrder } from "../map/decals";
+import type { PrototypeData } from "../pack/format";
 import type { Frame, Pack } from "../pack/loader";
 
 export const PPM = 32;
@@ -441,6 +442,8 @@ interface Ent {
     c: any;
 }
 
+type PipeNode = [group: string, layer: number, mask: number, name: string];
+
 interface Info {
     g: number | null;
     lx: number;
@@ -496,7 +499,7 @@ export class Scene {
     private readonly occ = new Map<string, number[]>();
     /** IconSmooth keys present on each tile (IconSmoothGridComponent's cache), filled on use. */
     private readonly smoothCache = new Map<string, Set<string> | null>();
-    private readonly pipeNodes = new Map<number, Array<[string, number, number]>>();
+    private readonly pipeNodes = new Map<number, PipeNode[]>();
     private readonly gridTiles = new Map<number, Map<string, [string, number, number]>>();
     private readonly spriteLayers = new Map<number, SpriteLayer[]>();
     private readonly tileLayers = new Map<string, TileLayer>();
@@ -923,8 +926,7 @@ export class Scene {
         else this.occ.set(k, [uid]);
         this.smoothCache.delete(k);
 
-        const c = e.c;
-        const nodes = pipeConnectionsAtRotation(c, lrot);
+        const nodes = pipeNodesAtRotation(e.c, lrot);
         if (nodes.length) this.pipeNodes.set(uid, nodes);
     }
 
@@ -989,18 +991,76 @@ export class Scene {
         });
     }
 
+    private *pipeNeighbors(grid: number, x: number, y: number, [group, layer, mask]: PipeNode): IterableIterator<[number, PipeNode, number]> {
+        for (const [direction, dx, dy] of PIPE_STEP) {
+            if (!(mask & direction)) continue;
+            for (const uid of this.occAt(grid, x + dx, y + dy)) {
+                for (const other of this.pipeNodes.get(uid) ?? []) {
+                    if (other[0] === group && other[1] === layer && (other[2] & PIPE_OPPOSITE[direction]!)) {
+                        yield [uid, other, direction];
+                    }
+                }
+            }
+        }
+    }
+
     private pipeConnections(uid: number, g: number, tx: number, ty: number): Map<number, number> {
         const conn = new Map<number, number>();
-        for (const [group, layer, mask] of this.pipeNodes.get(uid) ?? []) {
-            for (const [d, dx, dy] of PIPE_STEP) {
-                if (!(mask & d)) continue;
-                const linked = this.occAt(g, tx + dx, ty + dy).some((o) =>
-                    (this.pipeNodes.get(o) ?? []).some(([og, ol, om]) => og === group && ol === layer && om & PIPE_OPPOSITE[d]!),
-                );
-                if (linked) conn.set(layer, (conn.get(layer) ?? 0) | d);
+        for (const node of this.pipeNodes.get(uid) ?? []) {
+            const layer = node[1];
+            for (const [, , direction] of this.pipeNeighbors(g, tx, ty, node)) {
+                conn.set(layer, (conn.get(layer) ?? 0) | direction);
             }
         }
         return conn;
+    }
+
+    pipePorts(uid: number): Array<{ name: string; layer: string }> {
+        return (this.pipeNodes.get(uid) ?? []).map(([, layer, , name]) => ({ name, layer: PIPE_LAYER_NAMES[layer] ?? String(layer) }));
+    }
+
+    /** Trace a single pipe node. Separate nodes on a pump or manifold belong to separate networks. */
+    pipeNetwork(uid: number, port: string, prototypes?: PrototypeData): number[] {
+        const root = this.pipeNodes.get(uid)?.find((node) => node[3] === port);
+        const grid = this.info.get(uid)?.g;
+        if (!root || grid == null) return [];
+        const found = new Set<number>();
+        const seen = new Set<PipeNode>();
+        const pending: Array<[number, PipeNode]> = [[uid, root]];
+        while (pending.length) {
+            const [owner, node] = pending.pop()!;
+            if (seen.has(node)) continue;
+            seen.add(node);
+            const entity = this.ents.get(owner)!;
+            if (entity.c.AtmosPipeColor) found.add(owner);
+
+            // An open GasValve joins its inlet and outlet. Other multi-port devices have distinct networks.
+            const ports = this.pipeNodes.get(owner)!;
+            if (ports.length > 1) {
+                const base = prototypes && entity.proto ? this.pack.fullComponents(prototypes, entity.proto).GasValve : undefined;
+                if (base || entity.c.GasValve) {
+                    const valve = { ...base, ...entity.c.GasValve };
+                    if (!isFalse(valve.open)) {
+                        const inlet = valve.inlet ?? "inlet", outlet = valve.outlet ?? "outlet";
+                        const name = node[3] === inlet ? outlet : node[3] === outlet ? inlet : null;
+                        const other = ports.find((p) => p[3] === name && p[0] === node[0]);
+                        if (other && !seen.has(other)) pending.push([owner, other]);
+                    }
+                }
+            }
+            const { tx, ty } = this.info.get(owner)!;
+            for (const [next, neighbor] of this.pipeNeighbors(grid, tx, ty, node)) {
+                if (!seen.has(neighbor)) pending.push([next, neighbor]);
+            }
+        }
+        return [...found];
+    }
+
+    /** Effective pipe color, encoded for a native color input. */
+    pipeColor(uid: number): string {
+        const color = this.color(this.ents.get(uid)?.c.AtmosPipeColor?.color);
+        if (!color || !color.every(Number.isFinite)) return "#ffffff";
+        return "#" + color.slice(0, 3).map((c) => Math.round(c * 255).toString(16).padStart(2, "0")).join("");
     }
 
     private cableMask(e: Ent, g: number, tx: number, ty: number): number {
@@ -1439,14 +1499,18 @@ const rotatePipe = (mask: number, rot: number) => {
 
 /** Enabled pipe connections on the grid, including fixed-direction nodes. */
 export function pipeConnectionsAtRotation(c: any, rotation: number): Array<[string, number, number]> {
+    return pipeNodesAtRotation(c, rotation).map(([group, layer, mask]) => [group, layer, mask]);
+}
+
+function pipeNodesAtRotation(c: any, rotation: number): PipeNode[] {
     const layer = layersOverride(c);
-    const nodes: Array<[string, number, number]> = [];
-    for (const nd of Object.values<any>(c.NodeContainer?.nodes ?? {})) {
+    const nodes: PipeNode[] = [];
+    for (const [name, nd] of Object.entries<any>(c.NodeContainer?.nodes ?? {})) {
         if (!nd || typeof nd !== "object" || nd.pipeDirection === undefined) continue;
         if (isFalse(nd.connectionsEnabled)) continue;
         let mask = pipeMask(nd);
         if (!isFalse(nd.rotationsEnabled)) mask = rotatePipe(mask, rotation);
-        nodes.push([nd.nodeGroupID ?? "Pipe", layer ?? pipeLayerOf(nd.pipeLayer), mask]);
+        nodes.push([nd.nodeGroupID ?? "Pipe", layer ?? pipeLayerOf(nd.pipeLayer), mask, name]);
     }
     return nodes;
 }

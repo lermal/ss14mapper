@@ -12,6 +12,7 @@ export interface StartHooks {
     reopen(m: LibraryEntry): void;
     manage(): void;
     shortcuts(): void;
+    about(): void;
     /** Add a build (a link under the build list); absent without accounts. */
     addBuild?(): void;
 }
@@ -20,7 +21,7 @@ export interface StartHooks {
 const SHOWN = 10;
 
 const STYLE = `
-.start { display: flex; flex-direction: column; height: 100vh; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.4; }
+.start { display: flex; flex-direction: column; height: 100vh; height: 100dvh; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.4; }
 .start .st-top { display: flex; align-items: center; gap: 8px; height: 44px; flex: none; padding: 0 14px; box-sizing: border-box; background: var(--panel); border-bottom: 1px solid var(--border); font-weight: 600; }
 .start .st-top svg { color: var(--focus); }
 .start .st-top .st-grow { flex: 1; }
@@ -55,7 +56,8 @@ const STYLE = `
 .start .st-recent:hover { border-color: var(--border-strong); background: var(--raised); }
 .start .st-recent .st-meta { color: var(--muted); font-size: 12px; }
 .start .st-none { padding: 12px; border: 1px dashed var(--border-strong); border-radius: 8px; color: var(--muted); font-size: 13px; }
-.start .site-credit { position: fixed; right: 16px; bottom: 16px; z-index: 90; padding: 6px 12px; background: rgba(36, 36, 36, 0.8); color: #a29778; font: 600 12px/1.2 var(--font); letter-spacing: 0.02em; text-decoration: none; clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); }
+.start .st-footer { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; padding: 8px 16px 16px; }
+.start .site-credit { padding: 6px 12px; background: rgba(36, 36, 36, 0.8); color: #a29778; font: 600 12px/1.2 var(--font); letter-spacing: 0.02em; text-decoration: none; clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); }
 .start .site-credit:hover { color: #f2f4f1; background: rgba(36, 36, 36, 0.95); }
 `;
 
@@ -116,7 +118,12 @@ export class StartScreen {
         aside.append(heads, this.recent);
         cols.append(left, aside);
         main.append(cols);
-        container.append(top, main, creditLink("site-credit"));
+
+        const footer = h("footer", "st-footer");
+        const about = button("st-link", "AI in development", "", () => hooks.about());
+        about.setAttribute("aria-haspopup", "dialog");
+        footer.append(about, creditLink("site-credit"));
+        container.append(top, main, footer);
     }
 
     setForks(forks: Fork[], current: string): void {

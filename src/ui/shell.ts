@@ -179,7 +179,7 @@ export class Shell {
             {
                 label: "Edit",
                 items: () => {
-                    const st = c.status, none = !c.options.selection;
+                    const st = c.status, none = !c.options.selection, grids = c.gridList();
                     return [
                         cmd("Undo", "edit.undo", !st.canUndo),
                         cmd("Redo", "edit.redo", !st.canRedo),
@@ -197,11 +197,20 @@ export class Shell {
                         cmd("Select all", "select.all", !st.open),
                         cmd("Deselect", "select.none", none),
                         "-",
+                        { label: "Color pipe network…", run: () => void c.editPipeNetworkColor(), disabled: !c.canColorPipeNetwork },
+                        {
+                            label: "Fix grid atmosphere…",
+                            disabled: !grids.length || st.busy,
+                            ...(grids.length === 1
+                                ? { run: () => void c.rebuildAtmosphere(grids[0]!.uid) }
+                                : { sub: () => grids.map(({ uid, name }) => ({ label: name, note: `uid ${uid}`, run: () => void c.rebuildAtmosphere(uid) })) }),
+                        },
+                        "-",
                         { label: "Map properties", run: () => c.openMapProperties(), disabled: !st.open },
                         {
                             label: "Grid properties",
-                            disabled: !st.open || !c.gridList().length,
-                            sub: () => c.gridList().map(({ uid, name }) => ({ label: name, note: `uid ${uid}`, run: () => c.openProperties(uid) })),
+                            disabled: !st.open || !grids.length,
+                            sub: () => grids.map(({ uid, name }) => ({ label: name, note: `uid ${uid}`, run: () => c.openProperties(uid) })),
                         },
                         "-",
                         { label: "Key bindings…", run: () => hooks.settings() },
