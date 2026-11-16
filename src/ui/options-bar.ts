@@ -175,10 +175,10 @@ export class OptionsBar {
         const chip = h("span", "chip");
         chip.append(spriteCanvas(pack, choiceIcon(ch, pack), 22));
         if (ch.kind === "entity") {
-            const def = pack.prototypes.entities[ch.id];
+            const def = pack.entityText(ch.id);
             const id = h("span", "ob-muted", ch.id);
-            chip.append(`${def?.name || ch.id}${def?.suffix ? ` (${def.suffix})` : ""} `, id);
-            chip.title = ch.id;
+            chip.append(`${def.name}${def.suffix ? ` (${def.suffix})` : ""} `, id);
+            chip.title = def.description ?? ch.id;
             const parts: Node[] = [chip, h("span", "ob-muted", translate("Rotation")), button("btn small", `${o.rotation}°`, translate("Rotate clockwise (R)"), () => c.run("edit.rotateCw"))];
             // pipes and atmos devices go on one of three pipe layers, picked by the cursor in the tile as in the game
             if (layerPrototypes(pack, ch.id)) {
@@ -190,7 +190,8 @@ export class OptionsBar {
             return parts;
         }
         if (ch.kind === "tile") {
-            chip.append(ch.id);
+            chip.append(pack.tileName(ch.id));
+            chip.title = ch.id;
             const n = pack.tile(ch.id)?.variants ?? 1;
             const sel = h("select");
             sel.setAttribute("aria-label", translate("Variant"));
@@ -333,6 +334,7 @@ function choiceIcon(ch: NonNullable<ToolOptions["choice"]>, pack: Pack) {
 }
 
 function choiceName(ch: NonNullable<ToolOptions["choice"]>, pack: Pack): string {
-    if (ch.kind === "entity") return pack.prototypes.entities[ch.id]?.name || ch.id;
+    if (ch.kind === "entity") return pack.entityText(ch.id).name;
+    if (ch.kind === "tile") return pack.tileName(ch.id);
     return ch.id;
 }

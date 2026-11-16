@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
+import { describe as describeItem } from "../src/editor/stack";
 import type { PackManifest } from "../src/pack/format";
 import { Pack } from "../src/pack/loader";
 import { decalEntries, decalIconFrame, entityEntries, entityIconFrame, entryIconFrame, search, tileEntries, tileIconFrame } from "../src/ui/palette-search";
@@ -22,7 +23,8 @@ describe("palette translations", () => {
             AirAlarm: { name: "air alarm", components: {} },
             Prop: { name: "office desk", components: {} },
         },
-        tiles: {}, decals: {}, stacks: {}, colors: {}, migrations: {}, tileAliases: {},
+        tiles: { FloorSteel: { name: "steel tile", sprite: null, variants: 1, isSubfloor: false } },
+        decals: {}, stacks: {}, colors: {}, migrations: {}, tileAliases: { OldFloor: "FloorSteel" },
     }, { pages: [], textures: {}, rsi: {} }, read);
 
     it("matches a regional translation and falls back separately for name, suffix and description", async () => {
@@ -31,24 +33,48 @@ describe("palette translations", () => {
         const pack = makePack(files, async (file) => {
             reads.push(file);
             if (file === "en.json") return { WallSolid: { description: "Keeps air inside." }, AirAlarm: { description: "An alarm." } };
-            if (file === "ru.json") return { WallSolid: { name: "прочная стена" }, AirAlarm: { description: "Следит за воздухом." } };
+            if (file === "ru.json") return {
+                format: 1,
+                entities: { WallSolid: { name: "прочная стена" }, AirAlarm: { description: "Следит за воздухом." } },
+                tiles: { FloorSteel: "стальной пол" },
+            };
             throw new Error("Missing file");
         });
-        const rows = entityEntries(pack, await pack.paletteText("ru"), "ru");
+        await pack.loadDisplayText("ru");
+        const rows = entityEntries(pack, "ru");
         expect(search(rows, "прочная стена")[0]).toMatchObject({ id: "WallSolid", name: "прочная стена", suffix: "Station", description: "Keeps air inside." });
         expect(search(rows, "solid wall")[0]?.id).toBe("WallSolid");
         expect(search(rows, "AIRALARM")[0]).toMatchObject({ name: "air alarm", description: "Следит за воздухом." });
         expect(search(rows, "office desk")[0]).toMatchObject({ name: "office desk" });
+        expect(describeItem({ kind: "entity", uid: 12, proto: "WallSolid" }, pack)).toMatchObject({
+            tag: "entity", name: "прочная стена", description: "Keeps air inside.", suffix: "Station",
+        });
+        expect(describeItem({ kind: "tile", grid: 1, x: 0, y: 0, id: "OldFloor" }, pack)).toMatchObject({
+            tag: "tile", id: "OldFloor", name: "стальной пол",
+        });
+        expect(search(tileEntries(pack, "ru"), "стальной пол")[0]?.id).toBe("FloorSteel");
         expect(reads).toEqual(["en.json", "ru.json"]);
-        await expect(pack.paletteText("fr")).resolves.toEqual(await pack.paletteText("en"));
+        await pack.loadDisplayText("fr");
+        expect(pack.entityText("WallSolid")).toMatchObject({ name: "solid wall", description: "Keeps air inside." });
+        expect(pack.tileName("FloorSteel")).toBe("steel tile");
         expect(reads).toEqual(["en.json", "ru.json", "fr.json"]);
+    });
+
+    it("uses existing entity translations in the map menu even when the pack has no translated tile names", async () => {
+        const pack = makePack({ prototypes: "", textures: "", paletteLocales: { "ru-RU": "ru.json" } }, async () => ({
+            WallSolid: { name: "обычная стена" },
+        }));
+        await pack.loadDisplayText("ru");
+        expect(describeItem({ kind: "entity", uid: 2, proto: "WallSolid" }, pack).name).toBe("обычная стена");
+        expect(pack.tileName("FloorSteel")).toBe("steel tile");
     });
 
     it("uses English descriptions from packs built before palette locale files were added", async () => {
         const pack = makePack({ prototypes: "", textures: "", prototypeData: "full.json" }, async () => ({
             entities: { WallSolid: { components: {}, description: "Keeps air inside." } },
         }));
-        expect(entityEntries(pack, await pack.paletteText("ru"))).toContainEqual(expect.objectContaining({
+        await pack.loadDisplayText("ru");
+        expect(entityEntries(pack)).toContainEqual(expect.objectContaining({
             id: "WallSolid", name: "solid wall", description: "Keeps air inside.",
         }));
     });

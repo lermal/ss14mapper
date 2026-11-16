@@ -347,7 +347,7 @@ export class Inspector {
         const meta = doc.components(uid).find((c) => c.type === "MetaData")?.data;
         // entities without a prototype: the map itself and grids
         const kind = id ? null : doc.mapEntities().includes(uid) ? translate("Map") : doc.grids().includes(uid) ? translate("Grid") : translate("Entity");
-        const name = typeof meta?.name === "string" && meta.name ? meta.name : proto?.name || id || kind!;
+        const name = typeof meta?.name === "string" && meta.name ? meta.name : (current && pack.entityText(current).name) || id || kind!;
         const about = kind ? translate("{{1}}, uid {{2}}", { 1: kind, 2: uid }) : translate("{{1}}, uid {{2}}{{3}}", { 1: id, 2: uid, 3: proto ? "" : translate(", not in the pack") });
         this.head!.replaceChildren(el("div", "ins-name", name), el("div", "ins-meta", about));
     }

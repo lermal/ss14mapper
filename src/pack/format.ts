@@ -34,6 +34,13 @@ export type ComponentData = Record<string, unknown>;
 /** Localized entity fields supplied by one palette text file, keyed by prototype ID. */
 export type PaletteText = Record<string, { name?: string; description?: string; suffix?: string }>;
 
+/** The versioned text file; earlier packs stored only the entity dictionary. */
+export interface PaletteLocale {
+    format: 1;
+    entities: PaletteText;
+    tiles?: Record<string, string>;
+}
+
 export interface EntityPrototype {
     name: string;
     /** Shown after the name in the palette, e.g. "Filled". */

@@ -1,5 +1,5 @@
 // Loads an asset pack in the browser: manifest, prototypes and texture index first, texture pages on demand.
-import type { BuildIndex, ComponentSchemas, ContainerRules, PackManifest, PaletteText, ParallaxData, PrototypeData, PrototypeIndex, TextureIndex } from "./format";
+import type { BuildIndex, ComponentSchemas, ContainerRules, PackManifest, PaletteLocale, PaletteText, ParallaxData, PrototypeData, PrototypeIndex, TextureIndex } from "./format";
 import { type Components, resolveComponents } from "./prototype-data";
 
 /** A frame of a texture page: [page, x, y, width, height]. */
@@ -9,7 +9,9 @@ export class Pack {
     private readonly pages = new Map<number, Promise<ImageBitmap>>();
     private schemas: Promise<ComponentSchemas | null> | null = null;
     private full: Promise<PrototypeData | null> | null = null;
-    private readonly paletteLocales = new Map<string, Promise<PaletteText | null>>();
+    private readonly paletteLocales = new Map<string, Promise<PaletteLocale | null>>();
+    private text: PaletteLocale = { format: 1, entities: {} };
+    private textLoad?: { language: string; ready: Promise<void> };
     private parallaxes: Promise<ParallaxData | null> | null = null;
     private rules: Promise<ContainerRules | null> | null = null;
     private readonly images = new Map<string, Promise<ImageBitmap>>();
@@ -61,8 +63,32 @@ export class Pack {
         return this.full;
     }
 
-    /** Translated entity fields, with English descriptions from the new file or an older pack's prototype data. */
-    async paletteText(language: string): Promise<PaletteText> {
+    /** Share the same translated fields with the palette and the map editor. */
+    loadDisplayText(language: string): Promise<void> {
+        if (this.textLoad?.language === language) return this.textLoad.ready;
+        const ready = this.readDisplayText(language).then((text) => {
+            if (this.textLoad?.ready === ready) this.text = text;
+        });
+        this.textLoad = { language, ready };
+        return ready;
+    }
+
+    entityText(id: string): PaletteText[string] & { name: string } {
+        const original = this.prototypes.entities[id];
+        const translated = this.text.entities[id];
+        return {
+            name: translated?.name || original?.name || id,
+            suffix: translated?.suffix ?? original?.suffix,
+            description: translated?.description,
+        };
+    }
+
+    tileName(id: string): string {
+        const current = this.prototypes.tiles[id] ? id : this.prototypes.tileAliases[id] ?? id;
+        return this.text.tiles?.[current] || this.prototypes.tiles[current]?.name || id;
+    }
+
+    private async readDisplayText(language: string): Promise<PaletteLocale> {
         const files = this.manifest.files.paletteLocales ?? {};
         const requested = language.toLowerCase();
         const primary = requested.split("-")[0]!;
@@ -74,24 +100,26 @@ export class Pack {
             this.readPaletteLocale(files.en),
             this.readPaletteLocale(code && code !== "en" ? files[code] : undefined),
         ]);
-        const english: PaletteText = base ?? {};
+        const english: PaletteText = base?.entities ?? {};
         if (!base) {
             const legacy = await this.prototypeData().catch(() => null);
             for (const [id, prototype] of Object.entries(legacy?.entities ?? {})) {
                 if (prototype.description) english[id] = { description: prototype.description };
             }
         }
-        if (!local) return english;
+        if (!local) return { format: 1, entities: english, tiles: base?.tiles };
         const result = { ...english };
-        for (const [id, text] of Object.entries(local)) result[id] = { ...english[id], ...text };
-        return result;
+        for (const [id, text] of Object.entries(local.entities)) result[id] = { ...english[id], ...text };
+        return { format: 1, entities: result, tiles: local.tiles };
     }
 
-    private readPaletteLocale(file: string | undefined): Promise<PaletteText | null> {
+    private readPaletteLocale(file: string | undefined): Promise<PaletteLocale | null> {
         if (!file) return Promise.resolve(null);
         let pending = this.paletteLocales.get(file);
         if (!pending) {
-            pending = (this.read(file) as Promise<PaletteText>).catch(() => {
+            pending = (this.read(file) as Promise<PaletteText | PaletteLocale>).then((data) => {
+                return data.format === 1 ? data as PaletteLocale : { format: 1 as const, entities: data as PaletteText };
+            }).catch(() => {
                 this.paletteLocales.delete(file);
                 return null;
             });

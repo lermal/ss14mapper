@@ -1465,7 +1465,7 @@ export class EditorController {
 
     private protoName(proto: string): string {
         const pack = this.session!.pack;
-        return pack.prototypes.entities[pack.migrate(proto) ?? proto]?.name || proto;
+        return pack.entityText(pack.migrate(proto) ?? proto).name;
     }
 
     /** The topmost entity with containers at a world point, other than `item` and what it holds. */

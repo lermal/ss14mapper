@@ -74,6 +74,9 @@ export const LIVE_LIMIT = 400;
 /** Whether two rotations (radians) face the same way. */
 const sameAngle = (a: number, b: number) => Math.abs((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI) < 1e-6;
 
+// Railings and directional walls/windows use these sprite sheets, including in existing fork packs.
+const EDGE_SPRITE = /(?:^|\/)Structures\/(?:Walls\/(?:railing|directional)|Windows\/directional)\.rsi$/i;
+
 const SHAPE_LABELS: Record<ShapeKind, string> = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" };
 
 interface GroupDrag {
@@ -678,8 +681,8 @@ export class Editor {
     }
 
     /**
-     * Places an entity at a world point; returns its uid, or null when there is no grid, the tile already
-     * has an anchored entity of that prototype, or (in a stroke) the stroke has already placed there.
+     * Places an entity at a world point. Returns its uid, or null if the placement is invalid, a duplicate
+     * or a repeat during the same stroke.
      */
     place(proto: string, wx: number, wy: number, rotation = 0): number | null {
         const t = this.placeTarget(proto, wx, wy, this.mirrorMode !== "off");
@@ -710,7 +713,8 @@ export class Editor {
 
     /**
      * Anchored entities on a tile that a new one of `proto`, turned by `rotation` on the grid, takes the place of; null
-     * when it is not placed there (one of that prototype is already there, for pipes one turned the same way).
+     * when an anchored entity of the same prototype is already there. For pipes and edge structures
+     * the duplicate check also compares rotation, so different sides of a tile can be used.
      * Pipes (PipeRestrictOverlap) share a tile when their nodes are on other layers or face other ways. A pipe whose
      * node shares a layer and a direction with one already there would stay unanchored in the game
      * (PipeRestrictOverlapSystem); here it takes that one's place, as one of the same key does.
@@ -719,12 +723,17 @@ export class Editor {
         const here = this.scene.anchoredAt(grid, x, y);
         const id = this.pack.migrate(proto);
         const comps = id === null ? undefined : this.pack.prototypes.entities[id]?.components;
+        const sprite = comps?.Sprite?.sprite;
+        const onEdge = !comps?.PlacementReplacement && typeof sprite === "string" && EDGE_SPRITE.test(sprite);
+        const compareRotation = comps?.PipeRestrictOverlap || onEdge;
+        if (snaps && here.some((u) => this.doc.proto(u) === proto &&
+            (!compareRotation || sameAngle(this.doc.transform(u).rotation, rotation)))) return null;
+
         const out = new Set(this.replacedBy(proto, grid, x, y));
         if (comps?.PipeRestrictOverlap) {
-            if (snaps && here.some((u) => this.doc.proto(u) === proto && sameAngle(this.doc.transform(u).rotation, rotation))) return null;
             const nodes = pipeOverlapNodes(comps, rotation);
             for (const u of here) if (pipeNodesOverlap(nodes, this.scene.pipeOverlapNodes(u))) out.add(u);
-        } else if (snaps && here.some((u) => this.doc.proto(u) === proto)) return null;
+        }
         return [...out];
     }
 
@@ -862,8 +871,8 @@ export class Editor {
     }
 
     /**
-     * Draws a shape with a brush as one undo step: tiles are painted, entities placed one per tile (tiles that
-     * already have an anchored one of the prototype are skipped). Returns how many tiles changed.
+     * Draws a shape with a brush as one undo step: tiles are painted, entities placed one per tile
+     * with the same duplicate checks as the placement brush. Returns how many tiles changed.
      */
     drawShape(kind: ShapeKind, filled: boolean, brush: Brush, from: Point, to: Point, rotation = 0, constrain = false): number {
         const shape = this.shapeTiles(kind, filled, from, to, constrain);

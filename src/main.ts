@@ -350,11 +350,13 @@ async function showNow(load: number): Promise<void> {
         await loadingScreen.show(name, translate("Loading {{1}}", { 1: forkName(fork()) }));
         const pack = await loadPack(fork());
         if (load !== loading) return;
+        const displayText = pack.loadDisplayText(language());
         if (pack !== palettePack) palette.setPack((palettePack = pack));
         await loadingScreen.step(translate("Building"));
         const scene = new Scene(doc, pack);
         await loadingScreen.step(translate("Drawing"));
         await map.show(scene, pack);
+        if (pack.manifest.files.paletteLocales) await displayText;
         if (load !== loading) return;
         if (parallax.enabled) await loadingScreen.step(translate("Loading parallax"));
         watchParallax(doc, pack);

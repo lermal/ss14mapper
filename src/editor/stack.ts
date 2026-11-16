@@ -157,16 +157,18 @@ export class ClickCycle {
 export interface ItemInfo {
     name: string;
     id: string;
-    tag: string;
+    tag: StackKind;
+    description?: string;
+    suffix?: string;
     icon: Frame | null;
 }
 
 export function describe(item: StackItem, pack: Pack): ItemInfo {
     if (item.kind === "entity") {
-        const def = pack.prototypes.entities[item.proto];
-        return { name: def?.name || item.proto || translate("uid {{1}}", { 1: item.uid }), id: translate("{{1}} · uid {{2}}", { 1: item.proto, 2: item.uid }), tag: "entity", icon: entityIconFrame(pack, item.proto) };
+        const text = pack.entityText(item.proto);
+        return { ...text, name: text.name || translate("uid {{1}}", { 1: item.uid }), id: translate("{{1}} · uid {{2}}", { 1: item.proto, 2: item.uid }), tag: "entity", icon: entityIconFrame(pack, item.proto) };
     }
     if (item.kind === "decal") return { name: item.proto, id: item.id, tag: "decal", icon: decalIconFrame(pack, item.proto) };
-    return { name: pack.prototypes.tiles[item.id]?.name || item.id, id: item.id, tag: "tile", icon: tileIconFrame(pack, item.id) };
+    return { name: pack.tileName(item.id), id: item.id, tag: "tile", icon: tileIconFrame(pack, item.id) };
 }
 

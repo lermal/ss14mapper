@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type BuildIndex, type PackManifest, type PaletteText, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
+import { PACK_FORMAT, type ContainerRules, type DecalDefinition, type EntityPrototype, type BuildIndex, type PackManifest, type PaletteLocale, type PaletteText, type PrototypeData, type PrototypeDefinition, type PrototypeIndex, type TileDefinition } from "../src/pack/format";
 import { ContainerData } from "./pack/containers";
 import { DeviceData } from "./pack/devices";
 import { Checkout, truthy, type Raw } from "./pack/game";
@@ -233,7 +233,7 @@ async function main(): Promise<void> {
     fs.writeFileSync(path.join(outDir, fullName), fullJson);
 
     const paletteLocales: Record<string, string> = {};
-    const writePaletteLocale = (code: string, fields: PaletteText) => {
+    const writePaletteLocale = (code: string, fields: PaletteLocale) => {
         const json = JSON.stringify(fields);
         const file = hashName(`palette-${code}`, "json", json);
         fs.writeFileSync(path.join(outDir, file), json);
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
         const description = full.entities[id]?.description;
         if (description) english[id] = { description };
     }
-    writePaletteLocale("en", english);
+    writePaletteLocale("en", { format: 1, entities: english });
     for (const code of game.translationLocales) {
         const fields: PaletteText = {};
         for (const [id, proto] of Object.entries(entities)) {
@@ -258,7 +258,12 @@ async function main(): Promise<void> {
             if (suffix && suffix !== proto.suffix) text.suffix = suffix;
             if (Object.keys(text).length) fields[id] = text;
         }
-        if (Object.keys(fields).length) writePaletteLocale(code, fields);
+        const tileNames: Record<string, string> = {};
+        for (const [id, tile] of game.all("tile")) {
+            const name = typeof tile.name === "string" ? game.localize(tile.name, code) : undefined;
+            if (name && name !== tiles[id]?.name) tileNames[id] = name;
+        }
+        if (Object.keys(fields).length || Object.keys(tileNames).length) writePaletteLocale(code, { format: 1, entities: fields, tiles: tileNames });
     }
 
     const { schemas, stats: schemaStats } = componentSchemas([...game.csharp(), ...game.engineCsharp()], game.colors);

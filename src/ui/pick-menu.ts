@@ -1,10 +1,12 @@
 // Context menu listing what lies under the cursor (entities, decals, the tile), topmost first. Hovering a row
 // reports the item so the map can highlight it; a click chooses it. Esc or a click outside closes it.
-import { describe, type StackItem } from "../editor/stack";
+import { describe, type ItemInfo, type StackItem, type StackKind } from "../editor/stack";
+import { language, t as translate } from "../i18n";
 import type { Pack } from "../pack/loader";
 import { paintFrame } from "./icons";
 
 const ICON = 32;
+const TAGS: Record<StackKind, string> = { entity: "Entity", tile: "Tile", decal: "Decal" };
 
 const STYLE = `
 .pick-menu { position: fixed; z-index: 1500; min-width: 240px; max-width: 360px; max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); font: 13px/1.35 var(--font); }
@@ -71,6 +73,7 @@ export class PickMenu {
         const root = document.createElement("div");
         root.className = "pick-menu";
         root.addEventListener("contextmenu", (e) => e.preventDefault());
+        const updateLabels: Array<() => void> = [];
         this.items.forEach((item, i) => {
             const info = describe(item, pack);
             const row = document.createElement("div");
@@ -82,14 +85,19 @@ export class PickMenu {
             text.className = "pm-text";
             const name = document.createElement("span");
             name.className = "pm-name";
-            name.textContent = info.name;
+            const setLabel = ({ name: label, suffix, description }: ItemInfo) => {
+                name.textContent = suffix ? `${label} (${suffix})` : label;
+                row.title = description ?? "";
+            };
+            setLabel(info);
+            updateLabels.push(() => setLabel(describe(item, pack)));
             const id = document.createElement("span");
             id.className = "pm-id";
             id.textContent = info.id;
             text.append(name, id);
             const tag = document.createElement("span");
             tag.className = `pm-tag ${info.tag}`;
-            tag.textContent = info.tag;
+            tag.textContent = translate(TAGS[info.tag]);
             row.append(icon, text, tag);
             row.addEventListener("pointerenter", () => this.move(i));
             row.addEventListener("click", (e) => this.choose(item, e));
@@ -99,6 +107,9 @@ export class PickMenu {
         });
         document.body.append(root);
         this.root = root;
+        void pack.loadDisplayText(language()).then(() => {
+            if (this.root === root) updateLabels.forEach((update) => update());
+        });
         const r = root.getBoundingClientRect();
         root.style.left = `${Math.max(0, Math.min(x, window.innerWidth - r.width))}px`;
         root.style.top = `${Math.max(0, Math.min(y, window.innerHeight - r.height))}px`;

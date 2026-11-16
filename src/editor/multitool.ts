@@ -7,6 +7,7 @@ import { t as translate } from "../i18n";
 import type { Check, DevicePack, SignalLink } from "../map/devices";
 import type { MapDocument } from "../map/document";
 import type { EntityPrototype } from "../pack/format";
+import type { Pack } from "../pack/loader";
 
 const fail = (reason: string): Check => ({ ok: false, reason });
 const exists = (doc: MapDocument, uid: number) => doc.proto(uid) !== undefined;
@@ -19,9 +20,9 @@ function protoOf(doc: MapDocument, uid: number, pack: DevicePack): EntityPrototy
 }
 
 /** "Air alarm (AirAlarm #12)", or the prototype id when the pack has no name for it. */
-export function entityLabel(doc: MapDocument, uid: number, pack: DevicePack): string {
-    const id = doc.proto(uid) || "entity";
-    const name = protoOf(doc, uid, pack)?.name;
+export function entityLabel(doc: MapDocument, uid: number, pack: DevicePack & Partial<Pick<Pack, "entityText" | "migrate">>): string {
+    const id = doc.proto(uid) || translate("Entity");
+    const name = pack.entityText?.(pack.migrate?.(id) ?? id).name ?? protoOf(doc, uid, pack)?.name;
     return name && name !== id ? `${name} (${id} #${uid})` : `${id} #${uid}`;
 }
 

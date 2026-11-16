@@ -1,7 +1,6 @@
 // Palette of placeable entities, tiles and decals of the open build, with search.
 // API contract shared by the editor (src/editor, src/main.ts); logic without DOM is in palette-search.ts.
 import { language, t as translate } from "../i18n";
-import type { PaletteText } from "../pack/format";
 import type { Frame, Pack } from "../pack/loader";
 import { Categories, FAVOURITES, loadCategories, parseCategories, saveCategories } from "./categories";
 import { ENTRY_TYPE, setDragged } from "./drag";
@@ -155,7 +154,6 @@ export class Palette {
     private current: PaletteChoice = null;
 
     private pack: Pack | null = null;
-    private text: PaletteText = {};
     private all: Record<EntryKind, PaletteEntry[]> = { entity: [], tile: [], decal: [] };
     private tab: EntryKind = "entity";
     private shown: Row[] = [];
@@ -280,7 +278,6 @@ export class Palette {
     /** Lists the placeable entities and tiles of a build; clears the choice. */
     setPack(pack: Pack): void {
         this.pack = pack;
-        this.text = {};
         this.fork = pack.manifest.fork.id;
         this.cats = loadCategories(this.fork);
         this.open = loadOpen(this.fork);
@@ -292,11 +289,11 @@ export class Palette {
         this.drawCats();
 
         const locale = language();
-        void pack.paletteText(locale).then((text) => {
-            if (this.pack !== pack || !Object.keys(text).length) return;
-            this.text = text;
-            this.all.entity = entityEntries(pack, text, locale);
-            if (this.tab === "entity") this.refilter();
+        void pack.loadDisplayText(locale).then(() => {
+            if (this.pack !== pack) return;
+            this.all.entity = entityEntries(pack, locale);
+            this.all.tile = tileEntries(pack, locale);
+            if (this.tab !== "decal") this.refilter();
             else this.drawCats();
         });
     }
@@ -463,7 +460,7 @@ export class Palette {
     /** Creates the rows of the visible range, drops the others and refreshes the highlight. */
     private draw(): void {
         const choice = this.current;
-        const description = this.tab === "entity" && choice?.kind === "entity" ? this.text[choice.id]?.description ?? "" : "";
+        const description = this.tab === "entity" && choice?.kind === "entity" ? this.pack?.entityText(choice.id).description ?? "" : "";
         if (this.description.textContent !== description) {
             this.description.textContent = description;
             this.description.hidden = !description;
@@ -754,7 +751,7 @@ export class Palette {
         if (!e.missing) {
             const fav = this.cats.has(FAVOURITES, e);
             items.push({ label: fav ? translate("Remove from favorites") : translate("Add to favorites"), run: () => this.toggleFavourite(e) });
-            const sub: MenuItem[] = this.cats.names.filter((n) => !this.cats.has(n, e)).map((name) => ({ label: name, run: () => this.addTo(name, e) }));
+            const sub: MenuItem[] = this.cats.names.filter((n) => !this.cats.has(n, e)).map((name) => ({ label: categoryLabel(name), run: () => this.addTo(name, e) }));
             sub.push({ label: translate("New category…"), run: () => this.newCategory((name) => this.addTo(name, e)) });
             items.push({ label: translate("Add to"), sub });
         }

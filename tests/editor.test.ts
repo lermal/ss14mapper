@@ -56,6 +56,37 @@ describe("snapping", () => {
     });
 });
 
+describe("edge structures on a tile", () => {
+    const goob = packFor("goob");
+    const shuttle = path.join(corpusRoot(), "goob/Resources/Maps/_Goobstation/Shuttles/consul.yml");
+
+    it.skipIf(!goob || !fs.existsSync(shuttle)).each(["Railing", "WallDirectional", "WindowDirectional", "WindowReinforcedDirectional"])(
+        "places %s on different sides of one tile",
+        (proto) => {
+            const original = fs.readFileSync(shuttle, "utf8");
+            const doc = new MapDocument(original);
+            const scene = new Scene(doc, goob!);
+            doc.onChange((c) => scene.apply(c));
+            const editor = new Editor(doc, scene, goob!, { visible: () => true });
+            const grid = scene.grids[0]!;
+            const [x, y] = [...scene.tileCells(grid)].find(([x, y]) => scene.anchoredAt(grid, x, y).length === 0)!;
+            const at = scene.toWorld(grid, x + 0.5, y + 0.5);
+
+            const first = editor.place(proto, ...at);
+            const second = editor.place(proto, ...at, Math.PI / 2);
+            expect(first).not.toBeNull();
+            expect(second).not.toBeNull();
+            expect(editor.place(proto, ...at, -3 * Math.PI / 2)).toBeNull();
+            expect(scene.anchoredAt(grid, x, y)).toEqual([first, second]);
+
+            doc.undo();
+            expect(scene.anchoredAt(grid, x, y)).toEqual([first]);
+            doc.undo();
+            expect(doc.serialize(NOW)).toBe(original);
+        },
+    );
+});
+
 describe("hit testing", () => {
     it("finds texture pixels of plain, rotated and scaled layers", () => {
         expect(texelAt(layer({}), 32, 32, 0, 0)).toEqual([16, 16]);
@@ -274,6 +305,7 @@ describe.skipIf(!original || !pack)("editor on Barnacle", () => {
         expect(doc.uids().length).toBe(before + 2);
         // not twice on one tile
         expect(editor.place("WallSolid", ...cell(5))).toBeNull();
+        expect(editor.place("WallSolid", ...cell(5), Math.PI / 2)).toBeNull();
         expect(doc.transform(placed!)).toEqual({ x: Math.floor(t.x + 5.2) + 0.5, y: Math.floor(t.y + 0.3) + 0.5, rotation: 0, parent: grid });
         doc.undo();
         expect(doc.uids().length).toBe(before);

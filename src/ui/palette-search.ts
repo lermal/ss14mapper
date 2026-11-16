@@ -1,6 +1,5 @@
 // Palette logic without DOM: entry lists of a pack (entities, tiles, decals), search with ranking, icon resolution.
 import type { Frame, Pack } from "../pack/loader";
-import type { PaletteText } from "../pack/format";
 
 export type EntryKind = "entity" | "tile" | "decal";
 
@@ -19,7 +18,11 @@ export interface PaletteEntry {
     hay: string;
 }
 
-const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
+function nameOrder(language: string) {
+    const collator = new Intl.Collator(language, { sensitivity: "base", numeric: true });
+    return (a: PaletteEntry, b: PaletteEntry) => collator.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+const byName = nameOrder("en");
 
 function entry(kind: EntryKind, id: string, name: string, suffix: string): PaletteEntry {
     const lid = id.toLowerCase();
@@ -27,32 +30,30 @@ function entry(kind: EntryKind, id: string, name: string, suffix: string): Palet
     return { kind, id, name, suffix, lid, lname, hay: `${lname}\n${lid}\n${suffix.toLowerCase()}` };
 }
 
-const byName = (a: PaletteEntry, b: PaletteEntry) => collator.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-
 /** Visible entity prototypes of a build, alphabetical by name (hidden ones are left out as in the spawn menu). */
-export function entityEntries(pack: Pack, text: PaletteText = {}, language = "en"): PaletteEntry[] {
+export function entityEntries(pack: Pack, language = "en"): PaletteEntry[] {
     const out: PaletteEntry[] = [];
     for (const [id, p] of Object.entries(pack.prototypes.entities)) {
         if (p.hidden) continue;
-        const localized = text[id];
-        const item = entry("entity", id, localized?.name || p.name || id, localized?.suffix ?? p.suffix ?? "");
-        if (localized?.description) item.description = localized.description;
-        if (localized?.name || localized?.suffix) item.hay += `\n${p.name.toLowerCase()}\n${p.suffix?.toLowerCase() ?? ""}`;
+        const { name, suffix, description } = pack.entityText(id);
+        const item = entry("entity", id, name, suffix ?? "");
+        if (description) item.description = description;
+        if (name !== p.name || suffix !== p.suffix) item.hay += `\n${p.name.toLowerCase()}\n${p.suffix?.toLowerCase() ?? ""}`;
         out.push(item);
     }
-    if (language === "en") return out.sort(byName);
-    const localizedOrder = new Intl.Collator(language, { sensitivity: "base", numeric: true });
-    return out.sort((a, b) => localizedOrder.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return out.sort(language === "en" ? byName : nameOrder(language));
 }
 
 /** Paintable tiles, alphabetical by name; "Space" is the eraser's job. */
-export function tileEntries(pack: Pack): PaletteEntry[] {
+export function tileEntries(pack: Pack, language = "en"): PaletteEntry[] {
     const out: PaletteEntry[] = [];
     for (const [id, t] of Object.entries(pack.prototypes.tiles)) {
         if (id === "Space") continue;
-        out.push(entry("tile", id, t.name || id, ""));
+        const item = entry("tile", id, pack.tileName(id), "");
+        if (item.name !== t.name) item.hay += `\n${t.name.toLowerCase()}`;
+        out.push(item);
     }
-    return out.sort(byName);
+    return out.sort(language === "en" ? byName : nameOrder(language));
 }
 
 /** Decal prototypes of the decal placer, alphabetical by id (those with `showMenu: false` are left out). */

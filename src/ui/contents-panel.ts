@@ -4,7 +4,7 @@
 // map to take it out there. Take out puts an entity on the tile of its container. Presets save
 // a container's contents and put them into others. Logic without DOM is in editor/contents.ts and
 // container-presets.ts.
-import { t as translate } from "../i18n";
+import { language, t as translate } from "../i18n";
 import { Contents, contentsKit, takeOutPlace, type ContentsKit, type Floor } from "../editor/contents";
 import type { ContainerInfo, MapPlace } from "../map/containers";
 import type { MapDocument } from "../map/document";
@@ -92,7 +92,7 @@ export interface ContentsTarget {
 const entries = new WeakMap<Pack, PaletteEntry[]>();
 function entityList(pack: Pack): PaletteEntry[] {
     let list = entries.get(pack);
-    if (!list) entries.set(pack, (list = entityEntries(pack)));
+    if (!list) entries.set(pack, (list = entityEntries(pack, language())));
     return list;
 }
 
@@ -237,8 +237,8 @@ export class ContentsPanel {
     }
 
     private name(proto: string): string {
-        const p = this.target!.pack.prototypes.entities[this.target!.pack.migrate(proto) ?? proto];
-        return p?.name || proto;
+        const { pack } = this.target!;
+        return pack.entityText(pack.migrate(proto) ?? proto).name;
     }
 
     private labelOf(uid: number): string {
