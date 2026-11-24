@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ss14mapper.forged.by/sitemap.xml

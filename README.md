@@ -21,6 +21,14 @@ npm run build    # static site in dist/
 
 Tests that read real maps use a corpus outside the repository; see `tools/corpus.mjs`. Set `SS14MAPPER_ENGINE` to a RobustToolbox checkout to also compare the noise port with the engine's source.
 
+## Public site hosting
+
+`npm run build` writes the editor, static mapping guide, robots file, sitemap and share image to `dist/`, then checks the public HTML and metadata. Serve that directory with nginx's `mime.types`. Include [the query rules](tools/nginx/public-discovery-http.conf) under `http` and [the public routes](tools/nginx/public-discovery-server.conf) in the mapper's `server` block. Merge them with existing locations and retain the site's HTTPS redirect, API, asset pack and hashed asset handling. If security headers are inherited from the server block, explicitly preserve them in the locations that set their own headers.
+
+If a Cloudflare Cache Rule overrides origin caching or ignores query strings, configure it to bypass cache for the editor and guide HTML paths, including the aliases. Keep Cloudflare's managed robots configuration and verify that its final response includes the sitemap directive from the origin. The editor's `noindex` header tells crawlers how to index state URLs. Anyone who has such a URL can still request it.
+
+After applying the rules, check the origin and the Cloudflare response. Request `/?fork=upstream&open=`, then `/` and `/?fork=upstream`. Only the first should return `X-Robots-Tag: noindex` and `Cache-Control: private, no-store`. Check that `/index.html?map=example` redirects to `/?map=example`, `/guide` redirects to `/guide/` and nonexistent routes and assets return HTTP 404.
+
 ## Interface translations
 
 Copy [`src/locales/en.json`](src/locales/en.json) to `src/locales/<language-tag>.json` (for example, `de.json`).

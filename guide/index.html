@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>How to Edit Space Station 14 Maps — SS14 Mapper</title>
+    <meta name="description" content="Learn how to choose a Space Station 14 build, open or create a YAML map, save it in your browser, and download it for the game.">
+    <link rel="canonical" href="https://ss14mapper.forged.by/guide/">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="SS14 Mapper">
+    <meta property="og:title" content="How to Edit Space Station 14 Maps — SS14 Mapper">
+    <meta property="og:description" content="Choose a compatible build, open or create a YAML map, and export it from SS14 Mapper.">
+    <meta property="og:url" content="https://ss14mapper.forged.by/guide/">
+    <meta property="og:image" content="https://ss14mapper.forged.by/social-card.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="SS14 Mapper — Space Station 14 map editor.">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="stylesheet" href="/src/ui/theme.css">
+    <link rel="stylesheet" href="/src/ui/guide.css">
+</head>
+<body class="guide">
+    <header class="guide-header"><a href="/">SS14 Mapper</a></header>
+    <main class="guide-main">
+        <h1>How to edit Space Station 14 maps</h1>
+        <p>Use SS14 Mapper to open a station, shuttle or other Space Station 14 map, or create a new one in your browser.</p>
+        <nav aria-label="On this page">
+            <ul>
+                <li><a href="#open">Choose a build and open a map</a></li>
+                <li><a href="#create">Create a map</a></li>
+                <li><a href="#export">Save and download a YAML file</a></li>
+                <li><a href="#troubleshoot">Troubleshoot an import</a></li>
+            </ul>
+        </nav>
+
+        <section aria-labelledby="open">
+            <h2 id="open">Choose a build and open a map</h2>
+            <ol>
+                <li>Find a Space Station 14 map or grid saved as a <code>.yml</code> or <code>.yaml</code> file. Game repositories typically keep these maps under <code>Resources/Maps/</code>. If you start on a GitHub file page, download the raw file.</li>
+                <li>In <strong>Build</strong>, select the fork the map came from. The build supplies the tiles and entity prototypes the editor uses to display the map.</li>
+                <li>Choose <strong>Open file…</strong> and select the map, or drop the file onto the start screen. The editor may choose a different build if it recognizes more of the file’s prototypes. Check the build shown in the editor before making changes.</li>
+            </ol>
+        </section>
+
+        <section aria-labelledby="create">
+            <h2 id="create">Create a map</h2>
+            <ol>
+                <li>Choose <strong>New map…</strong> on the start screen. Pick a type, enter a name and confirm the build.</li>
+                <li>If you want to start with a floor, choose a tile, width and height for it. Click <strong>Create</strong>.</li>
+                <li>Use the editor’s palette to place tiles and entities from the chosen build.</li>
+            </ol>
+        </section>
+
+        <section aria-labelledby="export">
+            <h2 id="export">Save and download a YAML file</h2>
+            <p>Use <strong>File → Save</strong> to keep your edits in the editor’s library and reopen the map from <strong>Recent</strong> in the same browser profile. Use <strong>File → Download .yml</strong> to export the current map as a file you can share or put into your game project. To test it in-game, use the corresponding fork.</p>
+        </section>
+
+        <section aria-labelledby="troubleshoot">
+            <h2 id="troubleshoot">Troubleshoot an import</h2>
+            <ul>
+                <li><strong>The file fails to open.</strong> Check that you downloaded the raw map or grid YAML. A repository’s web page and other YAML files, such as prototype definitions, are different file types.</li>
+                <li><strong>Tiles or entities are missing.</strong> Check the selected build against the fork and version that produced the map. The build may lack prototypes used by the file.</li>
+                <li><strong>The build list is unavailable.</strong> Reload the editor when your connection and the build service are available.</li>
+                <li><strong>A map disappeared from Recent.</strong> Check the browser profile where you saved it. If that site data was cleared, open a downloaded copy.</li>
+            </ul>
+        </section>
+    </main>
+    <footer class="guide-footer"><a href="/">Back to the map editor <span aria-hidden="true">→</span></a></footer>
+</body>
+</html>

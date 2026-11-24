@@ -39,10 +39,14 @@ function localData(): Plugin {
 }
 
 export default defineConfig({
+    appType: "mpa",
     plugins: [localData()],
     build: {
         target: "es2022",
         sourcemap: true,
+        rolldownOptions: {
+            input: [path.resolve(import.meta.dirname, "index.html"), path.resolve(import.meta.dirname, "guide/index.html")],
+        },
     },
     server: {
         host: "127.0.0.1",

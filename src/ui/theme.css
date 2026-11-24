@@ -1,7 +1,3 @@
-// Shared look of the editor: colour and size tokens as CSS variables, and base styles for controls.
-// Components use the variables (`var(--panel)`) in their own scoped styles instead of literal colours.
-
-const TOKENS = `
 :root {
   --bg: #0f1216;
   --map-bg: #0b0d10;
@@ -44,16 +40,5 @@ input[type="checkbox"] { accent-color: var(--accent); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 2px solid var(--panel); }
 ::-webkit-scrollbar-track { background: transparent; }
-`;
 
-let installed = false;
-
-/** Adds the tokens and base styles to the page once. */
-export function installTheme(): void {
-    if (installed || typeof document === "undefined") return;
-    installed = true;
-    const el = document.createElement("style");
-    el.dataset.theme = "ss14mapper";
-    el.textContent = TOKENS;
-    document.head.prepend(el);
-}
+[hidden] { display: none !important; }

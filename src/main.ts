@@ -30,10 +30,8 @@ import { Shell, type Fork } from "./ui/shell";
 import { ShortcutsOverlay } from "./ui/shortcuts";
 import { StartScreen } from "./ui/start-screen";
 import { Account } from "./ui/account";
-import { installTheme } from "./ui/theme";
 import { showToast } from "./ui/toast";
 
-installTheme();
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = $("app");
@@ -673,6 +671,7 @@ fileInput.addEventListener("change", () => {
 document.addEventListener("dragover", (e) => e.preventDefault());
 document.addEventListener("drop", (e) => {
     e.preventDefault();
+    if (!forks.length && !controller.current) return;
     void openFile(e.dataTransfer?.files[0]);
 });
 new ResizeObserver(() => map.paintNow()).observe($("view"));
@@ -706,14 +705,15 @@ window.addEventListener("focus", () => {
 });
 
 // ---- start
+let buildsError = "";
 try {
     forks = await loadForks();
 } catch (e) {
-    showToast((e as Error).message);
+    buildsError = (e as Error).message;
 }
 const initial = forks.some((f) => f.id === params.get("fork")) ? params.get("fork")! : forks[0]?.id ?? "";
 shell.setForks(forks, initial);
-start.setForks(forks, initial);
+start.setForks(forks, initial, buildsError);
 await refreshLibrary();
 /** Opens a library record named by the address (a reload); false when it is gone. */
 async function reopenId(id: string): Promise<boolean> {
