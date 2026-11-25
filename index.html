@@ -3,19 +3,19 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SS14 Mapper — Space Station 14 Map Editor</title>
-    <meta name="description" content="Open, create and edit Space Station 14 YAML maps in your browser. Choose a build, work on a shuttle or station, and download your map for the game.">
+    <title>SS14 Mapper: Space Station 14 Map Editor</title>
+    <meta name="description" content="Edit Space Station 14 maps in your browser. Open a YAML file or create a map, then download your changes for the game.">
     <link rel="canonical" href="https://ss14mapper.forged.by/">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="SS14 Mapper">
-    <meta property="og:title" content="SS14 Mapper — Space Station 14 Map Editor">
-    <meta property="og:description" content="Open, create and edit Space Station 14 YAML maps in your browser.">
+    <meta property="og:title" content="SS14 Mapper: Space Station 14 Map Editor">
+    <meta property="og:description" content="Edit Space Station 14 maps in your browser. Open a YAML file or create a map, then download your changes for the game.">
     <meta property="og:url" content="https://ss14mapper.forged.by/">
     <meta property="og:image" content="https://ss14mapper.forged.by/social-card.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="SS14 Mapper — Space Station 14 map editor.">
+    <meta property="og:image:alt" content="SS14 Mapper: Space Station 14 map editor.">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="stylesheet" href="/src/ui/theme.css">
     <link rel="stylesheet" href="/src/ui/start-screen.css">
@@ -25,17 +25,17 @@
     <div id="start" class="start">
         <header class="st-top">SS14 Mapper</header>
         <main>
+            <section class="st-intro" lang="en" aria-labelledby="start-title">
+                <h1 id="start-title">Space Station 14 map editor</h1>
+                <p class="st-lead">Choose your build, then open a YAML file or create a map.</p>
+                <a href="/guide/"><span id="start-guide-label">Mapping guide</span></a>
+            </section>
             <div class="st-cols">
                 <div class="st-main">
-                    <section class="st-intro" lang="en" aria-labelledby="start-title">
-                        <h1 id="start-title">Space Station 14 map editor</h1>
-                        <p class="st-lead">Open, create and edit Space Station 14 YAML maps in your browser. Choose a build, work on a shuttle or station, and download your map for the game.</p>
-                        <a href="/guide/">Read the mapping guide <span aria-hidden="true">→</span></a>
-                    </section>
                     <p id="start-status" class="st-note" role="status" lang="en">Loading editor and builds…</p>
-                    <noscript><p>The editor needs JavaScript.</p></noscript>
+                    <noscript><p>Enable JavaScript to use the editor.</p></noscript>
                 </div>
-                <aside class="st-library"></aside>
+                <aside class="st-library" aria-labelledby="recent-title"></aside>
             </div>
         </main>
     </div>

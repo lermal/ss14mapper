@@ -34,6 +34,12 @@ export class StartScreen {
 
     constructor(readonly container: HTMLElement, private readonly hooks: StartHooks) {
         container.classList.add("start");
+        const intro = container.querySelector<HTMLElement>(".st-intro")!;
+        intro.lang = language();
+        intro.querySelector<HTMLElement>("#start-title")!.textContent = translate("Space Station 14 map editor");
+        intro.querySelector<HTMLElement>(".st-lead")!.textContent = translate("Choose your build, then open a YAML file or create a map.");
+        intro.querySelector<HTMLElement>("#start-guide-label")!.textContent = translate("Mapping guide");
+        intro.querySelector<HTMLAnchorElement>("a")!.href = language() === "ru" ? "/guide/ru/" : "/guide/";
         const top = (this.header = container.querySelector<HTMLElement>(".st-top")!);
         top.replaceChildren();
         const locale = h("select", "st-language");
@@ -62,8 +68,10 @@ export class StartScreen {
         const make = button("st-new", translate("New map…"), "", () => hooks.newMap());
         make.id = "start-new";
         const actions = h("div", "st-actions");
-        actions.append(make, open);
-        drop.append(icon(ICON.upload, 40), h("span", "", translate("Drop a .yml map here")), actions);
+        actions.append(open, make);
+        const dropHint = h("p", "st-drop-hint");
+        dropHint.append(icon(ICON.upload, 20), h("span", "", translate("Drop a .yml map here")));
+        drop.append(actions, dropHint);
         // the page takes the drop itself; the zone only shows where it goes
         drop.addEventListener("dragenter", () => drop.classList.add("over"));
         drop.addEventListener("dragleave", (e) => {
@@ -71,6 +79,7 @@ export class StartScreen {
         });
         drop.addEventListener("drop", () => drop.classList.remove("over"));
         this.error = h("p", "st-error");
+        this.error.setAttribute("role", "alert");
         this.status = container.querySelector<HTMLElement>("#start-status")!;
         this.status.removeAttribute("lang");
         this.status.textContent = translate("Loading editor and builds…");
@@ -79,16 +88,17 @@ export class StartScreen {
         this.controls = [this.fork, open, make];
         for (const control of this.controls) control.disabled = true;
 
-        this.recent = h("div");
-        this.recent.style.cssText = "display: flex; flex-direction: column; gap: 10px";
+        this.recent = h("div", "st-recents");
         const heads = h("div", "st-heads");
-        heads.append(h("span", "st-head", translate("Recent")), button("st-link", translate("Manage…"), "", () => hooks.manage()));
+        const heading = h("h2", "st-head", translate("Recent"));
+        heading.id = "recent-title";
+        heads.append(heading, button("st-link", translate("Manage…"), "", () => hooks.manage()));
 
-        aside.append(heads, this.recent);
+        aside.append(heads, h("p", "st-library-note", translate("Saved in this browser")), this.recent);
         const footer = h("footer", "st-footer");
-        const about = button("st-link", translate("AI in development"), "", () => hooks.about());
+        const about = button("st-link", translate("About SS14 Mapper"), "", () => hooks.about());
         about.setAttribute("aria-haspopup", "dialog");
-        footer.append(about, creditLink("site-credit"));
+        footer.append(button("st-link", translate("Keyboard shortcuts"), "", () => hooks.shortcuts()), about, creditLink("site-credit"));
         container.append(footer);
     }
 
@@ -113,13 +123,17 @@ export class StartScreen {
     /** Lists the maps of the library, most recently used first. */
     setRecent(list: LibraryEntry[]): void {
         if (!list.length) {
-            this.recent.replaceChildren(h("div", "st-none", translate("No maps yet")));
+            const empty = h("div", "st-none");
+            empty.append(h("p", "st-empty-title", translate("No maps yet")), h("p", "", translate("Open or create a map, then save it to keep it here.")));
+            this.recent.replaceChildren(empty);
             return;
         }
         const items = list.slice(0, SHOWN).map((m) => {
             const fork = this.forks.find((f) => f.id === m.build)?.name ?? m.build;
             const b = button("st-recent", h("span", "", m.name), translate("Open {{1}}", { 1: m.name }), () => this.hooks.reopen(m));
-            b.append(h("span", "st-meta", `${fork} · ${formatWhen(m.savedAt)} · ${formatSize(m.size)}`));
+            const meta = h("span", "st-meta");
+            meta.append(h("span", "", fork), h("span", "", formatWhen(m.savedAt)), h("span", "", formatSize(m.size)));
+            b.append(meta);
             return b;
         });
         if (list.length > SHOWN) items.push(button("st-link", translate("All {{1}} maps…", { 1: list.length }), "", () => this.hooks.manage()));

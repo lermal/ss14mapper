@@ -26,6 +26,7 @@ import type { Session } from "./editor/controller";
 import type { BuildIndex, ParallaxData } from "./pack/format";
 import { Palette } from "./ui/palette";
 import { ParallaxPicker } from "./ui/parallax-picker";
+import { Panels } from "./ui/panels";
 import { Shell, type Fork } from "./ui/shell";
 import { ShortcutsOverlay } from "./ui/shortcuts";
 import { StartScreen } from "./ui/start-screen";
@@ -45,6 +46,7 @@ for (const [id, label] of [["rail", "Tools"], ["palette", "Palette"], ["view", "
 }
 const map = new MapCanvas(canvasEl, $<HTMLCanvasElement>("overlay"));
 const palette = new Palette($("palette"));
+const panels = new Panels({ palette: $("palette"), properties: propertiesEl, rail: $("rail"), optionsbar: $("optionsbar") });
 const inspector = new Inspector($("inspector"));
 const linkPanel = new LinkPanel($("link-panel"));
 const storage = browserStorage();
@@ -60,7 +62,7 @@ const controller = new EditorController({
     inspector,
     linkPanel,
     properties: (shown) => {
-        propertiesEl.hidden = !shown;
+        panels.setPropertiesAvailable(shown);
     },
     prefs: storage,
     parallax,
@@ -177,6 +179,7 @@ const shell = new Shell(
     keymap,
     {
         setFork,
+        panels: () => panels.items(),
         recent: (): MenuItem[] => {
             const items: MenuItem[] = entries.slice(0, RECENT_MENU).map((m) => ({
                 label: m.name,

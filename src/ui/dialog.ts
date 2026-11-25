@@ -6,22 +6,22 @@ import { button, h, icon, ICON } from "./icons";
 
 const STYLE = `
 .dlg-backdrop { position: fixed; inset: 0; z-index: 1800; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, 0.55); }
-.dlg { width: min(var(--dlg-w, 440px), 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 20px 16px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow); font: 13px/1.45 var(--font); }
+.dlg { width: min(var(--dlg-w, 440px), 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 24px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow); font: 13px/1.45 var(--font); }
 .dlg { position: relative; }
-.dlg h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.dlg h2 { margin: 0 0 16px; padding-right: 24px; font-size: 18px; font-weight: 600; }
 .dlg h3 { margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
-.dlg .dlg-x { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted); }
+.dlg .dlg-x { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted); }
 .dlg .dlg-x:hover { background: var(--raised); color: var(--text); }
 .dlg p { margin: 0 0 6px; color: var(--text-2); }
 .dlg .dlg-muted { color: var(--muted); }
-.dlg .dlg-buttons { display: flex; gap: 8px; margin-top: 16px; }
+.dlg .dlg-buttons { display: flex; gap: 8px; margin-top: 24px; }
 .dlg .dlg-buttons .grow { flex: 1; }
 .dlg button.btn { height: var(--control-h); padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); color: var(--text); }
 .dlg button.btn:hover { border-color: var(--border-strong); }
 .dlg button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .dlg button.btn.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
 .dlg button.btn:disabled { opacity: 0.5; cursor: default; }
-.dlg .dlg-field { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+.dlg .dlg-field { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; color: var(--text-2); font-size: 13px; }
 .dlg .dlg-field input[type=text], .dlg .dlg-field input[type=number], .dlg .dlg-field select { height: var(--control-h); box-sizing: border-box; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--input); color: var(--text); font-size: 13px; }
 .dlg .dlg-error { min-height: 1.45em; margin: 8px 0 0; color: var(--danger-text); }
 `;

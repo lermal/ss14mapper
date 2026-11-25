@@ -5,11 +5,18 @@ const STYLE = `
 .loading { position: fixed; inset: 0; z-index: 1500; display: flex; align-items: center; justify-content: center; background: rgba(11, 13, 16, 0.82); }
 .loading[hidden] { display: none; }
 .loading .ld-box { display: flex; align-items: center; gap: 14px; min-width: 260px; max-width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px 20px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow); font: 13px/1.4 var(--font); color: var(--text); }
-.loading .ld-spin { flex: none; width: 22px; height: 22px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: ld-spin 0.8s linear infinite; }
+.loading .ld-tiles { flex: none; display: grid; grid-template-columns: repeat(2, 8px); gap: 3px; }
+.loading .ld-tiles span { width: 8px; height: 8px; background: var(--accent-text); }
+.loading .ld-tiles span:nth-child(2) { animation-delay: 0.15s; }
+.loading .ld-tiles span:nth-child(3) { animation-delay: 0.3s; }
+.loading .ld-tiles span:nth-child(4) { animation-delay: 0.45s; }
 .loading .ld-text { min-width: 0; display: flex; flex-direction: column; }
 .loading .ld-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loading .ld-step { color: var(--muted); }
-@keyframes ld-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .loading .ld-tiles span { animation: ld-tile 1.2s ease-in-out infinite alternate; }
+}
+@keyframes ld-tile { from { opacity: 0.3; } to { opacity: 1; } }
 `;
 
 export class Loading {
@@ -30,7 +37,10 @@ export class Loading {
         this.name = h("span", "ld-name");
         this.stepText = h("span", "ld-step");
         text.append(this.name, this.stepText);
-        box.append(h("span", "ld-spin"), text);
+        const tiles = h("span", "ld-tiles");
+        tiles.setAttribute("aria-hidden", "true");
+        tiles.append(...Array.from({ length: 4 }, () => h("span")));
+        box.append(tiles, text);
         this.root.append(box);
         document.body.append(this.root);
     }

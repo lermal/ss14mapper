@@ -45,7 +45,7 @@ export default defineConfig({
         target: "es2022",
         sourcemap: true,
         rolldownOptions: {
-            input: [path.resolve(import.meta.dirname, "index.html"), path.resolve(import.meta.dirname, "guide/index.html")],
+            input: [path.resolve(import.meta.dirname, "index.html"), path.resolve(import.meta.dirname, "guide/index.html"), path.resolve(import.meta.dirname, "guide/ru/index.html")],
         },
     },
     server: {

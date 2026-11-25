@@ -9,16 +9,14 @@ const ICON = 32;
 const TAGS: Record<StackKind, string> = { entity: "Entity", tile: "Tile", decal: "Decal" };
 
 const STYLE = `
-.pick-menu { position: fixed; z-index: 1500; min-width: 240px; max-width: 360px; max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); font: 13px/1.35 var(--font); }
+.pick-menu { position: fixed; z-index: 1500; width: min(320px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; box-sizing: border-box; padding: 4px; background: var(--panel); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); font: 13px/1.35 var(--font); }
 .pick-menu .pm-row { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px; border-radius: var(--radius-s); cursor: pointer; white-space: nowrap; }
-.pick-menu .pm-row:hover, .pick-menu .pm-row.cursor { background: var(--accent-soft); }
+.pick-menu .pm-row:hover, .pick-menu .pm-row.cursor { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent-text); }
 .pick-menu .pm-icon { flex: none; width: ${ICON}px; height: ${ICON}px; image-rendering: pixelated; }
 .pick-menu .pm-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pick-menu .pm-name { overflow: hidden; text-overflow: ellipsis; }
-.pick-menu .pm-id { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
-.pick-menu .pm-tag { flex: none; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--border-strong); border-radius: var(--radius-s); padding: 0 4px; }
-.pick-menu .pm-tag.decal { color: var(--link-line); }
-.pick-menu .pm-tag.tile { color: var(--selection); }
+.pick-menu .pm-id { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.pick-menu .pm-tag { flex: none; font-size: 11px; color: var(--muted); }
 `;
 
 let styleAdded = false;
@@ -85,9 +83,9 @@ export class PickMenu {
             text.className = "pm-text";
             const name = document.createElement("span");
             name.className = "pm-name";
-            const setLabel = ({ name: label, suffix, description }: ItemInfo) => {
+            const setLabel = ({ name: label, id, suffix, description }: ItemInfo) => {
                 name.textContent = suffix ? `${label} (${suffix})` : label;
-                row.title = description ?? "";
+                row.title = [name.textContent, id, description].filter(Boolean).join("\n");
             };
             setLabel(info);
             updateLabels.push(() => setLabel(describe(item, pack)));

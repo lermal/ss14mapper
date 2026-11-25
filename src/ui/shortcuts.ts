@@ -77,7 +77,7 @@ const STYLE = `
 .keys-sheet .ks-close { width: 30px; height: 30px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text); display: grid; place-items: center; }
 .keys-sheet .ks-btn:hover, .keys-sheet .ks-close:hover { background: var(--accent-soft); }
 .keys-sheet .ks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 22px; }
-.keys-sheet h3 { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.keys-sheet h3 { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .keys-sheet .ks-row { display: flex; align-items: center; gap: 10px; min-height: 28px; }
 .keys-sheet .ks-row > span { flex: 1; }
 .keys-sheet kbd { padding: 2px 7px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--raised); font: 12px var(--font); white-space: nowrap; }

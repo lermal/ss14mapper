@@ -147,7 +147,10 @@ export class ContentsPanel {
     private renaming: string | null = null;
     private presets: Presets | null = null;
     private presetsFork = "";
-    private open = true;
+    private open = (() => {
+        try { return globalThis.localStorage?.getItem("ss14mapper.inspector.contents") !== "false"; }
+        catch { return true; }
+    })();
 
     constructor() {
         addStyle();
@@ -210,7 +213,10 @@ export class ContentsPanel {
 
         const root = h("details");
         root.open = this.open;
-        root.addEventListener("toggle", () => (this.open = root.open));
+        root.addEventListener("toggle", () => {
+            this.open = root.open;
+            try { globalThis.localStorage?.setItem("ss14mapper.inspector.contents", String(this.open)); } catch { /* Session-only preference. */ }
+        });
         const summary = h("summary", "", translate("Contents "));
         const total = boxes.reduce((n, b) => n + b.contents.length, 0);
         summary.append(h("span", "ins-sub", String(total)));

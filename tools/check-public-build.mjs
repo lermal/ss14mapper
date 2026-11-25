@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 const origin = "https://ss14mapper.forged.by";
 const dist = new URL("../dist/", import.meta.url);
-const routes = ["/", "/guide/"];
+const routes = ["/", "/guide/", "/guide/ru/"];
 const read = (path) => readFile(new URL(path, dist), "utf8");
 
 function onlyMatch(html, pattern, label) {
@@ -41,7 +41,12 @@ for (const route of routes) {
         assert.match(html, /<div id="start" class="start">/);
         assert.match(html, /<script type="module"/);
     } else {
-        assert.match(html, /<a href="\/"/);
+        const language = route === "/guide/ru/" ? "ru" : "en";
+        assert.match(html, new RegExp(`<html lang="${language}">`));
+        assert.match(html, new RegExp(`<a href="/\\?lang=${language}"`));
+        for (const [code, path] of [["en", "/guide/"], ["ru", "/guide/ru/"]]) {
+            assert.ok(html.includes(`<link rel="alternate" hreflang="${code}" href="${origin}${path}">`), `${route} alternate ${code}`);
+        }
         assert.doesNotMatch(html, /<script\b|rel="modulepreload"/);
     }
 }

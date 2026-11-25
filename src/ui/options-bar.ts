@@ -55,26 +55,38 @@ const RULER_SNAPS: ReadonlyArray<[RulerSnap, string]> = [["centers", translate("
 const PIPE_LAYERS: ReadonlyArray<[string, string]> = [["auto", translate("Auto")], ["0", translate("Primary")], ["1", translate("Secondary")], ["2", translate("Tertiary")]];
 
 const STYLE = `
-.optionsbar { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; box-sizing: border-box; background: var(--panel-2); border-bottom: 1px solid var(--border); flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
-.optionsbar .ob-name { font-weight: 600; color: var(--text-2); min-width: 80px; }
+.optionsbar { display: flex; flex-direction: column; flex: none; min-height: 36px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.optionsbar .ob-line { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 0 12px; box-sizing: border-box; overflow-x: auto; scrollbar-width: thin; white-space: nowrap; }
+.optionsbar .ob-details { border-top: 1px solid var(--border); background: var(--panel-2); }
+.optionsbar .ob-details .ob-group:first-child { border: 0; padding-inline-start: 0; margin-inline-start: 0; }
+.optionsbar .ob-group.ob-actions { gap: 2px; flex: 0 1 auto; min-width: 0; }
+.optionsbar .ob-selection-count { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; margin-inline-end: 8px; }
+.optionsbar .ob-material.ob-leading { border: 0; padding-inline-start: 0; margin-inline-start: 0; }
+.optionsbar .ob-material .ob-muted { flex: none; }
+.optionsbar .ob-holding { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+
+.optionsbar .ob-name { font-weight: 600; color: var(--text-2); min-width: 80px; flex: none; }
 .optionsbar .ob-sep { width: 1px; height: 20px; background: var(--border); flex: none; }
 .optionsbar .ob-muted { color: var(--muted); }
 .optionsbar .ob-grow { flex: 1; }
-.optionsbar .seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; flex: none; }
-.optionsbar .seg button { height: 26px; padding: 0 10px; border: 0; background: var(--raised); color: var(--text); }
-.optionsbar .seg button + button { border-left: 1px solid var(--border); }
-.optionsbar .seg button[aria-pressed="true"] { background: #2a3a58; color: #fff; }
-.optionsbar .seg button:hover:not(:disabled) { filter: brightness(1.18); }
+.optionsbar .ob-group { display: flex; align-items: center; gap: 8px; flex: none; padding-inline-start: 12px; margin-inline-start: 4px; border-inline-start: 1px solid var(--border); }
+.optionsbar .ob-material { min-width: 0; max-width: 260px; }
+.optionsbar .ob-material canvas { flex: none; }
+.optionsbar .ob-material-name { overflow: hidden; text-overflow: ellipsis; }
+.optionsbar .ob-fill { min-height: 26px; }
+.optionsbar .ob-fill:has(input:disabled) { color: var(--faint); }
+.optionsbar .ob-setting { color: var(--muted); }
+.optionsbar .ob-setting select { max-width: 160px; padding-inline: 6px; }
+.optionsbar .seg { display: flex; gap: 2px; flex: none; }
+.optionsbar .seg button { height: 26px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 2px 2px 0 0; background: transparent; color: var(--muted); }
+.optionsbar .seg button[aria-pressed="true"] { background: var(--accent-soft); border-bottom-color: var(--accent-text); color: var(--text); }
+.optionsbar .seg button:hover:not(:disabled) { background: var(--raised); color: var(--text); }
 .optionsbar .seg button:disabled { color: var(--faint); cursor: default; }
-.optionsbar .chip { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px 0 4px; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); min-width: 0; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
-.optionsbar .chip.text { padding-left: 10px; }
-.optionsbar .chip.empty { border-style: dashed; border-color: #4b5566; background: transparent; color: var(--muted); padding-left: 10px; }
-.optionsbar .chip canvas { flex: none; }
-.optionsbar .btn { height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); color: var(--text); flex: none; }
+.optionsbar .btn { height: 28px; padding: 0 10px; border: 0; border-radius: 2px; background: transparent; color: var(--text); flex: none; }
 .optionsbar .btn.small { height: 26px; }
-.optionsbar .btn:hover:not(:disabled) { filter: brightness(1.18); }
+.optionsbar .btn:hover:not(:disabled) { background: var(--raised); color: var(--text); }
 .optionsbar .btn:disabled { color: var(--faint); cursor: default; }
-.optionsbar .btn.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+.optionsbar .btn.danger:not(:disabled):hover { background: var(--danger-bg); color: var(--danger-text); }
 .optionsbar label { display: flex; align-items: center; gap: 6px; flex: none; }
 .optionsbar input[type=text] { width: 46px; height: 24px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--raised); color: var(--text); }
 .optionsbar input[type=color] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--border); background: var(--raised); }
@@ -120,51 +132,72 @@ export class OptionsBar {
         const c = this.c;
         const bar = this.container;
         const def = TOOLS.find((t) => t.id === o.tool)!;
+        const details: Node[] = [];
         const parts: Node[] = [h("span", "ob-name", def.label), h("span", "ob-sep")];
         const muted = (t: string) => h("span", "ob-muted", t);
         const selectionTool = o.tool === "select" || o.tool === "marquee" || o.tool === "wand";
-        if (selectionTool) parts.push(muted(translate("Pick")), seg(translate("What to select"), FILTERS, o.filter, (f) => c.setFilter(f)));
+        if (selectionTool) parts.push(choose(translate("Pick"), FILTERS, o.filter, (f) => c.setFilter(f)));
         // the selected decals: the brush's fields, set on all of them; Snap also says how they move
-        if (selectionTool && o.decals) parts.push(h("span", "ob-sep"), ...this.decalFields(o, o.decals, true));
-        if (o.tool === "marquee") parts.push(seg(translate("Marquee shape"), MARQUEE_SHAPES.map(([v, l]) => [v, l]), o.marquee, (m) => c.setMarquee(m)), muted(translate("Shift: add, Alt: subtract")));
-        if (o.tool === "wand") parts.push(check(translate("Contiguous"), o.contiguous, (on) => c.setContiguous(on), translate("Ctrl+click inverts")));
-        if (o.tool === "brush") parts.push(...this.brush(o, pack));
-        if (o.tool === "shapes") {
-            parts.push(
-                seg(translate("Shape"), SHAPE_KINDS.map(([v, l]) => [v, l]), o.shape, (k) => c.setShapeKind(k)),
-                seg(translate("Fill"), [["outline", translate("Outline")], ["filled", translate("Filled")]], o.filled ? "filled" : "outline", (v) => c.setFilled(v === "filled"), o.shape === "line"),
-            );
-            const with_ = h("span", "ob-muted");
-            with_.style.cssText = "display: flex; align-items: center; gap: 6px";
-            if (o.choice && pack) {
-                const name = h("span", "", choiceName(o.choice, pack));
-                name.style.color = "var(--text)";
-                with_.append(translate("with"), spriteCanvas(pack, choiceIcon(o.choice, pack), 20), name);
-            } else with_.append(translate("Nothing chosen"));
-            parts.push(with_);
+        if (selectionTool && o.decals) details.push(...this.decalFields(o, o.decals, true));
+        if (o.tool === "marquee") {
+            const shape = group(seg(translate("Marquee shape"), MARQUEE_SHAPES.map(([v, l]) => [v, l]), o.marquee, (m) => c.setMarquee(m)));
+            shape.title = translate("Shift: add, Alt: subtract");
+            parts.push(shape);
         }
-        if (o.tool === "eraser") parts.push(muted(translate("Erase")), seg(translate("What to erase"), ERASE, o.erase, (k) => c.setEraseKind(k)));
-        if (o.tool === "eyedropper") parts.push(muted(translate("Sample from")), seg(translate("Sample from"), SAMPLE, o.sample, (k) => c.setSampleFrom(k)));
-        if (o.tool === "ruler") parts.push(muted(translate("Snap")), seg(translate("Ruler snap"), RULER_SNAPS, o.rulerSnap, (snap) => c.setRulerSnap(snap)));
+        if (o.tool === "wand") parts.push(group(check(translate("Contiguous"), o.contiguous, (on) => c.setContiguous(on), translate("Ctrl+click inverts"))));
+        if (o.tool === "brush") {
+            parts.push(...this.brush(o, pack));
+            if (o.choice?.kind === "decal" && pack) {
+                details.push(...this.decalFields(o, { count: 1, props: o.decal, mixed: NOT_MIXED }, false));
+                details.push(group(check(translate("Defaults"), o.auto, (on) => c.setDecalAuto(on), translate("Use the decal's default snap, color and cleanable"))));
+            }
+        }
+        if (o.tool === "shapes") {
+            parts.push(seg(translate("Shape"), SHAPE_KINDS.map(([v, l]) => [v, l]), o.shape, (k) => c.setShapeKind(k)));
+            const fill = check(translate("Filled"), o.filled, (on) => c.setFilled(on));
+            fill.classList.add("ob-group", "ob-fill");
+            fill.querySelector("input")!.disabled = o.shape === "line";
+            parts.push(fill);
+            parts.push(material(o.choice, pack));
+        }
+        if (o.tool === "eraser") parts.push(choose(translate("Erase"), ERASE, o.erase, (k) => c.setEraseKind(k)));
+        if (o.tool === "eyedropper") parts.push(choose(translate("Sample from"), SAMPLE, o.sample, (k) => c.setSampleFrom(k)));
+        if (o.tool === "ruler") parts.push(choose(translate("Snap"), RULER_SNAPS, o.rulerSnap, (snap) => c.setRulerSnap(snap)));
         if (o.tool === "multitool") {
-            parts.push(muted(translate("Holding")), h("span", o.holding ? "chip text" : "chip empty", o.holding ?? translate("nothing")));
-            parts.push(check(translate("Show links"), c.layer("links"), (on) => c.setLayer("links", on)));
+            const holding = h("span", "ob-holding", o.holding ?? translate("nothing"));
+            holding.title = o.holding ?? translate("nothing");
+            parts.push(muted(translate("Holding")), holding);
+            parts.push(group(check(translate("Show links"), c.layer("links"), (on) => c.setLayer("links", on))));
         }
         if (o.tool === "brush" || o.tool === "eraser" || o.tool === "shapes") {
             const modes = [["off", translate("Off")], ["horizontal", translate("Left–right")], ["vertical", translate("Top–bottom")], ["both", translate("Both")]] as const;
-            parts.push(h("span", "ob-sep"), muted(translate("Mirror")), seg(translate("Mirror"), modes, o.mirror, (mode) => c.setMirrorMode(mode)));
+            parts.push(group(choose(translate("Mirror"), modes, o.mirror, (mode) => c.setMirrorMode(mode))));
         }
         parts.push(h("span", "ob-grow"));
         if (selectionTool) {
             const none = !o.selection;
-            parts.push(muted(o.selection ?? translate("Nothing selected")));
+            const count = h("span", "ob-muted ob-selection-count", o.selection ?? translate("Nothing selected"));
+            count.title = count.textContent!;
             const rot = button("btn", translate("Rotate"), translate("Rotate clockwise"), () => c.run("edit.rotateCw"));
             const copy = button("btn", translate("Copy"), translate("Copy"), () => c.run("edit.copy"));
             const del = button("btn danger", translate("Delete"), translate("Delete"), () => c.run("edit.delete"));
             rot.disabled = copy.disabled = del.disabled = none;
-            parts.push(rot, copy, del);
+            const actions = group(count, rot, copy, del);
+            actions.classList.add("ob-actions");
+            actions.setAttribute("role", "group");
+            actions.setAttribute("aria-label", translate("Selection"));
+            parts.push(actions);
         }
-        bar.replaceChildren(...parts);
+        const primary = h("div", "ob-line");
+        primary.append(...parts);
+        bar.replaceChildren(primary);
+        if (details.length) {
+            const row = h("div", "ob-line ob-details");
+            row.setAttribute("role", "group");
+            row.setAttribute("aria-label", translate("Decals"));
+            row.append(...details);
+            bar.append(row);
+        }
     }
 
     /** The brush's options: what the palette has chosen and how it is placed. */
@@ -172,26 +205,21 @@ export class OptionsBar {
         const c = this.c;
         const ch = o.choice;
         if (!ch || !pack) return [h("span", "ob-muted", translate("Nothing chosen"))];
-        const chip = h("span", "chip");
-        chip.append(spriteCanvas(pack, choiceIcon(ch, pack), 22));
+        const chip = material(ch, pack);
+        chip.classList.add("ob-leading");
         if (ch.kind === "entity") {
-            const def = pack.entityText(ch.id);
-            const id = h("span", "ob-muted", ch.id);
-            chip.append(`${def.name}${def.suffix ? ` (${def.suffix})` : ""} `, id);
-            chip.title = def.description ?? ch.id;
-            const parts: Node[] = [chip, h("span", "ob-muted", translate("Rotation")), button("btn small", `${o.rotation}°`, translate("Rotate clockwise (R)"), () => c.run("edit.rotateCw"))];
-            // pipes and atmos devices go on one of three pipe layers, picked by the cursor in the tile as in the game
+            chip.title += "\n" + translate("Ctrl+click a container: put inside");
+            const rotation = labelled(translate("Rotation"), button("btn small", `${o.rotation}°`, translate("Rotate clockwise (R)"), () => c.run("edit.rotateCw")));
+            const parts: Node[] = [chip, group(rotation)];
+            // The automatic pipe layer follows the cursor's position within the tile.
             if (layerPrototypes(pack, ch.id)) {
-                const layer = seg(translate("Pipe layer"), PIPE_LAYERS, o.pipeLayer === null ? "auto" : String(o.pipeLayer), (v) => c.setPipeLayer(v === "auto" ? null : Number(v)));
-                (layer.firstChild as HTMLElement).title = translate("By cursor position in the tile");
-                parts.push(h("span", "ob-muted", translate("Layer")), layer);
+                const layer = choose(translate("Pipe layer"), PIPE_LAYERS, o.pipeLayer === null ? "auto" : String(o.pipeLayer), (v) => c.setPipeLayer(v === "auto" ? null : Number(v)));
+                layer.title = translate("By cursor position in the tile");
+                parts.push(group(layer));
             }
-            parts.push(h("span", "ob-muted", translate("Ctrl+click a container: put inside")));
             return parts;
         }
         if (ch.kind === "tile") {
-            chip.append(pack.tileName(ch.id));
-            chip.title = ch.id;
             const n = pack.tile(ch.id)?.variants ?? 1;
             const sel = h("select");
             sel.setAttribute("aria-label", translate("Variant"));
@@ -203,11 +231,9 @@ export class OptionsBar {
                 c.setVariant(sel.value === "random" ? null : Number(sel.value));
                 sel.blur();
             });
-            return [chip, h("span", "ob-muted", translate("Variant")), sel];
+            return [chip, group(labelled(translate("Variant"), sel))];
         }
-        chip.append(ch.id);
-        const fields = this.decalFields(o, { count: 1, props: o.decal, mixed: NOT_MIXED }, false);
-        return [chip, ...fields, check(translate("Defaults"), o.auto, (on) => c.setDecalAuto(on), translate("Use the decal's default snap, color and cleanable"))];
+        return [chip];
     }
 
     /**
@@ -272,11 +298,52 @@ export class OptionsBar {
         if (mixed.cleanable) clean.title = translate("Mixed");
         const colorField = labelled(translate("Color"), color);
         if (mixed.color) colorField.append(h("span", "ob-mixed", translate("mixed")));
-        return [colorField, labelled(translate("Alpha"), alpha), labelled(translate("Angle"), angle), labelled("Z", z), snapField, clean];
+        return [
+            group(colorField, labelled(translate("Alpha"), alpha)),
+            group(labelled(translate("Angle"), angle), labelled("Z", z)),
+            group(snapField, clean),
+        ];
     }
 }
 
 const NOT_MIXED: SelectedDecals["mixed"] = { color: false, alpha: false, angle: false, zIndex: false, cleanable: false };
+
+/** Independent settings are separated as groups; their controls keep their native labels. */
+function group(...nodes: Node[]): HTMLElement {
+    const el = h("div", "ob-group");
+    el.append(...nodes);
+    return el;
+}
+
+function choose<T extends string>(label: string, options: ReadonlyArray<readonly [T, string]>, current: T, pick: (value: T) => void): HTMLElement {
+    const select = h("select");
+    for (const [value, text] of options) select.add(new Option(text, value));
+    select.value = current;
+    select.addEventListener("change", () => {
+        pick(select.value as T);
+        select.blur();
+    });
+    const field = labelled(label, select);
+    field.classList.add("ob-setting");
+    return field;
+}
+
+function material(choice: ToolOptions["choice"], pack: Pack | null): HTMLElement {
+    const el = h("span", "ob-group ob-material");
+    if (!choice || !pack) {
+        el.append(h("span", "ob-muted", translate("Nothing chosen")));
+        return el;
+    }
+    const name = choiceName(choice, pack);
+    const kind = choice.kind === "entity" ? "Entity" : choice.kind === "tile" ? "Tile" : "Decal";
+    el.title = `${translate(kind)}: ${name} (${choice.id})`;
+    if (choice.kind === "entity") {
+        const description = pack.entityText(choice.id).description;
+        if (description) el.title += "\n" + description;
+    }
+    el.append(h("span", "ob-muted", translate(kind)), spriteCanvas(pack, choiceIcon(choice, pack), 20), h("span", "ob-material-name", name));
+    return el;
+}
 
 /** A segmented control: one pressed button of several. */
 function seg<T extends string>(label: string, options: ReadonlyArray<readonly [T, string]>, current: T, pick: (v: T) => void, disabled = false): HTMLElement {
@@ -334,7 +401,10 @@ function choiceIcon(ch: NonNullable<ToolOptions["choice"]>, pack: Pack) {
 }
 
 function choiceName(ch: NonNullable<ToolOptions["choice"]>, pack: Pack): string {
-    if (ch.kind === "entity") return pack.entityText(ch.id).name;
+    if (ch.kind === "entity") {
+        const { name, suffix } = pack.entityText(ch.id);
+        return suffix ? `${name} (${suffix})` : name;
+    }
     if (ch.kind === "tile") return pack.tileName(ch.id);
     return ch.id;
 }

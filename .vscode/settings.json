@@ -1,0 +1,9 @@
+{
+  "remote.portsAttributes": {
+    "8767": {
+      "label": "SS14 Mapper",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  }
+}

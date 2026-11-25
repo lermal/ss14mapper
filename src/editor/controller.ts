@@ -59,6 +59,7 @@ import { colorPipeNetwork } from "./pipe-network";
 import { loadPrefs, savePrefs } from "./prefs";
 import { drawRuler, rulerLabel, rulerPoint, type RulerPoint, type RulerSnap } from "./ruler";
 import { clipCounts, flipClip, clipText, readClip, type Clip, type PasteKnown } from "./clipboard";
+import { measureSelection, type SelectionMeasure } from "./selection-measure";
 import { cellOf, FILTER_KINDS, type Combine, type Kind, type SelectFilter } from "./selection";
 import { ClickCycle, describe, nextIndex, type StackItem, type StackKind, type StackOptions } from "./stack";
 import { PickMenu } from "../ui/pick-menu";
@@ -274,6 +275,18 @@ export class EditorController {
     /** The status hint and the tile under the cursor, as of the last refresh. */
     hint = "";
     cursorText = "";
+    private measureCache: { editor: Editor; version: number; changes: number; value: SelectionMeasure | null } | null = null;
+
+    get selectionMeasure(): SelectionMeasure | null {
+        const editor = this.editor, scene = this.session?.scene;
+        if (!editor || !scene) return null;
+        const hit = this.measureCache;
+        if (hit?.editor === editor && hit.version === editor.selected.version && hit.changes === editor.changeCount) return hit.value;
+        const value = measureSelection(scene, editor.selected);
+        this.measureCache = { editor, version: editor.selected.version, changes: editor.changeCount, value };
+        return value;
+    }
+
     private messageTimer = 0;
     /** A clipboard being pasted: its ghost follows the cursor until a click places it. */
     private pasting: { clip: Clip; turns: number } | null = null;
@@ -2011,7 +2024,9 @@ export class EditorController {
 
         this.hint = this.into?.text ?? (mode === "ruler" ? this.rulerHint() : this.message);
         const t = this.hover && editor ? editor.tileTarget(...this.hover) : null;
-        this.cursorText = t ? translate("{{1}}, {{2}}  grid {{3}}", { 1: t.x, 2: t.y, 3: t.grid }) : "";
+        const world = this.hover ? map.worldAt(...this.hover) : null;
+        this.cursorText = t ? translate("X {{x}}  Y {{y}}  Grid {{grid}}", { x: t.x, y: t.y, grid: t.grid })
+            : world ? translate("X {{x}}  Y {{y}}  World", { x: Math.floor(world[0]), y: Math.floor(world[1]) }) : "X —  Y —";
         map.drawOverlay();
         this.refreshSide();
         this.notify();

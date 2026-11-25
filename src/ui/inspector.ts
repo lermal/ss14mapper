@@ -28,12 +28,13 @@ const STYLE = `
 .inspector { display: flex; flex-direction: column; height: 100%; min-height: 0; box-sizing: border-box; background: var(--panel); color: var(--text); font: 13px/1.35 var(--font); }
 .inspector .ins-empty { padding: 12px 14px; color: var(--faint); }
 .inspector .ins-head { flex: none; padding: 10px 12px; border-bottom: 1px solid var(--border); }
-.inspector .ins-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.inspector .ins-meta { color: var(--muted); font-size: 12px; word-break: break-all; }
-.inspector .ins-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 6px 12px; }
+.inspector .ins-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.inspector .ins-meta { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.inspector .ins-uid { margin-top: 3px; color: var(--faint); font: 11px var(--mono); }
+.inspector .ins-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 12px; }
 .inspector button { border: 0; background: transparent; }
 .inspector button:disabled { opacity: 0.4; cursor: default; }
-.inspector input, .inspector select { box-sizing: border-box; min-width: 0; height: 24px; padding: 0 6px; background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s); outline: none; font-size: 12px; }
+.inspector input, .inspector select { box-sizing: border-box; min-width: 0; height: 28px; padding: 0 6px; background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s); outline: none; font-size: 12px; }
 .inspector input:focus, .inspector select:focus, .inspector textarea:focus { border-color: var(--focus); }
 .inspector input.bad { border-color: var(--danger-border); background: var(--danger-bg); }
 .inspector textarea { width: 100%; box-sizing: border-box; min-height: 3.2em; resize: vertical; padding: 5px 7px; background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-s); font: 12px/1.4 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; outline: none; }
@@ -41,22 +42,33 @@ const STYLE = `
 .inspector .ins-note { color: var(--faint); font-size: 12px; padding: 4px 6px; }
 .inspector .ins-error { margin: 4px 0; padding: 5px 7px; color: var(--danger-text); background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-s); font-size: 12px; white-space: pre-wrap; }
 .inspector .ins-error:empty { display: none; }
-.inspector .ins-btn { height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--raised); font-size: 12px; }
+.inspector .ins-btn { height: 26px; padding: 0 8px; border: 1px solid transparent; border-radius: var(--radius-s); background: var(--raised); font-size: 12px; }
 .inspector .ins-btn:hover:not(:disabled) { border-color: var(--border-strong); }
 .inspector .ins-btn.primary { border-color: transparent; background: var(--accent); color: #fff; }
 .inspector .ins-btn.danger { color: var(--danger-text); }
 .inspector .ins-btn.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger-border); }
 .inspector .ins-btn.on { border-color: var(--accent); color: var(--accent-text); }
 
-/* sections (Links) */
-.inspector details { margin-bottom: 6px; }
-.inspector summary { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; font-weight: 600; cursor: pointer; list-style: none; border-radius: var(--radius-s); }
+/* Collapsible sections and component groups. */
+.inspector details { margin: 0; }
+.inspector summary { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; font-weight: 600; cursor: pointer; list-style: none; border-radius: var(--radius-s); }
 .inspector summary::-webkit-details-marker { display: none; }
 .inspector summary:hover { background: var(--raised); }
 .inspector summary::before { content: ""; flex: none; width: 12px; height: 12px; background: var(--muted); clip-path: polygon(30% 15%, 75% 50%, 30% 85%, 38% 92%, 90% 50%, 38% 8%); transition: transform 0.1s; }
 .inspector details[open] > summary::before { transform: rotate(90deg); }
 .inspector .ins-sub { color: var(--muted); font-weight: 400; }
-.inspector .ins-section { padding: 0 6px 6px 24px; }
+.inspector .ins-section { padding: 4px 10px 10px; }
+.inspector .ins-group, .inspector .ins-links > details, .inspector .cts-wrap > details, .inspector .ins-background { border-top: 1px solid var(--border); }
+.inspector .ins-group > summary { background: var(--panel-2); }
+.inspector .ins-group > summary .ins-sub { margin-left: auto; font: 11px var(--mono); }
+.inspector .ins-group > .ins-section { padding: 0; }
+.inspector .ins-search { padding: 8px 10px; }
+.inspector .ins-tools { padding-bottom: 0; }
+.inspector .ins-advanced { margin-top: 6px; }
+.inspector .ins-advanced > summary { padding: 0 4px; font-size: 12px; color: var(--muted); font-weight: 400; }
+.inspector .ins-advanced > .ins-section { padding: 0; }
+.inspector .ins-background .pxp { margin: 0; padding: 0; border: 0; }
+.inspector .ins-background .pxp-head { display: none; }
 .inspector .ins-link { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .inspector .ins-link span { flex: 1; word-break: break-all; }
 .inspector .ins-link .ins-x { flex: none; width: 24px; height: 24px; border-radius: var(--radius-s); color: var(--muted); font-size: 16px; line-height: 1; }
@@ -71,9 +83,9 @@ const STYLE = `
 .inspector .ins-hits { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .inspector .ins-hits button { height: 22px; padding: 0 7px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--raised); font-family: var(--mono); font-size: 12px; }
 .inspector .ins-hits button:hover { border-color: var(--accent); }
-.inspector .ins-heading { display: flex; align-items: baseline; gap: 6px; padding: 6px 6px 4px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-.inspector .ins-comp + .ins-comp { border-top: 1px solid var(--border); }
-.inspector .ins-row { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 6px; text-align: left; border-radius: var(--radius-s); }
+.inspector .ins-heading { display: flex; align-items: baseline; gap: 6px; padding: 6px 6px 4px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.inspector .ins-comp.open + .ins-comp { border-top: 1px solid var(--border); }
+.inspector .ins-row { display: flex; align-items: center; gap: 6px; width: 100%; height: 32px; padding: 0 10px; text-align: left; border-radius: var(--radius-s); }
 .inspector .ins-row:hover { background: var(--raised); }
 .inspector .ins-row svg { flex: none; color: var(--muted); transition: transform 0.1s; }
 .inspector .ins-comp.open > .ins-row svg { transform: rotate(90deg); }
@@ -81,17 +93,21 @@ const STYLE = `
 .inspector .ins-row .ins-cname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inspector .ins-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .inspector .ins-tag { flex: none; padding: 0 5px; border: 1px solid var(--border); border-radius: var(--radius-s); color: var(--muted); font-size: 11px; font-weight: 400; line-height: 16px; }
-.inspector .ins-fields { padding: 2px 0 8px 6px; }
+.inspector .ins-fields { padding: 2px 10px 10px; }
 .inspector .ins-ctools { display: flex; gap: 6px; padding: 2px 0 6px; }
 .inspector .ins-ctools .ins-btn.danger { margin-left: auto; }
 
 /* fields */
-.inspector .ins-field { display: grid; grid-template-columns: minmax(0, 40%) minmax(0, 1fr) 22px; align-items: center; column-gap: 6px; min-height: 30px; padding: 1px 0 1px 6px; border-left: 2px solid transparent; }
+.inspector .ins-field { display: grid; grid-template-columns: minmax(0, 40%) minmax(0, 1fr) 22px; align-items: center; column-gap: 6px; min-height: 30px; padding: 4px 0 4px 6px; border-left: 2px solid transparent; }
+.inspector .ins-field-wide { grid-template-columns: minmax(0, 1fr) 22px; row-gap: 4px; }
+.inspector .ins-field-wide .ins-label { grid-column: 1 / -1; }
+.inspector .ins-field-wide .ins-value { grid-column: 1; }
+.inspector .ins-field-wide .ins-reset { grid-column: 2; }
 .inspector .ins-field.over { border-left-color: var(--accent); }
 .inspector .ins-label { min-width: 0; line-height: 1.2; }
 .inspector .ins-fname { display: block; overflow-wrap: anywhere; font-size: 12px; }
 .inspector .ins-field.over .ins-fname { color: var(--accent-text); font-weight: 600; }
-.inspector .ins-ftype { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font: 10px/1.2 var(--mono); }
+.inspector .ins-ftype { display: none; }
 .inspector .ins-value { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .inspector .ins-value > input:not([type="checkbox"]):not([type="color"]), .inspector .ins-value > select { flex: 1; width: 100%; }
 .inspector .ins-value.inherited input:not(:focus), .inspector .ins-value.inherited select:not(:focus) { color: var(--text-2); }
@@ -134,11 +150,27 @@ function storeSet(key: string, set: Set<string>): void {
 }
 const collapsed = storedSet(COLLAPSED_KEY);
 const opened = storedSet(OPEN_KEY);
+const PRIMARY_FIELDS: Record<string, readonly string[]> = {
+    MetaData: ["name", "desc"],
+    Transform: ["pos", "rot", "parent", "anchored"],
+};
+const COMPONENT_GROUPS = [
+    { key: "basic", label: "Basic properties", types: ["MetaData", "Transform"], open: true },
+    { key: "appearance", label: "Appearance", types: ["Sprite", "Appearance", "Icon", "IconSmooth"], open: false },
+    { key: "other", label: "Other components", types: [] as string[], open: false },
+];
+const commonLabel = (type: string) => type === "MetaData" ? translate("Name and description") : type === "Transform" ? translate("Position") : type;
+const componentOpen = (type: string) => opened.has(type) || (type in PRIMARY_FIELDS && !collapsed.has(`component:${type}`));
+const fieldLabel = (type: string, name: string) => {
+    const labels: Record<string, string> = { "MetaData.name": "Name", "MetaData.desc": "Description", "Transform.pos": "Position", "Transform.rot": "Rotation", "Transform.parent": "Parent entity", "Transform.anchored": "Anchored" };
+    return labels[`${type}.${name}`] ? translate(labels[`${type}.${name}`]!) : name;
+};
 
 /** A `<details>` whose open state is remembered under `key`. */
 function section(key: string, title: HTMLElement | string, openByDefault = true): { root: HTMLDetailsElement; body: HTMLElement; summary: HTMLElement } {
     const root = document.createElement("details");
-    root.open = collapsed.has(key) ? false : openByDefault;
+    root.open = collapsed.has(key) ? !openByDefault : openByDefault;
+    root.dataset.section = key;
     root.addEventListener("toggle", () => {
         if (root.open === openByDefault) collapsed.delete(key);
         else collapsed.add(key);
@@ -209,6 +241,7 @@ interface CompEl {
     fields: HTMLElement | null;
     fieldsSig: string;
     rows: Map<string, { el: HTMLElement; sig: string }>;
+    advanced?: ReturnType<typeof section>;
 }
 
 export class Inspector {
@@ -231,6 +264,7 @@ export class Inspector {
     private links: HTMLElement | null = null;
     private datalist: HTMLDataListElement | null = null;
     private heading: HTMLElement | null = null;
+    private groups = new Map<string, ReturnType<typeof section>>();
     /** The Contents section (containers and what they hold). */
     private readonly contents = new ContentsPanel();
 
@@ -251,6 +285,7 @@ export class Inspector {
         this.unsubscribe = null;
         this.target = target;
         this.comps.clear();
+        this.groups.clear();
         this.drafts.clear();
         this.errors.clear();
         this.list = this.links = this.head = this.heading = null;
@@ -296,11 +331,17 @@ export class Inspector {
         const root = this.container;
         this.head = el("div", "ins-head");
         const body = el("div", "ins-body");
-        this.links = el("div");
+        this.links = el("div", "ins-links");
         this.list = el("div", "ins-list");
         this.datalist = el("datalist");
         this.datalist.id = `ins-ids-${Math.random().toString(36).slice(2)}`;
-        body.append(...(this.target!.top ? [this.target!.top] : []), this.links, this.contents.element, this.tools(), this.list, this.datalist);
+        if (this.target!.top) {
+            const background = section("background", translate("Parallax"));
+            background.root.classList.add("ins-background");
+            background.body.append(this.target!.top);
+            body.append(background.root);
+        }
+        body.append(this.tools(), this.list, this.links, this.contents.element, this.datalist);
         root.replaceChildren(this.head, body);
         this.refresh();
     }
@@ -349,11 +390,13 @@ export class Inspector {
         const kind = id ? null : doc.mapEntities().includes(uid) ? translate("Map") : doc.grids().includes(uid) ? translate("Grid") : translate("Entity");
         const name = typeof meta?.name === "string" && meta.name ? meta.name : (current && pack.entityText(current).name) || id || kind!;
         const about = kind ? translate("{{1}}, uid {{2}}", { 1: kind, 2: uid }) : translate("{{1}}, uid {{2}}{{3}}", { 1: id, 2: uid, 3: proto ? "" : translate(", not in the pack") });
-        this.head!.replaceChildren(el("div", "ins-name", name), el("div", "ins-meta", about));
+        const identity = el("div", "ins-meta", id || kind!);
+        identity.title = about;
+        this.head!.replaceChildren(el("div", "ins-name", name), identity, el("div", "ins-uid", `UID ${uid}`));
     }
 
     private tools(): HTMLElement {
-        const wrap = el("div");
+        const wrap = el("div", "ins-search");
         const bar = el("div", "ins-tools");
         const search = el("input");
         search.type = "search";
@@ -448,10 +491,10 @@ export class Inspector {
         this.heading ??= el("div", "ins-heading");
         const count = el("span", "ins-sub", String(views.length));
         this.heading.replaceChildren(translate("Components"), count);
-        nodes.push(this.heading);
+        if (q) nodes.push(this.heading);
         for (const v of shown) {
             const over = overrides.find((o) => o.type === v.type);
-            const open = opened.has(v.type);
+            const open = componentOpen(v.type);
             const sig = `${v.inPrototype}|${v.overridden}|${open}`;
             let c = this.comps.get(v.type);
             if (!c || c.sig !== sig) {
@@ -461,7 +504,23 @@ export class Inspector {
                 this.comps.set(v.type, c);
             }
             if (open) this.refreshFields(c, v, proto[v.type], over?.text, !extra);
-            nodes.push(c.root);
+            if (q) nodes.push(c.root);
+        }
+        if (!q) {
+            const assigned = new Set(COMPONENT_GROUPS.flatMap((g) => g.types));
+            for (const def of COMPONENT_GROUPS) {
+                const members = def.key === "other" ? shown.filter((v) => !assigned.has(v.type)) : def.types.flatMap((type) => shown.filter((v) => v.type === type));
+                if (!members.length) continue;
+                let group = this.groups.get(def.key);
+                if (!group) {
+                    group = section(`group:${def.key}`, translate(def.label), def.open);
+                    group.root.classList.add("ins-group");
+                    this.groups.set(def.key, group);
+                }
+                group.summary.replaceChildren(document.createTextNode(translate(def.label)), el("span", "ins-sub", String(members.length)));
+                syncChildren(group.body, members.map((v) => this.comps.get(v.type)!.root));
+                nodes.push(group.root);
+            }
         }
         if (!shown.length) nodes.push(el("div", "ins-note", q ? translate("No matches") : translate("No components")));
         syncChildren(list, nodes);
@@ -471,7 +530,10 @@ export class Inspector {
         const root = el("div", "ins-comp" + (open ? " open" : ""));
         const row = el("button", "ins-row");
         row.type = "button";
-        row.append(icon(ICON.chevronRight, 12), el("span", "ins-cname", v.type));
+        row.setAttribute("aria-expanded", String(open));
+        row.setAttribute("aria-label", v.type);
+        row.append(icon(ICON.chevronRight, 12), el("span", "ins-cname", commonLabel(v.type)));
+        if (v.type in PRIMARY_FIELDS) row.title = v.type;
         if (v.overridden) {
             const dot = el("span", "ins-dot");
             dot.title = translate("Changed on the map");
@@ -482,11 +544,17 @@ export class Inspector {
             tag.title = translate("Not in the prototype");
             row.append(tag);
         }
-        row.title = v.overridden ? (v.inPrototype ? translate("Changed on the map") : translate("Added on the map")) : "";
+        row.title += (row.title ? " — " : "") + (v.overridden ? (v.inPrototype ? translate("Changed on the map") : translate("Added on the map")) : "");
         row.addEventListener("click", () => {
-            if (opened.has(v.type)) opened.delete(v.type);
-            else opened.add(v.type);
+            if (componentOpen(v.type)) {
+                opened.delete(v.type);
+                if (v.type in PRIMARY_FIELDS) collapsed.add(`component:${v.type}`);
+            } else {
+                opened.add(v.type);
+                collapsed.delete(`component:${v.type}`);
+            }
             storeSet(OPEN_KEY, opened);
+            storeSet(COLLAPSED_KEY, collapsed);
             this.refreshList();
         });
         root.append(row);
@@ -536,6 +604,12 @@ export class Inspector {
         } else {
             const fields = fieldViews(schema, proto, overrideText);
             const order = (schema ?? []).map((f) => f.name);
+            const primary = PRIMARY_FIELDS[v.type];
+            if (primary) fields.sort((a, b) => {
+                const rank = (name: string) => primary.includes(name) ? primary.indexOf(name) : primary.length;
+                return rank(a.name) - rank(b.name);
+            });
+            const advanced: HTMLElement[] = [];
             const seen = new Set<string>();
             for (const f of fields) {
                 seen.add(f.name);
@@ -546,7 +620,15 @@ export class Inspector {
                     r = { el: this.fieldRow(v, f, order), sig: fsig };
                     c.rows.set(f.name, r);
                 }
-                nodes.push(r.el);
+                if (primary && !primary.includes(f.name)) advanced.push(r.el);
+                else nodes.push(r.el);
+            }
+            if (advanced.length) {
+                c.advanced ??= section(`fields:${v.type}`, translate("Advanced fields"), false);
+                c.advanced.root.classList.add("ins-advanced");
+                c.advanced.summary.replaceChildren(document.createTextNode(translate("Advanced fields")), el("span", "ins-sub", String(advanced.length)));
+                syncChildren(c.advanced.body, advanced);
+                nodes.push(c.advanced.root);
             }
             for (const k of [...c.rows.keys()]) if (!seen.has(k)) c.rows.delete(k);
             if (!fields.length) nodes.push(el("div", "ins-note", translate("No data fields")));
@@ -665,10 +747,12 @@ export class Inspector {
     private fieldRow(v: ComponentView, f: FieldView, order: readonly string[]): HTMLElement {
         const target = this.target;
         const row = el("div", "ins-field" + (f.override ? " over" : ""));
+        const displayName = fieldLabel(v.type, f.name);
+        if (["vector2", "vector2i", "color"].includes(f.kind) || v.type === "MetaData") row.classList.add("ins-field-wide");
         const label = el("div", "ins-label");
         const name = el("span", "ins-fname");
         // long camelCase names wrap at word boundaries
-        f.name.split(/(?<=[a-z0-9])(?=[A-Z])/).forEach((part, i) => {
+        displayName.split(/(?<=[a-z0-9])(?=[A-Z])/).forEach((part, i) => {
             if (i) name.append(document.createElement("wbr"));
             name.append(part);
         });
@@ -709,7 +793,7 @@ export class Inspector {
             input.spellcheck = false;
             input.dataset.focus = key + mark;
             if (mode !== "text") input.inputMode = mode;
-            input.setAttribute("aria-label", f.name);
+            input.setAttribute("aria-label", displayName);
             // "commit" on Enter (the field keeps the focus) or when the field loses it with a new value
             let last = initial;
             const send = () => {
@@ -750,7 +834,7 @@ export class Inspector {
                 area.spellcheck = false;
                 area.value = draft;
                 area.dataset.focus = key + ".yaml";
-                area.setAttribute("aria-label", f.name);
+                area.setAttribute("aria-label", displayName);
                 area.rows = Math.min(14, Math.max(2, draft.split("\n").length));
                 const err = el("div", "ins-error");
                 area.addEventListener("input", () => this.drafts.set(key, area.value));
@@ -791,7 +875,7 @@ export class Inspector {
                 box.type = "checkbox";
                 box.checked = String(value).toLowerCase() === "true";
                 box.dataset.focus = key;
-                box.setAttribute("aria-label", f.name);
+                box.setAttribute("aria-label", displayName);
                 box.addEventListener("commit", () => commit(box.checked, null));
                 cell.append(box);
                 break;
@@ -799,7 +883,7 @@ export class Inspector {
             case "enum": {
                 const select = el("select");
                 select.dataset.focus = key;
-                select.setAttribute("aria-label", f.name);
+                select.setAttribute("aria-label", displayName);
                 const members = [...(this.extra.get(this.target!.pack)?.schemas?.enums[f.schema?.enum ?? ""]?.members ?? [])];
                 const cur = value === null || value === undefined ? "" : String(value);
                 if (!members.includes(cur)) members.unshift(cur);
@@ -959,7 +1043,7 @@ export class Inspector {
         if (!any) return void box.replaceChildren();
         const title = el("span", "", translate("Links "));
         title.append(el("span", "ins-sub", String(rows.length)));
-        const sec = section(translate("Links"), title);
+        const sec = section("links", title);
         const note = [ports.source.length ? translate("source: {{1}}", { 1: ports.source.join(", ") }) : "", ports.sink.length ? translate("sink: {{1}}", { 1: ports.sink.join(", ") }) : "", config ? translate("device list: {{1}}", { 1: r.devices.length }) : ""].filter(Boolean).join(", ");
         sec.body.append(el("div", "ins-note", note), ...(rows.length ? rows : [el("div", "ins-note", translate("No links. Link with the multitool."))]));
         box.replaceChildren(sec.root);

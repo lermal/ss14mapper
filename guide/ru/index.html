@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Руководство по картам Space Station 14 | SS14 Mapper</title>
+    <meta name="description" content="Выберите сборку, откройте или создайте карту Space Station 14. Сохраните изменения в браузере или скачайте YAML-файл для игры.">
+    <link rel="canonical" href="https://ss14mapper.forged.by/guide/ru/">
+    <link rel="alternate" hreflang="en" href="https://ss14mapper.forged.by/guide/">
+    <link rel="alternate" hreflang="ru" href="https://ss14mapper.forged.by/guide/ru/">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="SS14 Mapper">
+    <meta property="og:title" content="Руководство по картам Space Station 14 | SS14 Mapper">
+    <meta property="og:description" content="Выберите сборку, откройте или создайте карту Space Station 14. Сохраните изменения в браузере или скачайте YAML-файл для игры.">
+    <meta property="og:url" content="https://ss14mapper.forged.by/guide/ru/">
+    <meta property="og:image" content="https://ss14mapper.forged.by/social-card.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="SS14 Mapper: редактор карт Space Station 14.">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="stylesheet" href="/src/ui/theme.css">
+    <link rel="stylesheet" href="/src/ui/guide.css">
+</head>
+<body class="guide">
+    <header class="guide-header"><a href="/?lang=ru">SS14 Mapper</a><a class="guide-language" href="/guide/" lang="en" hreflang="en">English</a></header>
+    <main class="guide-main">
+        <h1>Руководство по картам Space Station 14</h1>
+        <p>Выберите сборку нужного форка и откройте YAML-файл карты. Чтобы создать карту, нажмите <strong>Новая карта…</strong>.</p>
+        <nav aria-label="Содержание">
+            <ul>
+                <li><a href="#open">Выбрать сборку и открыть карту</a></li>
+                <li><a href="#create">Создать карту</a></li>
+                <li><a href="#export">Сохранить карту и скачать YAML</a></li>
+                <li><a href="#troubleshoot">Решить проблемы с загрузкой и сохранением</a></li>
+            </ul>
+        </nav>
+
+        <section aria-labelledby="open">
+            <h2 id="open">Выбрать сборку и открыть карту</h2>
+            <ol>
+                <li>Скачайте карту или грид в формате <code>.yml</code> или <code>.yaml</code>. Ищите карты в папке <code>Resources/Maps/</code> репозитория игры. На GitHub скачайте исходный файл.</li>
+                <li>В поле <strong>Сборка</strong> выберите форк, для которого создана карта. Так вы загрузите его тайлы и прототипы объектов.</li>
+                <li>Нажмите <strong>Открыть файл…</strong> или перетащите файл на стартовый экран. Перед редактированием проверьте сборку: редактор может переключить её на ту, в которой нашёл больше прототипов из карты.</li>
+            </ol>
+        </section>
+
+        <section aria-labelledby="create">
+            <h2 id="create">Создать карту</h2>
+            <ol>
+                <li>Нажмите <strong>Новая карта…</strong>. Выберите тип и сборку, укажите название.</li>
+                <li>Чтобы добавить пол, оставьте флажок <strong>Пол</strong>, выберите тайл и задайте ширину и высоту. Для пустой карты снимите флажок. Нажмите <strong>Создать</strong>.</li>
+                <li>Выберите тайл или объект в палитре и нажмите на место для него на карте.</li>
+            </ol>
+        </section>
+
+        <section aria-labelledby="export">
+            <h2 id="export">Сохранить карту и скачать YAML</h2>
+            <p>Нажмите <strong>Файл → Сохранить</strong>, чтобы оставить копию в библиотеке браузера. Откройте её из списка <strong>Недавние</strong> в том же профиле браузера.</p>
+            <p>Нажмите <strong>Файл → Скачать .yml</strong>, чтобы передать файл другому человеку или добавить его в проект игры. Проверяйте карту в том форке, который выбрали в редакторе.</p>
+        </section>
+
+        <section aria-labelledby="troubleshoot">
+            <h2 id="troubleshoot">Решить проблемы с загрузкой и сохранением</h2>
+            <ul>
+                <li><strong>Файл не открывается.</strong> Проверьте, что вы скачали YAML карты или грида. HTML-страницу GitHub и YAML с описанием прототипа нельзя открыть как карту.</li>
+                <li><strong>Не хватает тайлов или объектов.</strong> Сверьте форк и версию карты с выбранной сборкой. Выберите сборку, в которой есть нужные прототипы.</li>
+                <li><strong>Список сборок не загружается.</strong> Проверьте подключение к интернету и обновите страницу. Если сервис сборок недоступен, дождитесь восстановления его работы.</li>
+                <li><strong>Карта пропала из списка «Недавние».</strong> Откройте профиль браузера, в котором вы сохранили карту. Если вы удалили данные сайта, откройте скачанную копию.</li>
+            </ul>
+        </section>
+    </main>
+    <footer class="guide-footer"><a href="/?lang=ru">Вернуться в редактор карт</a></footer>
+</body>
+</html>

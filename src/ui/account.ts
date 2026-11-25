@@ -19,40 +19,41 @@ const STYLE = `
 .tb-avatar { width: 22px; height: 22px; flex: none; border-radius: 50%; background: #3b4a5e; color: #cfd8e3; display: grid; place-items: center; font-size: 11px; font-weight: 600; object-fit: cover; }
 .dlg .fb-hint { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
 .dlg .fb-error { margin: 10px 0 0; padding: 8px 10px; border: 1px solid var(--danger-border); border-radius: var(--radius-s); background: var(--danger-bg); color: var(--danger-text); font-size: 12px; }
-.dlg .fb-list { display: flex; flex-direction: column; gap: 6px; max-height: 56vh; overflow-y: auto; margin-top: 8px; }
-.dlg .fb-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
+.dlg .fb-list { display: flex; flex-direction: column; max-height: 56vh; overflow-y: auto; margin-top: 12px; border-top: 1px solid var(--border); }
+.dlg .fb-row { display: grid; grid-template-columns: minmax(0, 1fr) 100px auto; align-items: center; gap: 8px 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.dlg .fb-row > .fb-text { grid-column: 1; }
+.dlg .fb-row > .fb-state { grid-column: 2; }
+.dlg .fb-row > .fb-actions { grid-column: 3; }
+.dlg .fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+.dlg .fb-actions .danger { margin-left: 8px; }
 .dlg .fb-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .dlg .fb-name { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dlg .fb-meta { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .dlg .fb-meta a { color: inherit; }
 .dlg .fb-reason { color: var(--danger-text); font-size: 12px; }
-.dlg .fb-state { flex: none; padding: 1px 7px; border-radius: var(--radius-s); font-size: 11px; font-weight: 600; background: var(--raised); color: var(--muted); }
-.dlg .fb-state.ready { background: var(--accent-soft); color: var(--accent-text); }
-.dlg .fb-state.failed { background: var(--danger-bg); color: var(--danger-text); }
+.dlg .fb-state { flex: none; font-size: 12px; color: var(--muted); }
+.dlg .fb-state.ready { color: var(--accent-text); }
+.dlg .fb-state.failed { color: var(--danger-text); }
 .dlg .fb-state.wait { color: var(--warn); }
 .dlg .fb-row button.btn { height: 26px; padding: 0 10px; }
-.dlg .fb-tabs { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; align-self: flex-start; margin-top: 4px; width: max-content; }
-.dlg .fb-tabs button { height: 26px; padding: 0 12px; border: 0; background: var(--raised); color: var(--text); }
-.dlg .fb-tabs button + button { border-left: 1px solid var(--border); }
-.dlg .fb-tabs button[aria-pressed="true"] { background: var(--accent-soft); font-weight: 600; }
+.dlg .fb-tabs, .dlg .fb-seg { display: flex; flex-wrap: wrap; gap: 2px; align-self: flex-start; max-width: 100%; }
+.dlg .fb-tabs button, .dlg .fb-seg button { min-height: 30px; padding: 4px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); }
+.dlg .fb-tabs button:hover, .dlg .fb-seg button:hover { color: var(--text); background: var(--raised); }
+.dlg .fb-tabs button[aria-pressed="true"], .dlg .fb-seg button[aria-pressed="true"] { background: var(--accent-soft); border-bottom-color: var(--accent-text); color: var(--text); }
 .dlg .fb-tabs .n { margin-left: 5px; color: var(--muted); font-weight: 400; }
-.dlg .fb-approve { display: flex; gap: 8px; align-items: flex-end; flex: 1; min-width: 0; }
+.dlg .fb-approve { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 140px); gap: 12px; width: 100%; min-width: 0; }
 .dlg .fb-approve .dlg-field { margin: 0; flex: 1; min-width: 0; }
-.dlg .fb-approve .dlg-field.id { flex: 0 0 120px; }
 .dlg .fb-approve input:disabled { color: var(--muted); }
 .dlg .fb-note { margin-top: 10px; color: var(--muted); font-size: 12px; }
 .dlg textarea { min-height: 120px; resize: vertical; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--input); color: var(--text); font: 13px/1.4 var(--font); }
 .dlg .fb-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-2); font-size: 13px; }
 .dlg .fb-desc { color: var(--text-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
 .dlg .fb-row.top { align-items: flex-start; }
-.dlg .fb-seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; align-self: flex-start; width: max-content; margin-top: 4px; }
-.dlg .fb-seg button { height: 26px; padding: 0 14px; border: 0; background: var(--raised); color: var(--text); }
-.dlg .fb-seg button + button { border-left: 1px solid var(--border); }
-.dlg .fb-seg button[aria-pressed="true"] { background: var(--accent-soft); font-weight: 600; }
-.dlg .fb-kind { flex: none; padding: 1px 7px; border-radius: var(--radius-s); font-size: 11px; font-weight: 600; }
-.dlg .fb-kind.bug { background: var(--danger-bg); color: var(--danger-text); }
-.dlg .fb-kind.idea { background: var(--accent-soft); color: var(--accent-text); }
-.dlg .fb-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.dlg .fb-row.top > .fb-text, .dlg .fb-row.top > .fb-actions { grid-column: 1 / -1; }
+.dlg .fb-kind { margin-right: 8px; color: var(--muted); font-size: 12px; }
+.dlg .fb-bar { display: flex; gap: 8px 20px; align-items: flex-start; flex-wrap: wrap; }
+.dlg .fb-filter { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dlg .fb-filter-label { color: var(--muted); font-size: 12px; }
 .dlg .fb-bar .fb-tabs { margin-top: 0; }
 .dlg .fb-images { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .dlg .fb-images .fb-count { color: var(--muted); font-size: 12px; }
@@ -67,7 +68,24 @@ const STYLE = `
 .dlg .fb-view { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .dlg .fb-view img { flex: 1; min-width: 0; max-width: 100%; max-height: calc(100vh - 190px); object-fit: contain; margin: 0 auto; }
 .dlg .fb-view button { flex: none; }
-.dlg .fb-empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); }
+.dlg .fb-empty { padding: 16px 0; color: var(--muted); }
+.dlg .fb-section { min-width: 0; margin: 0; padding: 0; border: 0; }
+.dlg .fb-section + .fb-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.dlg .fb-section legend { padding: 0; margin-bottom: 10px; font-weight: 600; color: var(--text); }
+.dlg .fb-section .dlg-field { margin-top: 12px; gap: 6px; }
+.dlg .fb-section .dlg-field:first-of-type { margin-top: 0; }
+.dlg .fb-section .fb-seg { margin-bottom: 12px; }
+.dlg .fb-section input, .dlg .fb-section textarea, .dlg .fb-approve input { min-width: 0; width: 100%; }
+.dlg .fb-section input[type=checkbox] { width: auto; flex: none; }
+.dlg .fb-context { margin-top: 12px; color: var(--muted); font-size: 12px; }
+.dlg .fb-context summary { cursor: pointer; color: var(--text-2); }
+.dlg .fb-context p { margin-top: 8px; }
+@media (max-width: 480px) {
+    .dlg .fb-approve { grid-template-columns: minmax(0, 1fr); }
+    .dlg .fb-row { grid-template-columns: minmax(0, 1fr); }
+    .dlg .fb-row > .fb-state, .dlg .fb-row > .fb-actions { grid-column: 1; }
+    .dlg .fb-actions { width: 100%; margin-left: 0; }
+}
 `;
 
 let styleAdded = false;
@@ -97,6 +115,26 @@ function field(label: string, control: HTMLElement, cls = ""): HTMLElement {
     const l = h("label", `dlg-field${cls ? ` ${cls}` : ""}`);
     l.append(label, control);
     return l;
+}
+
+function section(title: string, ...children: HTMLElement[]): HTMLElement {
+    const group = h("fieldset", "fb-section");
+    group.append(h("legend", "", title), ...children);
+    return group;
+}
+
+function actions(...children: HTMLElement[]): HTMLElement {
+    const group = h("div", "fb-actions");
+    group.append(...children);
+    return group;
+}
+
+function filter(label: string, controls: HTMLElement): HTMLElement {
+    const group = h("div", "fb-filter");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", label);
+    group.append(h("span", "fb-filter-label", label), controls);
+    return group;
 }
 
 function textInput(value = "", placeholder = ""): HTMLInputElement {
@@ -320,8 +358,7 @@ export class Account {
         const ok = await dialog(
             translate("Add a build"),
             [
-                field(translate("GitHub repository"), repo),
-                field(translate("Branch"), branch),
+                section(translate("Build source"), field(translate("GitHub repository"), repo), field(translate("Branch"), branch)),
                 error,
                 h("p", "fb-hint", translate("The build is added after the maintainer approves it. Its pack is then built from the repository and updated when the branch changes.")),
             ],
@@ -330,7 +367,7 @@ export class Account {
                 { label: translate("Submit"), value: true, kind: "primary" },
             ],
             false,
-            { check },
+            { check, width: 520 },
         );
         if (!ok) return;
         if (this.me?.maintainer) this.me.pending = (this.me.pending ?? 0) + 1;
@@ -351,6 +388,8 @@ export class Account {
         attach.type = "checkbox";
         let kind: BugKind = "bug";
         const seg = h("div", "fb-seg");
+        seg.setAttribute("role", "group");
+        seg.setAttribute("aria-label", translate("Feedback type"));
         const kinds: Array<[BugKind, string]> = [
             ["bug", translate("Bug")],
             ["idea", translate("Suggestion")],
@@ -440,6 +479,9 @@ export class Account {
         const check = h("label", "fb-check");
         check.append(attach, translate("Attach the open map ({{1}})", { 1: ctx.mapName ?? "" }));
         check.hidden = ctx.mapName === null;
+        const context = h("details", "fb-context");
+        context.append(h("summary", "", translate("Report context")), h("p", "", translate("The page address, the build and your browser version are sent with it.")));
+        if (ctx.build) context.append(h("p", "", `${translate("Build")}: ${ctx.buildName(ctx.build)}`));
         const error = h("div", "fb-error");
         error.hidden = true;
         error.setAttribute("role", "alert");
@@ -477,20 +519,16 @@ export class Account {
         const ok = await dialog(
             translate("Send feedback"),
             [
-                seg,
-                field(translate("Title"), title),
-                field(translate("Description"), text),
-                imagesField,
-                check,
+                section(translate("Message"), seg, field(translate("Title"), title), field(translate("Description"), text)),
+                section(translate("Attachments"), imagesField, check, context),
                 error,
-                h("p", "fb-hint", translate("The page address, the build and your browser version are sent with it.")),
             ],
             [
                 { label: translate("Cancel"), value: false },
                 { label: translate("Send"), value: true, kind: "primary" },
             ],
             false,
-            { check: send, width: 480 },
+            { check: send, width: 560 },
         );
         document.removeEventListener("paste", onPaste);
         document.removeEventListener("dragover", onOver);
@@ -504,7 +542,8 @@ export class Account {
     async yourBuilds(): Promise<void> {
         const list = h("div", "fb-list");
         list.append(h("p", "dlg-muted", translate("Loading…")));
-        const shown = dialog<void>(translate("Your builds"), [list], [{ label: translate("Close"), value: undefined }], undefined, { width: 560 });
+        const add = button("btn", translate("Add a build…"), "", () => void this.addBuild());
+        const shown = dialog<void>(translate("Your builds"), [add, list], [{ label: translate("Close"), value: undefined }], undefined, { width: 560 });
         try {
             const forks = await this.api.myForks();
             list.replaceChildren(...(forks.length ? forks.map((f) => this.myRow(f)) : [h("div", "fb-empty", translate("You have not added any builds."))]));
@@ -531,7 +570,7 @@ export class Account {
         const tabs = h("div", "fb-tabs");
         const kindTabs = h("div", "fb-tabs");
         const bar = h("div", "fb-bar");
-        bar.append(tabs, kindTabs);
+        bar.append(filter(translate("Status"), tabs), filter(translate("Feedback type"), kindTabs));
         const list = h("div", "fb-list");
         list.append(h("p", "dlg-muted", translate("Loading…")));
 
@@ -560,7 +599,7 @@ export class Account {
             );
             if (!reports) return;
             const shown = tab ? all.filter((r) => r.status === tab) : all;
-            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", translate("Nothing here"))]));
+            list.replaceChildren(...(shown.length ? shown.map((r) => row(r)) : [h("div", "fb-empty", translate("No reports match these filters."))]));
         };
 
         const refresh = async () => {
@@ -677,12 +716,15 @@ export class Account {
             const t = h("div", "fb-text");
             const n = h("span", "fb-name", r.title);
             n.title = r.title;
-            t.append(n, h("span", "fb-meta", bugMeta(r, this.hooks.bugContext().buildName)), h("span", "fb-desc", r.description));
+            const meta = h("div", "fb-meta");
+            meta.append(h("span", "fb-kind", r.kind === "idea" ? translate("Suggestion") : translate("Bug")), bugMeta(r, this.hooks.bugContext().buildName));
+            t.append(n, meta, h("span", "fb-desc", r.description));
             if (r.images.length) t.append(thumbs(r));
-            el.append(h("span", `fb-kind ${r.kind === "idea" ? "idea" : "bug"}`, r.kind === "idea" ? translate("Suggestion") : translate("Bug")), t);
-            if (r.hasMap) el.append(button("btn", translate("Map"), "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
-            if (r.status === "new") el.append(button("btn", translate("Mark done"), "", () => void act(el, () => this.api.markBugFixed(r.id))));
-            el.append(button("btn danger", translate("Delete"), "", () => void remove(r, el)));
+            const controls = actions();
+            el.append(t, controls);
+            if (r.hasMap) controls.append(button("btn", translate("Map"), "", (e) => void download(r, e.currentTarget as HTMLButtonElement)));
+            if (r.status === "new") controls.append(button("btn", translate("Mark done"), "", () => void act(el, () => this.api.markBugFixed(r.id))));
+            controls.append(button("btn danger", translate("Delete"), "", () => void remove(r, el)));
             return el;
         };
 
@@ -726,7 +768,7 @@ export class Account {
             note.hidden = tab !== "pending";
             if (!forks) return;
             const shown = all.filter((f) => f.status === tab);
-            list.replaceChildren(...(shown.length ? shown.map((f) => (f.id === approving ? approveRow(f) : row(f))) : [h("div", "fb-empty", translate("No builds"))]));
+            list.replaceChildren(...(shown.length ? shown.map((f) => (f.id === approving ? approveRow(f) : row(f))) : [h("div", "fb-empty", translate("No builds with this status."))]));
         };
 
         const refresh = async () => {
@@ -761,20 +803,20 @@ export class Account {
             const btn = (label: string, run: () => void, kind = "") => button(`btn${kind ? ` ${kind}` : ""}`, label, "", run);
             const del = btn(translate("Delete"), () => void remove(f, r), "danger");
             if (f.status === "pending") {
-                r.append(rowText(f.title, adminMeta(f)), btn(translate("Approve"), () => startApprove(f)), btn(translate("Decline"), () => void act(r, () => this.api.act(f.id, "reject"))));
+                r.append(rowText(f.title, adminMeta(f)), actions(btn(translate("Approve"), () => startApprove(f)), btn(translate("Decline"), () => void act(r, () => this.api.act(f.id, "reject")))));
             } else if (f.status === "approved") {
                 const s = stateLabel(f.status, f.build);
                 r.append(
                     rowText(f.title, adminMeta(f), s.reason),
                     badge(s),
-                    btn(translate("Rebuild"), () => void act(r, () => this.api.act(f.id, "rebuild"))),
+                    actions(btn(translate("Rebuild"), () => void act(r, () => this.api.act(f.id, "rebuild"))),
                     btn(translate("Hide"), () => void act(r, () => this.api.act(f.id, "hide"))),
-                    del,
+                    del),
                 );
             } else if (f.status === "hidden") {
-                r.append(rowText(f.title, adminMeta(f)), btn(translate("Unhide"), () => void act(r, () => this.api.act(f.id, "unhide"))), del);
+                r.append(rowText(f.title, adminMeta(f)), actions(btn(translate("Unhide"), () => void act(r, () => this.api.act(f.id, "unhide"))), del));
             } else {
-                r.append(rowText(f.title, adminMeta(f)), btn(translate("Approve"), () => startApprove(f)), del);
+                r.append(rowText(f.title, adminMeta(f)), actions(btn(translate("Approve"), () => startApprove(f)), del));
             }
             return r;
         };
@@ -813,7 +855,7 @@ export class Account {
                     }
                 });
             }
-            r.append(form, button("btn primary", translate("Approve"), "", () => void approve()), button("btn", translate("Cancel"), "", cancel));
+            r.append(form, actions(button("btn primary", translate("Approve"), "", () => void approve()), button("btn", translate("Cancel"), "", cancel)));
             return r;
         };
 

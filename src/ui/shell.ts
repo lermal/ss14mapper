@@ -26,6 +26,7 @@ export interface ShellHooks {
     /** Manage library. */
     library(): void;
     settings(): void;
+    panels(): MenuItem[];
     shortcuts(): void;
     about(): void;
     setLanguage(code: string): void;
@@ -50,30 +51,30 @@ const LAYER_DEFS: ReadonlyArray<[Layer, string, string]> = [
 ];
 
 const STYLE = `
-.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); }
-.topbar { display: flex; align-items: center; gap: 4px; height: 44px; flex: none; padding: 0 10px; box-sizing: border-box; background: var(--panel); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg); color: var(--text); }
+.topbar { display: flex; align-items: center; gap: 4px; height: 36px; flex: none; padding: 0 8px; box-sizing: border-box; background: var(--panel); border-bottom: 1px solid var(--border); white-space: nowrap; overflow-x: auto; scrollbar-width: thin; }
 .topbar .tb-brand { display: flex; align-items: center; gap: 8px; padding-right: 10px; font-weight: 600; }
 .topbar .tb-menu { height: 30px; padding: 0 10px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text); }
 .topbar .tb-menu:hover, .topbar .tb-menu[aria-expanded="true"] { background: var(--raised); }
-.topbar .tb-centre { flex: 1; min-width: 0; display: flex; justify-content: center; align-items: center; gap: 10px; }
+.topbar .tb-centre { flex: 1; min-width: 0; display: flex; justify-content: flex-start; align-items: center; gap: 10px; padding-left: 14px; margin-left: 8px; border-left: 1px solid var(--border); }
 .topbar .tb-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .topbar .tb-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--warn); flex: none; }
-.topbar .tb-build { height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted); font-size: 12px; white-space: nowrap; }
+.topbar .tb-build { height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border: 0; border-radius: 0; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .topbar .tb-fork { height: 28px; padding: 0 28px 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); color: var(--text); appearance: none; -webkit-appearance: none; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c9d1dc' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
 .topbar .tb-icon { width: 32px; height: 30px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text); display: grid; place-items: center; }
 .topbar .tb-icon:hover:not(:disabled) { background: var(--raised); }
 .topbar .tb-icon:disabled { color: var(--faint); cursor: default; }
 .topbar .tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 6px; }
-.topbar .tb-save { height: 30px; padding: 0 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: #fff; font-weight: 600; }
-.topbar .tb-save:hover:not(:disabled) { filter: brightness(1.12); }
+.topbar .tb-save { height: 28px; padding: 0 10px; border: 0; border-radius: 2px; background: transparent; color: var(--text); font-weight: 500; }
+.topbar .tb-save:hover:not(:disabled) { background: var(--raised); }
 .topbar .tb-save:disabled { opacity: 0.5; cursor: default; }
 .workspace { flex: 1; display: flex; min-height: 0; }
-.rail { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; box-sizing: border-box; background: var(--panel); border-right: 1px solid var(--border); }
+.rail { width: 44px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; overflow-y: auto; scrollbar-width: thin; box-sizing: border-box; background: var(--panel); border-right: 1px solid var(--border); }
 .rail .rl-gap { width: 28px; height: 1px; background: var(--border); margin: 4px 0; }
-.rail .rl-tool { position: relative; width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; border: 1px solid transparent; background: transparent; color: #b6bfcc; }
+.rail .rl-tool { position: relative; width: 36px; height: 36px; flex: none; border-radius: 2px; display: grid; place-items: center; border: 1px solid transparent; background: transparent; color: var(--text-2); }
 .rail .rl-tool:hover { background: var(--raised); }
-.rail .rl-tool[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: #fff; }
+.rail .rl-tool[aria-pressed="true"] { border-color: transparent; border-left-color: var(--accent-text); background: var(--accent-soft); color: var(--text); }
 .rail .rl-flyout { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 5px solid transparent; border-bottom: 5px solid var(--muted); }
 .palette-col { width: 288px; flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--border); }
 .view { position: relative; flex: 1; min-width: 0; overflow: hidden; background: var(--map-bg); }
@@ -86,9 +87,9 @@ const STYLE = `
 .map-controls .mc-layers { width: 236px; padding: 8px; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--panel); box-shadow: var(--shadow); }
 .map-controls .mc-layers label { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px; border-radius: var(--radius-s); cursor: pointer; }
 .map-controls .mc-layers label:hover { background: var(--raised); }
-.map-controls .mc-layers .mc-key { margin-left: auto; color: #6f7a8b; font-size: 11px; }
-.map-controls .mc-bar { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.map-controls .mc-networks { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.map-controls .mc-layers .mc-key { margin-left: auto; color: var(--muted); font-size: 11px; }
+.map-controls .mc-bar { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+.map-controls .mc-networks { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
 .map-controls .mc-networks label { display: flex; align-items: center; gap: 8px; }
 .map-controls .mc-networks select { padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); color: var(--text); }
 .map-controls .mc-network-status { color: var(--muted); font-size: 12px; }
@@ -100,17 +101,33 @@ const STYLE = `
 .map-controls .mc-bar .mc-toggle[aria-expanded="true"] { background: var(--accent-soft); color: #fff; }
 .map-controls .mc-bar .mc-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
 .map-controls .mc-bar .mc-pct { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
-.statusbar { display: flex; align-items: center; gap: 16px; height: 28px; flex: none; padding: 0 12px; box-sizing: border-box; background: var(--panel); border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; }
+.statusbar { display: flex; align-items: center; gap: 12px; height: 28px; flex: none; padding: 0 12px; box-sizing: border-box; background: var(--panel); border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; }
 .statusbar .sb-build { color: var(--muted); text-decoration: none; }
 .statusbar .sb-build[href]:hover { color: var(--accent-text); text-decoration: underline; }
-.statusbar .sb-credit { flex: none; margin-left: auto; color: #a29778; font-weight: 600; letter-spacing: 0.02em; text-decoration: none; }
-.statusbar .sb-credit:hover { color: #f2f4f1; }
-.statusbar .sb-cursor { font-family: var(--mono); min-width: 110px; white-space: pre; }
+.statusbar .sb-credit { flex: none; margin-left: auto; color: var(--muted); font-weight: 400; text-decoration: none; }
+.statusbar .sb-credit:hover { color: var(--text); }
+.statusbar .sb-cursor { font-family: var(--mono); min-width: 165px; white-space: pre; }
 .statusbar .sb-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .statusbar .sb-missing { display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border: 1px solid #5a4a22; border-radius: var(--radius-s); background: #2a2416; color: var(--warn); font-size: 12px; }
 .sb-list { position: fixed; z-index: 1500; width: 360px; max-height: 50vh; display: flex; flex-direction: column; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 12px; }
 .sb-list .sl-head { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-2); font-weight: 600; }
 .sb-list .sl-body { overflow-y: auto; padding: 6px 10px; font-family: var(--mono); color: var(--muted); white-space: pre; }
+@media (max-width: 1100px) {
+  .palette-col { width: 240px; }
+  .properties { width: 260px; }
+  .topbar .tb-brand { font-size: 12px; padding-right: 4px; }
+  .topbar .tb-menu { padding: 0 8px; }
+  .topbar .tb-centre { justify-content: flex-start; }
+  .topbar .tb-build { display: none; }
+  .statusbar { gap: 12px; }
+  .statusbar .sb-credit { display: none; }
+}
+@media (pointer: coarse) {
+  .rail { width: 56px; }
+  .rail .rl-tool { width: 44px; height: 44px; }
+  .topbar .tb-icon, .map-controls .mc-bar button { min-width: 44px; min-height: 44px; }
+}
+
 `;
 
 let styleAdded = false;
@@ -133,6 +150,7 @@ export class Shell {
     private readonly railButtons = new Map<string, HTMLButtonElement>();
     private readonly cursor: HTMLElement;
     private readonly hint: HTMLElement;
+    private readonly measure: HTMLElement;
     private readonly counts: HTMLElement;
     private readonly build: HTMLAnchorElement;
     private readonly buildLabel: HTMLElement;
@@ -232,6 +250,8 @@ export class Shell {
             {
                 label: translate("View"),
                 items: () => [
+                    { label: translate("Panels"), sub: () => hooks.panels() },
+                    "-",
                     ...LAYER_DEFS.map(([l, label, id]): MenuItem => ({ label, keys: keys(id), checked: c.layer(l), run: () => c.setLayer(l, !c.layer(l)) })),
                     { label: translate("Animate parallax"), checked: c.parallaxAnimated, run: () => c.setParallaxAnimated(!c.parallaxAnimated) },
                     "-",
@@ -270,6 +290,7 @@ export class Shell {
         this.saveBtn = button("tb-save", translate("Save"), "", () => c.run("file.save"));
         this.saveBtn.id = "save";
         topbar.append(centre, this.undoBtn, this.redoBtn, h("span", "tb-sep"), this.saveBtn);
+        new MenuBar(topbar, [{ label: translate("Panels"), items: () => hooks.panels() }]);
 
         // ---- options bar
         this.options = new OptionsBar(optionsbar, c);
@@ -302,6 +323,10 @@ export class Shell {
         statusbar.classList.add("statusbar");
         this.cursor = h("span", "sb-cursor");
         this.cursor.id = "cursor";
+        this.cursor.title = translate("Cursor cell coordinates");
+        this.measure = h("span", "sb-measure");
+        this.measure.id = "selection-measure";
+        this.measure.title = translate("Selection footprint: entity cells, tiles and decal bounds. Width × height in tiles.");
         this.hint = h("span", "sb-hint");
         this.hint.id = "info";
         this.counts = h("span");
@@ -315,7 +340,7 @@ export class Shell {
             this.toggleMissing();
         });
         this.missingBtn.hidden = true;
-        statusbar.append(this.cursor, this.hint, this.counts, this.build, this.missingBtn, creditLink("sb-credit"));
+        statusbar.append(this.cursor, this.measure, this.hint, this.counts, this.build, this.missingBtn, creditLink("sb-credit"));
 
         // ---- layers and zoom on the map
         controls.classList.add("map-controls");
@@ -478,6 +503,12 @@ export class Shell {
         if (set("tool", c.activeTool)) for (const [id, b] of this.railButtons) b.setAttribute("aria-pressed", String(id === c.activeTool));
         this.options.update();
         if (set("cursor", c.cursorText)) this.cursor.textContent = c.cursorText;
+        const measure = c.selectionMeasure;
+        const number = (v: number) => Number(v.toFixed(2)).toLocaleString(language());
+        const measured = measure ? translate("Selection {{width}} × {{height}} tiles", { width: number(measure.width), height: number(measure.height) }) : "";
+        if (this.measure.textContent !== measured) this.measure.textContent = measured;
+        this.measure.hidden = !measure;
+        if (measure) this.measure.title = translate("Selection footprint: entity cells, tiles and decal bounds. Width × height in tiles.") + " " + (measure.grid === null ? translate("World axes") : translate("Grid {{grid}}", { grid: measure.grid }));
         if (set("hint", c.hint)) {
             this.hint.textContent = c.hint;
             this.hint.title = c.hint;

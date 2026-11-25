@@ -10,17 +10,24 @@ import type { Fork } from "./shell";
 import { showToast } from "./toast";
 
 const STYLE = `
-.dlg .md-seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; align-self: flex-start; }
-.dlg .md-seg button { height: 26px; padding: 0 14px; border: 0; background: var(--raised); color: var(--text); }
-.dlg .md-seg button + button { border-left: 1px solid var(--border); }
-.dlg .md-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); font-weight: 600; }
-.dlg .md-hint { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.dlg .md-floor { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text-2); }
-.dlg .md-floor-fields { display: flex; gap: 8px; align-items: flex-end; }
-.dlg .md-floor-fields .dlg-field { margin-top: 6px; }
-.dlg .md-floor-fields .md-tile { flex: 1; min-width: 0; }
-.dlg .md-floor-fields input[type=number] { width: 72px; }
+.dlg .md-section { margin: 0; padding: 0; border: 0; min-width: 0; }
+.dlg .md-section + .md-section { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }
+.dlg .md-section legend { float: left; width: 100%; padding: 0; margin-bottom: 12px; font-weight: 600; }
+.dlg .md-section > .md-content { clear: both; }
+.dlg .md-section .dlg-field { margin: 0; gap: 6px; min-width: 0; }
+.dlg .md-section input, .dlg .md-section select { width: 100%; min-width: 0; }
+.dlg .md-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.dlg .md-seg { display: flex; gap: 2px; min-height: 32px; }
+.dlg .md-seg button { flex: 1; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 2px 2px 0 0; background: transparent; color: var(--muted); }
+.dlg .md-seg button:hover { background: var(--raised); }
+.dlg .md-seg button[aria-pressed="true"] { background: var(--accent-soft); border-bottom-color: var(--accent-text); color: var(--text); }
+.dlg .md-hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.dlg .md-floor { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--text-2); }
+.dlg .md-floor input { width: auto; margin: 0; }
 .dlg .md-floor-fields.off { opacity: 0.5; }
+@media (max-width: 480px) {
+  .dlg .md-map-pair { grid-template-columns: minmax(0, 1fr); }
+}
 .dlg .lib-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; margin-top: 8px; }
 .dlg .lib-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
 .dlg .lib-row .lib-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -127,7 +134,6 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
     const seg = h("div", "md-seg");
     seg.setAttribute("role", "group");
     seg.setAttribute("aria-label", translate("Type"));
-    const hint = h("p", "md-hint");
     const name = textInput(KINDS[0]![3]);
     name.dataset.autofocus = "";
     let named = false;
@@ -145,7 +151,6 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
         kind = k;
         const def = KINDS.find((d) => d[0] === k)!;
         kindButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === k)));
-        hint.textContent = def[2];
         if (!named) name.value = def[3];
     };
     setKind("shuttle");
@@ -158,23 +163,29 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
     floorOn.type = "checkbox";
     floorOn.checked = true;
     const floorLabel = h("label", "md-floor");
-    floorLabel.append(floorOn, translate("Floor"));
+    floorLabel.append(floorOn, translate("Add a starting floor"));
     const tile = h("select");
     const width = numberInput(5, 1, MAX_SIDE), height = numberInput(5, 1, MAX_SIDE);
     const floorFields = h("div", "md-floor-fields");
-    floorFields.append(field(translate("Tile"), tile, "md-tile"), field(translate("Width"), width), field(translate("Height"), height));
+    const dimensions = h("div", "md-pair");
+    dimensions.append(field(translate("Width (tiles)"), width), field(translate("Height (tiles)"), height));
+    floorFields.append(field(translate("Tile"), tile), dimensions);
     floorOn.addEventListener("change", () => {
         floorFields.classList.toggle("off", !floorOn.checked);
-        for (const c of [tile, width, height]) c.disabled = !floorOn.checked;
+        for (const c of [width, height]) c.disabled = !floorOn.checked;
+        tile.disabled = !floorOn.checked || !pack;
     });
 
     const error = h("p", "dlg-error");
+    error.setAttribute("role", "alert");
     let pack: Pack | null = null;
+    let loadError = "";
     let packFor = "";
     const loadTiles = async () => {
         const id = build.value;
         packFor = id;
         pack = null;
+        loadError = "";
         tile.replaceChildren(new Option(translate("Loading…"), ""));
         tile.disabled = true;
         try {
@@ -195,7 +206,7 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
         } catch (e) {
             if (packFor !== id) return;
             tile.replaceChildren(new Option(translate("Not available"), ""));
-            error.textContent = translate("Could not load {{1}}: {{2}}", { 1: build.selectedOptions[0]?.text ?? id, 2: (e as Error).message });
+            error.textContent = loadError = translate("Could not load {{1}}: {{2}}", { 1: build.selectedOptions[0]?.text ?? id, 2: (e as Error).message });
         }
     };
     tile.addEventListener("change", () => (tile.dataset.chosen = tile.value));
@@ -210,7 +221,7 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
         error.textContent = nameProblem(name.value, setup.taken);
         if (error.textContent) return false;
         if (!pack) {
-            error.textContent = translate("Build is loading");
+            error.textContent = loadError || translate("Build is loading");
             return false;
         }
         let floor: { tile: string; width: number; height: number } | undefined;
@@ -238,16 +249,26 @@ export function newMapDialog(setup: NewMapSetup): Promise<NewMapResult | null> {
         }
     };
     const typeField = h("div", "dlg-field");
-    typeField.append(translate("Type"), seg, hint);
+    typeField.append(translate("Type"), seg);
+    const mapSection = h("fieldset", "md-section");
+    const mapFields = h("div", "md-content");
+    const mapPair = h("div", "md-pair md-map-pair");
+    mapPair.append(typeField, field(translate("Build"), build));
+    mapFields.append(field(translate("Name"), name), mapPair);
+    mapSection.append(h("legend", "", translate("Map settings")), mapFields);
+    const floorSection = h("fieldset", "md-section");
+    const floorContent = h("div", "md-content");
+    floorContent.append(floorLabel, floorFields);
+    floorSection.append(h("legend", "", translate("Starting floor")), floorContent);
     return dialog<"create" | null>(
         translate("New map"),
-        [typeField, field(translate("Name"), name), field(translate("Build"), build), floorLabel, floorFields, error],
+        [mapSection, floorSection, error],
         [
             { label: translate("Cancel"), value: null, spaceAfter: true },
             { label: translate("Create"), value: "create", kind: "primary" },
         ],
         null,
-        { check, width: 460 },
+        { check, width: 520 },
     ).then((v) => (v === "create" ? result : null));
 }
 

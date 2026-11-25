@@ -19,6 +19,11 @@ npm test         # tests
 npm run build    # static site in dist/
 ```
 
+The dev server listens on `127.0.0.1:8767`. In a VS Code Remote SSH window, open the
+**Ports** panel, choose **Forward a Port**, and enter `8767`. Open the forwarded
+address in your browser; append `?lang=ru` for Russian. Keep `npm run dev` running
+in the remote terminal. Local asset packs load through the same port.
+
 Tests that read real maps use a corpus outside the repository; see `tools/corpus.mjs`. Set `SS14MAPPER_ENGINE` to a RobustToolbox checkout to also compare the noise port with the engine's source.
 
 ## Public site hosting
