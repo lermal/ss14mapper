@@ -1,3 +1,4 @@
+@import "./mobile.css";
 :root {
   color-scheme: dark;
   --bg: #191c20;
@@ -36,6 +37,7 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 var(--font); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
+button, a, select, summary { touch-action: manipulation; }
 button, select, input { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 input[type="checkbox"] { accent-color: var(--accent); }

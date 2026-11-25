@@ -4,7 +4,7 @@
 import { language, languages, t as translate } from "../i18n";
 import { LAYERS, type EditorController, type Layer } from "../editor/controller";
 import { describeChord, type Keymap } from "../editor/keymap";
-import { MenuBar, popupMenu, type MenuItem } from "./menus";
+import { MenuBar, popupMenu, type MenuItem, type MenuDef } from "./menus";
 import { creditLink } from "./credit";
 import { button, h, icon, ICON } from "./icons";
 import { MARQUEE_SHAPES, OptionsBar, SHAPE_KINDS, TOOLS } from "./options-bar";
@@ -186,7 +186,7 @@ export class Shell {
         topbar.append(brand);
         const keys = (id: string) => keymap.bindings(id).map(describeChord)[0];
         const cmd = (label: string, id: string, disabled = false): MenuItem => ({ label, keys: keys(id), run: () => c.run(id), disabled });
-        new MenuBar(topbar, [
+        const menus: MenuDef[] = [
             {
                 label: translate("File"),
                 items: () => [
@@ -270,7 +270,11 @@ export class Shell {
                     { label: translate("About SS14 Mapper"), run: () => hooks.about() },
                 ],
             },
-        ]);
+        ];
+        new MenuBar(topbar, menus);
+        const mobileMenu = h("div", "mobile-menu");
+        new MenuBar(mobileMenu, [{ label: translate("Menu"), items: () => menus.map(m => ({ label: m.label, sub: m.items })) }]);
+        topbar.prepend(mobileMenu);
         const centre = h("div", "tb-centre");
         this.name = h("span", "tb-name");
         this.dot = h("span", "tb-dot");
@@ -301,6 +305,7 @@ export class Shell {
             if (t.gapBefore) rail.append(h("span", "rl-gap"));
             const b = button("rl-tool", icon(t.icon, 18), "", () => c.run(t.action));
             b.setAttribute("aria-label", t.label);
+            b.append(h("span", "mobile-tool-label", t.label));
             b.dataset.tool = t.id;
             if (t.flyout) {
                 b.append(h("span", "rl-flyout"));
@@ -318,6 +323,7 @@ export class Shell {
             this.railButtons.set(t.id, b);
             rail.append(b);
         }
+        rail.append(h("p", "mobile-gesture-hint", translate("Two fingers move and zoom. Hold to choose an object.")));
 
         // ---- status bar
         statusbar.classList.add("statusbar");
@@ -377,6 +383,11 @@ export class Shell {
         networkLabel.append(this.networkFilter);
         this.networkPanel.append(networkLabel, this.networkStatus);
         const bar = h("div", "mc-bar");
+        const pan = button("mc-pan", translate("Move view"), translate("Drag with one finger to move the map"), () => {
+            c.touchNavigation = !c.touchNavigation;
+            pan.setAttribute("aria-pressed", String(c.touchNavigation));
+        });
+        pan.setAttribute("aria-pressed", "false");
         this.layersToggle = button("mc-toggle", icon(ICON.layers, 16), translate("View layers"), () => this.toggleLayers());
         this.layersToggle.append(translate("Layers"));
         this.layersToggle.setAttribute("aria-expanded", "false");
@@ -387,7 +398,7 @@ export class Shell {
         this.pct = h("span", "mc-pct");
         const fit = button("mc-fit", translate("Fit"), "", () => c.run("view.fit"));
         fit.dataset.fit = "";
-        bar.append(this.layersToggle, h("span", "mc-sep"), out, this.pct, inn, fit);
+        bar.append(pan, this.layersToggle, h("span", "mc-sep"), out, this.pct, inn, fit);
         controls.append(this.networkPanel, this.layersPanel, bar);
         // the controls are not part of the map: no map gestures start on them
         controls.addEventListener("wheel", (e) => e.stopPropagation());
@@ -500,7 +511,11 @@ export class Shell {
         if (set("canUndo", st.canUndo)) this.undoBtn.disabled = !st.canUndo;
         if (set("canRedo", st.canRedo)) this.redoBtn.disabled = !st.canRedo;
         if (set("open", st.open)) this.saveBtn.disabled = !st.open;
-        if (set("tool", c.activeTool)) for (const [id, b] of this.railButtons) b.setAttribute("aria-pressed", String(id === c.activeTool));
+        if (set("tool", c.activeTool)) {
+            for (const [id, b] of this.railButtons) b.setAttribute("aria-pressed", String(id === c.activeTool));
+            const current = document.querySelector(".mobile-current-tool");
+            if (current) current.textContent = TOOLS.find(t => t.id === c.activeTool)?.label ?? "";
+        }
         this.options.update();
         if (set("cursor", c.cursorText)) this.cursor.textContent = c.cursorText;
         const measure = c.selectionMeasure;

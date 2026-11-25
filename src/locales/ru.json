@@ -725,5 +725,12 @@
   "Message": "Сообщение",
   "Attachments": "Вложения",
   "No reports match these filters.": "Нет сообщений с выбранными фильтрами.",
-  "No builds with this status.": "Нет сборок с выбранным статусом."
+  "No builds with this status.": "Нет сборок с выбранным статусом.",
+  "Editor panels": "Панели редактора",
+  "Options": "Параметры",
+  "Menu": "Меню",
+  "Drag with one finger to move the map": "Перемещайте карту одним пальцем",
+  "Back": "Назад",
+  "Move view": "Двигать",
+  "Two fingers move and zoom. Hold to choose an object.": "Двумя пальцами перемещайте и масштабируйте карту. Удерживайте палец для выбора объекта."
 }

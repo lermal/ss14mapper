@@ -55,7 +55,7 @@ Editor refinement: use a flat desktop workbench. Menus and document commands sha
 
 ## Responsive behaviour
 
-Start page: collapse the file workspace and recent list below 760px. Guide: one readable column. Editor: preserve desktop panel geometry; at narrower widths use smaller panels and allow command strips to scroll, rather than squeezing text or changing the canvas scale. Do not hide tools or silently remove the inspector. On coarse pointers increase tool targets. The canvas is a spatial editing surface, so the generic one-column rule does not apply to it.
+Start page: collapse the file workspace and recent list below 760px. Guide: one readable column. Below 1000px the editor opens on the map, with a bottom navigation for Map, Tools, Palette, Properties and Options. Show one auxiliary panel at a time below the canvas in portrait, alongside it in short landscape viewports. These mobile choices never overwrite desktop panel preferences. Keep all commands reachable through a compact Menu, with undo, redo and save directly available. Keep colour in the map and sprites; use the existing neutral workbench chrome. Use 44px touch controls, 16px form text, safe-area insets and dynamic viewport height. One finger edits with the chosen tool, two fingers pan and pinch; a navigation toggle supports one-finger panning. Defer touch edits until movement or release so a second finger can start navigation without painting. A long press offers objects under the finger. Dialogs scroll within the available viewport; no document-level horizontal overflow.
 
 ## Motion and constraints
 

@@ -72,6 +72,7 @@ export type { DecalSnap } from "./tools";
 import { arrow, arrowLength, bounds, forwardOnScreen, GridMass, gridLineRanges } from "./view-aids";
 import { boxEntities, drawLinkLines, LINK_COLORS } from "./link-overlay";
 import { canHold, entityLabel, isConfigurator, linkable, linkLines, linkPanel, relations, secondClick, toggleDevice, type LinkLine } from "./multitool";
+import { TouchInput } from "./touch-input";
 export type { SelectFilter } from "./selection";
 export type { ShapeKind } from "./shapes";
 
@@ -361,6 +362,7 @@ export class EditorController {
     /** The container a drop or a Ctrl+click would put into (outlined), and what the status line says of it. */
     private into: { uid: number; ok: boolean; text: string } | null = null;
     private ctrlHeld = false;
+    touchNavigation = false;
 
     constructor(private readonly el: ControllerElements) {
         const { canvas, map } = el;
@@ -374,10 +376,25 @@ export class EditorController {
             this.menuHover = item;
             this.refresh();
         };
-        canvas.addEventListener("pointerdown", (e) => this.pointerDown(e));
-        canvas.addEventListener("pointermove", (e) => this.pointerMove(e));
-        canvas.addEventListener("pointerup", (e) => this.pointerUp(e));
-        canvas.addEventListener("pointercancel", () => this.endGesture(false));
+        const touch = new TouchInput(canvas, {
+            view: () => map.view,
+            setView: view => { map.setView(view); this.notify(); },
+            navigating: () => this.touchNavigation,
+            down: e => this.pointerDown(e), move: e => this.pointerMove(e), up: e => this.pointerUp(e),
+            cancel: () => this.endGesture(true),
+            menu: e => {
+                const w = this.worldAt(e);
+                if (!w) return;
+                const at: [number, number] = [e.clientX, e.clientY];
+                if (this.mode === "link") this.linkRightClick(at, w);
+                else if (this.mode === "sample") this.sampleMenu(at, w);
+                else this.selectMenu(at, w);
+            },
+        });
+        canvas.addEventListener("pointerdown", e => { if (!touch.down(e)) this.pointerDown(e); });
+        canvas.addEventListener("pointermove", e => { if (!touch.move(e)) this.pointerMove(e); });
+        canvas.addEventListener("pointerup", e => { if (!touch.up(e)) this.pointerUp(e); });
+        canvas.addEventListener("pointercancel", e => { if (!touch.up(e, true)) this.endGesture(true); });
         canvas.addEventListener("pointerleave", () => {
             this.hover = null;
             this.refresh();
@@ -616,6 +633,7 @@ export class EditorController {
         editor.deselect();
         this.propertiesOf = uid;
         this.refresh();
+        this.el.canvas.dispatchEvent(new Event("show-mobile-properties", { bubbles: true }));
     }
 
     /** The map's properties: the map entity, or the first grid of a file without one. */
@@ -1613,7 +1631,7 @@ export class EditorController {
         if (!editor || this.gesture) return;
         const w = this.worldAt(e);
         if (!w) return;
-        this.el.canvas.setPointerCapture(e.pointerId);
+        if (e.pointerType !== "touch") this.el.canvas.setPointerCapture(e.pointerId);
         const pan = (then?: () => void): Gesture => ({ kind: "pan", x: e.clientX, y: e.clientY, view: { ...this.el.map.view }, moved: false, then });
         const mode = this.mode;
         if (e.button !== 0 || mode !== "select") this.cycle.reset();
@@ -2080,6 +2098,7 @@ export class EditorController {
             this.inspected = uid;
         }
         this.el.properties?.(kind !== "none");
+        if (kind === "link") this.el.canvas.dispatchEvent(new Event("show-mobile-properties", { bubbles: true }));
     }
 
 

@@ -707,5 +707,12 @@
   "Message": "Message",
   "Attachments": "Attachments",
   "No reports match these filters.": "No reports match these filters.",
-  "No builds with this status.": "No builds with this status."
+  "No builds with this status.": "No builds with this status.",
+  "Editor panels": "Editor panels",
+  "Options": "Options",
+  "Menu": "Menu",
+  "Drag with one finger to move the map": "Drag with one finger to move the map",
+  "Back": "Back",
+  "Move view": "Pan",
+  "Two fingers move and zoom. Hold to choose an object.": "Two fingers move and zoom. Hold to choose an object."
 }

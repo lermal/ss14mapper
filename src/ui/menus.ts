@@ -1,6 +1,7 @@
 // Drop-down menus: the menu bar of the top bar (File, Edit, View, Help) and pop-up menus (the tool rail's
 // flyouts). Items are built when a menu opens, so their state (disabled, checked) is current.
 import { h, icon, ICON } from "./icons";
+import { t } from "../i18n";
 
 export type MenuItem =
     | {
@@ -79,6 +80,18 @@ class Popup {
     private build(items: MenuItem[], x: number, y: number, level = 0): HTMLElement {
         const menu = h("div", "menu");
         menu.setAttribute("role", "menu");
+        const compact = window.matchMedia("(max-width: 1000px)").matches;
+        if (compact && level) {
+            const back = h("button", "mi", t("Back"));
+            back.type = "button";
+            back.setAttribute("role", "menuitem");
+            back.addEventListener("click", () => {
+                this.closeFrom(level);
+                const parent = this.roots[level - 1];
+                if (parent) { parent.hidden = false; parent.querySelector<HTMLElement>(".open")?.focus(); }
+            });
+            menu.append(back, h("hr"));
+        }
         menu.addEventListener("contextmenu", (e) => e.preventDefault());
         for (const it of items) {
             if (it === "-") {
@@ -109,8 +122,10 @@ class Popup {
                 b.classList.add("open");
                 const r = b.getBoundingClientRect();
                 this.roots.push(this.build(it.sub(), r.right + 2, r.top - 5, level + 1));
+                if (compact) menu.hidden = true;
             };
-            b.addEventListener("pointerenter", () => {
+            b.addEventListener("pointerenter", (e) => {
+                if (compact || e.pointerType === "touch") return;
                 clearTimeout(this.subTimer);
                 this.subTimer = window.setTimeout(openSub, it.sub ? 80 : 160);
             });

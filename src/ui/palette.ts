@@ -26,7 +26,7 @@ export function decalIcon(pack: Pack, id: string): Frame | null {
     return decalIconFrame(pack, id);
 }
 
-const ROW = 40;
+const ROW = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? 48 : 40;
 const ICON = 32;
 const OVERSCAN = 4;
 
@@ -313,6 +313,7 @@ export class Palette {
         this.current = { ...choice };
         this.draw();
         this.onChange?.(this.current);
+        this.container.dispatchEvent(new Event("palette-choice"));
     }
 
     /** Clears the choice (Escape in the editor). */
@@ -424,6 +425,7 @@ export class Palette {
         this.current = same ? null : ({ kind: e.kind, id: e.id } as PaletteChoice);
         this.draw();
         this.onChange?.(this.current);
+        this.container.dispatchEvent(new Event("palette-choice"));
     }
 
     private onKey(e: KeyboardEvent): void {
