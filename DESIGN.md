@@ -43,6 +43,7 @@ Editor refinement: use a flat desktop workbench. Menus and document commands sha
 
 - File actions have 44px targets; opening an existing map is the primary action.
 - Empty recent files explain where saved maps will appear.
+- The EN/RU homepages ship the file workspace and footer in static HTML. Hydrate controls in place; reserve space for loading messages and account controls so slow scripts and build requests do not move the page.
 - Show errors beside the failed action and announce them to assistive technology.
 - Keep loading text visible; use a small tile-shaped indicator with reduced-motion support.
 - Selected tools have a visible edge and a tinted background. Keep keyboard focus visible.

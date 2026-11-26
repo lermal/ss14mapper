@@ -6,6 +6,8 @@
     <title>SS14 Mapper: Space Station 14 Map Editor</title>
     <meta name="description" content="Edit Space Station 14 maps in your browser. Open a YAML file or create a map, then download your changes for the game.">
     <link rel="canonical" href="https://ss14mapper.forged.by/">
+    <link rel="alternate" hreflang="en" href="https://ss14mapper.forged.by/">
+    <link rel="alternate" hreflang="ru" href="https://ss14mapper.forged.by/ru/">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="SS14 Mapper">
@@ -23,21 +25,48 @@
 </head>
 <body>
     <div id="start" class="start">
-        <header class="st-top">SS14 Mapper</header>
+        <header class="st-top">
+            <span>SS14 Mapper</span><span class="st-grow"></span>
+            <select class="st-language" aria-label="Language" disabled><option value="en">English</option><option value="ru" lang="ru">Русский</option></select>
+            <span class="st-account-slot"></span>
+        </header>
         <main>
             <section class="st-intro" lang="en" aria-labelledby="start-title">
-                <h1 id="start-title">Space Station 14 map editor</h1>
-                <p class="st-lead">Choose your build, then open a YAML file or create a map.</p>
-                <a href="/guide/"><span id="start-guide-label">Mapping guide</span></a>
+                <h1 id="start-title" data-i18n="Space Station 14 map editor">Space Station 14 map editor</h1>
+                <p class="st-lead" data-i18n="Choose your build, then open a YAML file or create a map.">Choose your build, then open a YAML file or create a map.</p>
+                <div class="st-links"><a id="start-guide" href="/guide/"><span data-i18n="Mapping guide">Mapping guide</span></a><a href="/ru/" lang="ru" hreflang="ru">Русский</a></div>
             </section>
             <div class="st-cols">
                 <div class="st-main">
-                    <p id="start-status" class="st-note" role="status" lang="en">Loading editor and builds…</p>
-                    <noscript><p>Enable JavaScript to use the editor.</p></noscript>
+                    <div class="st-build">
+                        <label for="start-build" data-i18n="Build">Build</label>
+                        <select id="start-build" disabled><option data-i18n="Loading editor and builds…">Loading editor and builds…</option></select>
+                        <button class="st-add" disabled data-i18n="Add a build…">Add a build…</button>
+                    </div>
+                    <div class="st-drop">
+                        <div class="st-actions">
+                            <button id="start-open" class="st-open" disabled data-i18n="Open file…">Open file…</button>
+                            <button id="start-new" class="st-new" disabled data-i18n="New map…">New map…</button>
+                        </div>
+                        <p id="start-status" class="st-drop-hint" role="status" data-i18n="Loading editor and builds…">Loading editor and builds…</p>
+                    </div>
+                    <div class="st-messages">
+                        <p class="st-error" role="alert"></p>
+                        <noscript><p>Enable JavaScript to use the editor.</p></noscript>
+                    </div>
                 </div>
-                <aside class="st-library" aria-labelledby="recent-title"></aside>
+                <aside class="st-library" aria-labelledby="recent-title">
+                    <div class="st-heads"><h2 id="recent-title" class="st-head" data-i18n="Recent">Recent</h2><button id="start-manage" class="st-link" disabled data-i18n="Manage…">Manage…</button></div>
+                    <p class="st-library-note" data-i18n="Saved in this browser">Saved in this browser</p>
+                    <div class="st-recents" aria-busy="true"><p class="st-note" data-i18n="Loading saved maps…">Loading saved maps…</p></div>
+                </aside>
             </div>
         </main>
+        <footer class="st-footer">
+            <button id="start-shortcuts" class="st-link" disabled data-i18n="Keyboard shortcuts">Keyboard shortcuts</button>
+            <button id="start-about" class="st-link" disabled aria-haspopup="dialog" data-i18n="About SS14 Mapper">About SS14 Mapper</button>
+            <a class="site-credit" href="https://forged.by/projects/ss14mapper" target="_blank" rel="noopener noreferrer" data-i18n="Developed by Forged">Developed by Forged</a>
+        </footer>
     </div>
     <div id="app" class="app" hidden>
         <header id="topbar"></header>

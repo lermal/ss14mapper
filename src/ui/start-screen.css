@@ -1,7 +1,7 @@
 .start { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.5; }
-.start .st-top { display: flex; align-items: center; gap: 12px; min-height: 56px; flex: none; padding: 8px 24px; box-sizing: border-box; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; }
+.start .st-top { display: flex; align-items: center; gap: 12px; min-height: 61px; flex: none; padding: 8px 24px; box-sizing: border-box; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; }
 .start .st-grow { flex: 1; }
-.start .st-language { min-height: 36px; max-width: 140px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--text-2); font-size: 13px; }
+.start .st-language { min-height: 36px; width: 100px; max-width: 100px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--text-2); font-size: 13px; }
 .start .st-link { min-height: 44px; padding: 8px 0; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 400; text-align: left; }
 .start .st-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
 .start main { flex: 1; width: min(1040px, 100%); margin: 0 auto; padding: clamp(32px, 7vh, 72px) 32px 48px; box-sizing: border-box; }
@@ -13,7 +13,7 @@
 .start .st-cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 48px; align-items: start; }
 .start .st-main { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .start .st-build { display: flex; flex-direction: column; gap: 8px; }
-.start .st-build > span { font-size: 14px; font-weight: 600; }
+.start .st-build > label { font-size: 14px; font-weight: 600; }
 .start .st-build select { width: 100%; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; }
 .start .st-add { align-self: flex-start; padding: 4px 0; border: 0; background: none; color: var(--accent-text); font-size: 13px; }
 .start .st-add:hover { text-decoration: underline; }
@@ -60,4 +60,22 @@
   .start .st-footer { padding: 8px 20px; gap: 0 20px; }
   .start .site-credit { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; }
   .start .st-intro a { min-height: 44px; }
+}
+
+/* The server-rendered workspace keeps its dimensions while scripts and data load. */
+.start .st-account-slot { display: flex; flex: none; width: 94px; min-width: 0; justify-content: flex-end; }
+.start .st-account-slot .tb-account { min-width: 0; max-width: 100%; }
+.start .st-account-slot .tb-user { max-width: 100%; }
+.start .st-account-slot button { min-height: 44px; }
+.start .st-account-slot .tb-user > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.start .st-links { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.start .st-messages:not(:has(.st-error:not(:empty), noscript > p)) { display: none; }
+.start .st-drop-hint { min-height: 42px; }
+.start .st-recents { min-height: 112px; }
+@media (max-width: 380px) {
+  .start .st-top { gap: 8px; padding-inline: 12px; }
+  .start .st-grow { display: none; }
+  .start .st-language { width: 90px; padding-inline: 6px; }
+  .start .st-account-slot { width: 80px; }
+  .start .st-account-slot .tb-signin { padding-inline: 6px; }
 }

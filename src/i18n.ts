@@ -23,7 +23,7 @@ export const languageReady = i18n.init({
     nsSeparator: false,
     resources: { en: { translation: english } },
     partialBundledLanguages: true,
-    detection: { order: ["querystring", "localStorage", "navigator"], lookupQuerystring: "lang", lookupLocalStorage: preference, caches: [] },
+    detection: { order: ["querystring", "htmlTag", "localStorage", "navigator"], lookupQuerystring: "lang", lookupLocalStorage: preference, caches: [] },
     // Text is passed to DOM text/attributes or the canvas rather than HTML.
     interpolation: { escapeValue: false },
 });
@@ -43,7 +43,12 @@ export function shortDate(date: Date, withYear: boolean): string {
 /** Keep shareable URLs and the browser preference in sync, including when storage is blocked. */
 export function languageUrl(code: string): URL {
     const url = new URL(location.href);
-    url.searchParams.set("lang", code);
+    if (code === "en" || code === "ru") {
+        url.pathname = code === "ru" ? "/ru/" : "/";
+        url.searchParams.delete("lang");
+    } else {
+        url.searchParams.set("lang", code);
+    }
     try {
         localStorage.setItem(preference, code);
     } catch {

@@ -1,8 +1,7 @@
 // The start screen, shown while no map is open: the build, a new map, opening or dropping a map file, and the
 // maps kept in this browser (one click opens one).
 import { language, languages, t as translate } from "../i18n";
-import { creditLink } from "./credit";
-import { button, h, icon, ICON } from "./icons";
+import { button, h } from "./icons";
 import { formatSize, formatWhen, type LibraryEntry } from "./library";
 import type { Fork } from "./shell";
 
@@ -23,7 +22,7 @@ export interface StartHooks {
 const SHOWN = 10;
 
 export class StartScreen {
-    /** The header bar (the account control goes at its end). */
+    /** Reserved account slot in the start header. */
     readonly header: HTMLElement;
     private readonly fork: HTMLSelectElement;
     private readonly recent: HTMLElement;
@@ -34,72 +33,55 @@ export class StartScreen {
 
     constructor(readonly container: HTMLElement, private readonly hooks: StartHooks) {
         container.classList.add("start");
-        const intro = container.querySelector<HTMLElement>(".st-intro")!;
-        intro.lang = language();
-        intro.querySelector<HTMLElement>("#start-title")!.textContent = translate("Space Station 14 map editor");
-        intro.querySelector<HTMLElement>(".st-lead")!.textContent = translate("Choose your build, then open a YAML file or create a map.");
-        intro.querySelector<HTMLElement>("#start-guide-label")!.textContent = translate("Mapping guide");
-        intro.querySelector<HTMLAnchorElement>("a")!.href = language() === "ru" ? "/guide/ru/" : "/guide/";
-        const top = (this.header = container.querySelector<HTMLElement>(".st-top")!);
-        top.replaceChildren();
-        const locale = h("select", "st-language");
+        for (const el of container.querySelectorAll<HTMLElement>("[data-i18n]")) {
+            el.textContent = translate(el.dataset.i18n!);
+        }
+        container.querySelector<HTMLElement>(".st-intro")!.lang = language();
+        container.querySelector<HTMLAnchorElement>("#start-guide")!.href = language() === "ru" ? "/guide/ru/" : "/guide/";
+        this.header = container.querySelector<HTMLElement>(".st-account-slot")!;
+        const locale = container.querySelector<HTMLSelectElement>(".st-language")!;
         locale.setAttribute("aria-label", translate("Language"));
-        for (const { code, name } of languages) {
+        locale.replaceChildren(...languages.map(({ code, name }) => {
             const option = new Option(name, code);
             option.lang = code;
-            locale.add(option);
-        }
+            return option;
+        }));
         locale.value = language();
+        locale.disabled = false;
         locale.addEventListener("change", async () => {
             await hooks.setLanguage(locale.value);
             locale.value = language();
         });
-        top.append("SS14 Mapper", h("span", "st-grow"), locale);
 
-        const aside = container.querySelector<HTMLElement>(".st-library")!;
-        const build = h("label", "st-build");
-        this.fork = h("select");
+        const action = (selector: string, run: () => void) => {
+            const control = container.querySelector<HTMLButtonElement>(selector)!;
+            control.disabled = false;
+            control.addEventListener("click", run);
+            control.addEventListener("mouseup", () => control.blur());
+            return control;
+        };
+        this.fork = container.querySelector<HTMLSelectElement>("#start-build")!;
         this.fork.addEventListener("change", () => hooks.setFork(this.fork.value));
-        build.append(h("span", "", translate("Build")), this.fork);
-        if (hooks.addBuild) build.append(button("st-add", translate("Add a build…"), "", () => hooks.addBuild?.()));
-        const drop = h("div", "st-drop");
-        const open = button("st-open", translate("Open file…"), "", () => hooks.open());
-        open.id = "start-open";
-        const make = button("st-new", translate("New map…"), "", () => hooks.newMap());
-        make.id = "start-new";
-        const actions = h("div", "st-actions");
-        actions.append(open, make);
-        const dropHint = h("p", "st-drop-hint");
-        dropHint.append(icon(ICON.upload, 20), h("span", "", translate("Drop a .yml map here")));
-        drop.append(actions, dropHint);
+        const add = container.querySelector<HTMLButtonElement>(".st-add")!;
+        if (hooks.addBuild) action(".st-add", () => hooks.addBuild?.());
+        else add.style.visibility = "hidden";
+        const drop = container.querySelector<HTMLElement>(".st-drop")!;
+        const open = action("#start-open", () => hooks.open());
+        const make = action("#start-new", () => hooks.newMap());
         // the page takes the drop itself; the zone only shows where it goes
         drop.addEventListener("dragenter", () => drop.classList.add("over"));
         drop.addEventListener("dragleave", (e) => {
             if (!drop.contains(e.relatedTarget as Node)) drop.classList.remove("over");
         });
         drop.addEventListener("drop", () => drop.classList.remove("over"));
-        this.error = h("p", "st-error");
-        this.error.setAttribute("role", "alert");
+        this.error = container.querySelector<HTMLElement>(".st-error")!;
         this.status = container.querySelector<HTMLElement>("#start-status")!;
-        this.status.removeAttribute("lang");
-        this.status.textContent = translate("Loading editor and builds…");
-        this.status.before(build, drop);
-        this.status.after(this.error);
         this.controls = [this.fork, open, make];
         for (const control of this.controls) control.disabled = true;
-
-        this.recent = h("div", "st-recents");
-        const heads = h("div", "st-heads");
-        const heading = h("h2", "st-head", translate("Recent"));
-        heading.id = "recent-title";
-        heads.append(heading, button("st-link", translate("Manage…"), "", () => hooks.manage()));
-
-        aside.append(heads, h("p", "st-library-note", translate("Saved in this browser")), this.recent);
-        const footer = h("footer", "st-footer");
-        const about = button("st-link", translate("About SS14 Mapper"), "", () => hooks.about());
-        about.setAttribute("aria-haspopup", "dialog");
-        footer.append(button("st-link", translate("Keyboard shortcuts"), "", () => hooks.shortcuts()), about, creditLink("site-credit"));
-        container.append(footer);
+        this.recent = container.querySelector<HTMLElement>(".st-recents")!;
+        action("#start-manage", () => hooks.manage());
+        action("#start-shortcuts", () => hooks.shortcuts());
+        action("#start-about", () => hooks.about());
     }
 
     setForks(forks: Fork[], current: string, error = ""): void {
@@ -107,8 +89,7 @@ export class StartScreen {
         this.fork.replaceChildren(...forks.map((f) => new Option(f.name, f.id)));
         this.fork.value = current;
         for (const control of this.controls) control.disabled = forks.length === 0;
-        this.status.textContent = forks.length ? "" : error || translate("No builds available. Try reloading the page.");
-        this.status.hidden = forks.length > 0;
+        this.status.textContent = forks.length ? translate("Drop a .yml map here") : error || translate("No builds available. Try reloading the page.");
     }
 
     setFork(id: string): void {
@@ -122,6 +103,7 @@ export class StartScreen {
 
     /** Lists the maps of the library, most recently used first. */
     setRecent(list: LibraryEntry[]): void {
+        this.recent.setAttribute("aria-busy", "false");
         if (!list.length) {
             const empty = h("div", "st-none");
             empty.append(h("p", "st-empty-title", translate("No maps yet")), h("p", "", translate("Open or create a map, then save it to keep it here.")));

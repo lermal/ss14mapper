@@ -21,7 +21,7 @@ npm run build    # static site in dist/
 
 The dev server listens on `127.0.0.1:8767`. In a VS Code Remote SSH window, open the
 **Ports** panel, choose **Forward a Port**, and enter `8767`. Open the forwarded
-address in your browser; append `?lang=ru` for Russian. Keep `npm run dev` running
+address in your browser; open `/ru/` for Russian. Keep `npm run dev` running
 in the remote terminal. Local asset packs load through the same port.
 
 Tests that read real maps use a corpus outside the repository; see `tools/corpus.mjs`. Set `SS14MAPPER_ENGINE` to a RobustToolbox checkout to also compare the noise port with the engine's source.
@@ -33,6 +33,21 @@ Tests that read real maps use a corpus outside the repository; see `tools/corpus
 If a Cloudflare Cache Rule overrides origin caching or ignores query strings, configure it to bypass cache for the editor and guide HTML paths, including the aliases. Keep Cloudflare's managed robots configuration and verify that its final response includes the sitemap directive from the origin. The editor's `noindex` header tells crawlers how to index state URLs. Anyone who has such a URL can still request it.
 
 After applying the rules, check the origin and the Cloudflare response. Request `/?fork=upstream&open=`, then `/` and `/?fork=upstream`. Only the first should return `X-Robots-Tag: noindex` and `Cache-Control: private, no-store`. Check that `/index.html?map=example` redirects to `/?map=example`, `/guide` redirects to `/guide/` and nonexistent routes and assets return HTTP 404.
+
+Publish the **entire** `dist/` directory, including `ru/index.html`, `guide/index.html` and
+`guide/ru/index.html`. Updating only the root HTML and `assets/` leaves nested pages missing.
+Build with the site's existing `VITE_API_URL` setting so accounts and hosted builds remain enabled.
+The public nginx routes must include both `/ru/` and `/guide/ru/`; keep the existing API
+and pack locations. Validate the updated nginx configuration with `nginx -t` before reloading it.
+If Cloudflare cached a previous 404, purge the affected URL after the origin returns 200.
+Run `npm run check-site -- https://ss14mapper.forged.by` after publishing; it checks all four
+public pages, their canonical and language links, the sitemap, and the robots sitemap directive.
+Run the same check against the origin to distinguish a missing deployment file from a cached response.
+
+The English homepage is `/` and the Russian homepage is `/ru/`. Each has its own static
+HTML, canonical and reciprocal `hreflang` links. The page language takes precedence over
+browser preferences; legacy `?lang=…` links still override it. The language selector moves
+between the canonical home routes while preserving the open map and other query parameters.
 
 ## Interface translations
 

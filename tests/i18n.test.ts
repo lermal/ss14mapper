@@ -1,13 +1,32 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { i18n, language, languageReady, languages, t } from "../src/i18n";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { i18n, language, languageReady, languageUrl, languages, t } from "../src/i18n";
 import english from "../src/locales/en.json";
 import russian from "../src/locales/ru.json";
 
 afterEach(async () => {
+    vi.unstubAllGlobals();
     await i18n.changeLanguage("en");
 });
 
 describe("interface localization", () => {
+    it.each([
+        ["https://example.test/?lang=en&open=map-id&fork=upstream#map", "ru", "/ru/?open=map-id&fork=upstream#map"],
+        ["https://example.test/ru/?lang=ru&open=map-id", "en", "/?open=map-id"],
+        ["https://example.test/ru/?fork=upstream", "ru", "/ru/?fork=upstream"],
+    ])("switches canonical homepage routes without losing map state: %s", (href, code, expected) => {
+        vi.stubGlobal("location", { href });
+        const setItem = vi.fn();
+        vi.stubGlobal("localStorage", { setItem });
+        expect(languageUrl(code).href).toBe("https://example.test" + expected);
+        expect(setItem).toHaveBeenCalledWith("ss14mapper.language", code);
+    });
+
+    it("can switch language when browser storage is blocked", () => {
+        vi.stubGlobal("location", { href: "https://example.test/?map=sample" });
+        vi.stubGlobal("localStorage", { setItem: () => { throw new Error("blocked"); } });
+        expect(languageUrl("ru").href).toBe("https://example.test/ru/?map=sample");
+    });
+
     it("loads Russian for a regional locale and falls back to English for an unsupported language", async () => {
         await languageReady;
         expect(languages.map(({ code }) => code)).toEqual(expect.arrayContaining(["en", "ru"]));

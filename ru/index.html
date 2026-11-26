@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+    <title>Редактор карт Space Station 14 онлайн — SS14 Mapper</title>
+    <meta name="description" content="Создавайте и редактируйте карты Space Station 14 в браузере. Расставляйте тайлы и объекты, изменяйте свойства и скачивайте карту в YAML для игры.">
+    <link rel="canonical" href="https://ss14mapper.forged.by/ru/">
+    <link rel="alternate" hreflang="en" href="https://ss14mapper.forged.by/">
+    <link rel="alternate" hreflang="ru" href="https://ss14mapper.forged.by/ru/">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="SS14 Mapper">
+    <meta property="og:title" content="Редактор карт Space Station 14 онлайн — SS14 Mapper">
+    <meta property="og:description" content="Создавайте и редактируйте карты Space Station 14 в браузере. Расставляйте тайлы и объекты, изменяйте свойства и скачивайте карту в YAML для игры.">
+    <meta property="og:url" content="https://ss14mapper.forged.by/ru/">
+    <meta property="og:image" content="https://ss14mapper.forged.by/social-card.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="SS14 Mapper: редактор карт Space Station 14.">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="stylesheet" href="/src/ui/theme.css">
+    <link rel="stylesheet" href="/src/ui/start-screen.css">
+    <noscript><style>#start-status { display: none; }</style></noscript>
+</head>
+<body>
+    <div id="start" class="start">
+        <header class="st-top">
+            <span>SS14 Mapper</span><span class="st-grow"></span>
+            <select class="st-language" aria-label="Язык" disabled><option value="en">English</option><option value="ru" lang="ru" selected>Русский</option></select>
+            <span class="st-account-slot"></span>
+        </header>
+        <main>
+            <section class="st-intro" lang="ru" aria-labelledby="start-title">
+                <h1 id="start-title" data-i18n="Space Station 14 map editor">Редактор карт Space Station 14</h1>
+                <p class="st-lead" data-i18n="Choose your build, then open a YAML file or create a map.">Выберите сборку, затем откройте YAML-файл или создайте карту.</p>
+                <div class="st-links"><a id="start-guide" href="/guide/ru/"><span data-i18n="Mapping guide">Руководство по картам</span></a><a href="/" lang="en" hreflang="en">English</a></div>
+            </section>
+            <div class="st-cols">
+                <div class="st-main">
+                    <div class="st-build">
+                        <label for="start-build" data-i18n="Build">Сборка</label>
+                        <select id="start-build" disabled><option data-i18n="Loading editor and builds…">Загрузка редактора и сборок…</option></select>
+                        <button class="st-add" disabled data-i18n="Add a build…">Добавить сборку…</button>
+                    </div>
+                    <div class="st-drop">
+                        <div class="st-actions">
+                            <button id="start-open" class="st-open" disabled data-i18n="Open file…">Открыть файл…</button>
+                            <button id="start-new" class="st-new" disabled data-i18n="New map…">Новая карта…</button>
+                        </div>
+                        <p id="start-status" class="st-drop-hint" role="status" data-i18n="Loading editor and builds…">Загрузка редактора и сборок…</p>
+                    </div>
+                    <div class="st-messages">
+                        <p class="st-error" role="alert"></p>
+                        <noscript><p>Для работы редактора включите JavaScript.</p></noscript>
+                    </div>
+                </div>
+                <aside class="st-library" aria-labelledby="recent-title">
+                    <div class="st-heads"><h2 id="recent-title" class="st-head" data-i18n="Recent">Недавние</h2><button id="start-manage" class="st-link" disabled data-i18n="Manage…">Управление…</button></div>
+                    <p class="st-library-note" data-i18n="Saved in this browser">Сохранено в этом браузере</p>
+                    <div class="st-recents" aria-busy="true"><p class="st-note" data-i18n="Loading saved maps…">Загрузка сохранённых карт…</p></div>
+                </aside>
+            </div>
+        </main>
+        <footer class="st-footer">
+            <button id="start-shortcuts" class="st-link" disabled data-i18n="Keyboard shortcuts">Горячие клавиши</button>
+            <button id="start-about" class="st-link" disabled aria-haspopup="dialog" data-i18n="About SS14 Mapper">О SS14 Mapper</button>
+            <a class="site-credit" href="https://forged.by/projects/ss14mapper" target="_blank" rel="noopener noreferrer" data-i18n="Developed by Forged">Разработка Forged</a>
+        </footer>
+    </div>
+    <div id="app" class="app" hidden>
+        <header id="topbar"></header>
+        <div id="optionsbar"></div>
+        <div class="workspace">
+            <nav id="rail" aria-label="Tools"></nav>
+            <aside id="palette" class="palette-col" aria-label="Palette"></aside>
+            <main id="view" class="view" aria-label="Map">
+                <canvas id="parallax"></canvas>
+                <canvas id="map"></canvas>
+                <canvas id="overlay"></canvas>
+                <div id="map-controls"></div>
+            </main>
+            <aside id="properties" class="properties" aria-label="Properties" hidden>
+                <div id="link-panel"></div>
+                <div id="inspector"></div>
+            </aside>
+        </div>
+        <footer id="statusbar"></footer>
+    </div>
+    <input type="file" id="file" accept=".yml,.yaml" hidden>
+    <script type="module" src="/src/bootstrap.ts"></script>
+</body>
+</html>

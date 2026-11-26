@@ -339,6 +339,12 @@ export class Palette {
             const el = (t as HTMLElement).closest<HTMLElement>(".row");
             return el && this.rowEntry.has(el) ? el : null;
         };
+        // Keep the search keyboard and layout in place until the row's click is delivered.
+        // Moving focus on pointerdown can resize the mobile drawer underneath the finger.
+        root.addEventListener("pointerdown", (e) => {
+            if (document.activeElement === this.input && rowOf(e.target) &&
+                (e.pointerType === "touch" || window.matchMedia("(max-width: 1000px)").matches)) e.preventDefault();
+        });
         root.addEventListener("click", (e) => {
             const el = rowOf(e.target);
             if (!el) return;

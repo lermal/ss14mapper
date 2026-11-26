@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 const origin = "https://ss14mapper.forged.by";
 const dist = new URL("../dist/", import.meta.url);
-const routes = ["/", "/guide/", "/guide/ru/"];
+const routes = ["/", "/ru/", "/guide/", "/guide/ru/"];
 const read = (path) => readFile(new URL(path, dist), "utf8");
 
 function onlyMatch(html, pattern, label) {
@@ -36,14 +36,26 @@ for (const route of routes) {
     assert.match(html, /<link rel="icon" href="\/favicon\.svg" type="image\/svg\+xml"/);
     onlyMatch(html, /<h1\b[^>]*>([^<]*)<\/h1>/g, `${route} heading`);
     assert.ok(!/<meta[^>]+content="[^"]*noindex/i.test(html), `${route} is indexable`);
-    if (route === "/") {
-        assert.match(html, /<a href="\/guide\/"/);
+    const russian = route === "/ru/" || route === "/guide/ru/";
+    const language = russian ? "ru" : "en";
+    assert.match(html, new RegExp(`<html lang="${language}">`));
+    if (route === "/" || route === "/ru/") {
+        const catalog = JSON.parse(await readFile(new URL(`../src/locales/${language}.json`, import.meta.url), "utf8"));
+        for (const [, key, text] of html.matchAll(/data-i18n="([^"]*)">([^<]*)/g)) {
+            assert.equal(text, catalog[key], `${route} initial translation: ${key}`);
+        }
+        assert.ok(html.includes(`id="start-guide" href="${russian ? "/guide/ru/" : "/guide/"}"`));
         assert.match(html, /<div id="start" class="start">/);
         assert.match(html, /<script type="module"/);
+        for (const [code, path] of [["en", "/"], ["ru", "/ru/"]]) {
+            assert.ok(html.includes(`<link rel="alternate" hreflang="${code}" href="${origin}${path}">`), `${route} alternate ${code}`);
+        }
+        assert.ok(html.includes(`<a href="${russian ? "/" : "/ru/"}"`), `${route} language link`);
+        for (const id of ["start-build", "start-open", "start-new", "recent-title", "start-shortcuts"]) {
+            assert.ok(html.includes(`id="${id}"`), `${route} initial workspace ${id}`);
+        }
     } else {
-        const language = route === "/guide/ru/" ? "ru" : "en";
-        assert.match(html, new RegExp(`<html lang="${language}">`));
-        assert.match(html, new RegExp(`<a href="/\\?lang=${language}"`));
+        assert.ok(html.includes(`<a href="${russian ? "/ru/" : "/"}"`), `${route} editor link`);
         for (const [code, path] of [["en", "/guide/"], ["ru", "/guide/ru/"]]) {
             assert.ok(html.includes(`<link rel="alternate" hreflang="${code}" href="${origin}${path}">`), `${route} alternate ${code}`);
         }
