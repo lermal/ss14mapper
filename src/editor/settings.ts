@@ -60,6 +60,8 @@ interface Capture {
 
 export class SettingsWindow {
     private root: HTMLElement | null = null;
+    private closed: Promise<void> = Promise.resolve();
+    private resolveClosed: (() => void) | null = null;
     private capture: Capture | null = null;
     /** A chord waiting for the choice to replace another action's binding. */
     private conflict: (Capture & { chord: Chord; others: ActionDef[] }) | null = null;
@@ -77,8 +79,9 @@ export class SettingsWindow {
         return this.root !== null;
     }
 
-    open(): void {
-        if (this.root) return;
+    open(): Promise<void> {
+        if (this.root) return this.closed;
+        this.closed = new Promise(resolve => { this.resolveClosed = resolve; });
         if (!document.getElementById("keys-style")) {
             const style = document.createElement("style");
             style.id = "keys-style";
@@ -100,6 +103,7 @@ export class SettingsWindow {
         this.unsubscribe = this.keymap.onChange(() => this.render());
         this.render();
         root.querySelector<HTMLElement>("input")?.focus();
+        return this.closed;
     }
 
     close(): void {
@@ -110,6 +114,8 @@ export class SettingsWindow {
         this.unsubscribe?.();
         this.root?.remove();
         this.root = null;
+        this.resolveClosed?.();
+        this.resolveClosed = null;
         this.returnFocus?.focus();
     }
 

@@ -328,6 +328,13 @@ export class Account {
         return false;
     }
 
+    private async needMaintainer(title: string, what: string): Promise<boolean> {
+        if (!(await this.needSignIn(title, what))) return false;
+        if (this.me?.maintainer) return true;
+        await dialog(title, [translate("Only maintainers can open this form.")], [{ label: translate("Close"), value: undefined }], undefined);
+        return false;
+    }
+
     async addBuild(): Promise<void> {
         if (!(await this.needSignIn(translate("Add a build"), translate("add a build")))) return;
         const repo = textInput("", "https://github.com/owner/repository");
@@ -541,6 +548,7 @@ export class Account {
     // ---- Your builds
 
     async yourBuilds(): Promise<void> {
+        if (!(await this.needSignIn(translate("Your builds"), translate("view your builds")))) return;
         const list = h("div", "fb-list");
         list.append(h("p", "dlg-muted", translate("Loading…")));
         const add = button("btn", translate("Add a build…"), "", () => void this.addBuild());
@@ -565,6 +573,7 @@ export class Account {
     // ---- Bug reports (maintainer)
 
     async bugReports(): Promise<void> {
+        if (!(await this.needMaintainer(translate("Feedback"), translate("review feedback")))) return;
         let reports: BugReport[] | null = null;
         let tab: BugStatus | null = "new";
         let kindTab: BugKind | null = null;
@@ -744,6 +753,7 @@ export class Account {
     // ---- Manage builds
 
     async manageBuilds(): Promise<void> {
+        if (!(await this.needMaintainer(translate("Manage builds"), translate("manage builds")))) return;
         let forks: AdminFork[] | null = null;
         let tab: ForkStatus = "pending";
         let approving: number | null = null;

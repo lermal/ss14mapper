@@ -36,4 +36,18 @@ for (const path of [...routes, "/sitemap.xml", "/robots.txt"]) {
         console.error(`FAIL ${path}: ${error.message}`);
     }
 }
+// Admin HTML must load at the URL used by the account menu, but must not be indexed.
+try {
+    const path = "/admin/content/";
+    const response = await fetch(origin + path, { signal: AbortSignal.timeout(20_000), redirect: "manual" });
+    assert.equal(response.status, 200, `${path}: expected HTTP 200, received ${response.status}`);
+    const html = await response.text();
+    assert.match(html, /<meta\b[^>]*name="robots"[^>]*content="[^"]*noindex/i, "admin page must be noindex");
+    assert.ok(html.includes('id="content-manager"'), "missing content manager");
+    assert.match(html, /<script\b[^>]*type="module"/, "missing admin script");
+    console.log(`OK ${path} (noindex)`);
+} catch (error) {
+    failed = true;
+    console.error(`FAIL /admin/content/: ${error.message}`);
+}
 if (failed) process.exitCode = 1;

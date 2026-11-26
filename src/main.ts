@@ -32,6 +32,7 @@ import { ShortcutsOverlay } from "./ui/shortcuts";
 import { StartScreen } from "./ui/start-screen";
 import { Account } from "./ui/account";
 import { showToast } from "./ui/toast";
+import { bindFormLinks } from "./ui/form-links";
 
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -168,9 +169,9 @@ const fork = () => shell.forkSelect.value;
 const forkName = (id: string) => forks.find((f) => f.id === id)?.name ?? id;
 const RECENT_MENU = 10;
 
-function openAbout(): void {
+function openAbout(): Promise<void> {
     const f = controller.current?.pack.manifest.fork;
-    void showAbout(f ? translate("{{1}}, {{2}} at {{3}}", { 1: forkName(f.id), 2: f.branch, 3: f.commit.slice(0, 7) }) : "");
+    return showAbout(f ? translate("{{1}}, {{2}} at {{3}}", { 1: forkName(f.id), 2: f.branch, 3: f.commit.slice(0, 7) }) : "");
 }
 
 const shell = new Shell(
@@ -735,3 +736,24 @@ else {
     syncUrl();
     showStart();
 }
+
+// Links open the same forms as the menus, after map restoration and build-list loading.
+async function accountForm(open: (account: Account) => Promise<void>): Promise<void> {
+    if (account) return open(account);
+    await dialog(translate("Sign in"), [translate("Account features are unavailable on this site.")], [{ label: translate("Close"), value: undefined }], undefined);
+}
+bindFormLinks(new Map([
+    ["add-build", () => accountForm(a => a.addBuild())],
+    ["feedback", () => accountForm(a => a.reportBug())],
+    ["your-builds", () => accountForm(a => a.yourBuilds())],
+    ["manage-builds", () => accountForm(a => a.manageBuilds())],
+    ["bug-reports", () => accountForm(a => a.bugReports())],
+    ["new-map", newMap],
+    ["library", manage],
+    ["settings", () => settings.open()],
+    ["shortcuts", () => shortcuts.open()],
+    ["about", openAbout],
+]), (error) => {
+    console.warn("Could not open linked form", error);
+    showToast(translate("Could not open this form. Try again."));
+});

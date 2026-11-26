@@ -783,5 +783,11 @@
   "Write the content before publishing.": "Write the content before publishing.",
   "FAQ": "FAQ",
   "Markdown heading": "Heading",
-  "Insert link": "Link"
+  "Insert link": "Link",
+  "view your builds": "view your builds",
+  "review feedback": "review feedback",
+  "manage builds": "manage builds",
+  "Only maintainers can open this form.": "Only maintainers can open this form.",
+  "Account features are unavailable on this site.": "Account features are unavailable on this site.",
+  "Could not open this form. Try again.": "Could not open this form. Try again."
 }

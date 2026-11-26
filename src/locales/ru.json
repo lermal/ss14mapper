@@ -801,5 +801,11 @@
   "Write the content before publishing.": "Перед публикацией добавьте текст.",
   "FAQ": "Вопросы и ответы",
   "Markdown heading": "Заголовок",
-  "Insert link": "Ссылка"
+  "Insert link": "Ссылка",
+  "view your builds": "посмотреть свои сборки",
+  "review feedback": "просматривать обращения",
+  "manage builds": "управлять сборками",
+  "Only maintainers can open this form.": "Для этой формы нужен аккаунт администратора.",
+  "Account features are unavailable on this site.": "На этом сайте вход в аккаунт недоступен.",
+  "Could not open this form. Try again.": "Не удалось открыть форму. Попробуйте ещё раз."
 }

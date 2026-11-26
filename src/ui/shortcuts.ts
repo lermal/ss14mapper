@@ -105,6 +105,8 @@ export class ShortcutsOverlay {
     /** "Customize…" was pressed. */
     onCustomize: (() => void) | null = null;
     private root: HTMLElement | null = null;
+    private closed: Promise<void> = Promise.resolve();
+    private resolveClosed: (() => void) | null = null;
 
     constructor(private readonly keymap: Keymap) {}
 
@@ -117,8 +119,9 @@ export class ShortcutsOverlay {
         else this.open();
     }
 
-    open(): void {
-        if (this.root) return;
+    open(): Promise<void> {
+        if (this.root) return this.closed;
+        this.closed = new Promise(resolve => { this.resolveClosed = resolve; });
         addStyle();
         const root = (this.root = h("div", "keys-overlay"));
         const sheet = h("div", "keys-sheet");
@@ -155,12 +158,15 @@ export class ShortcutsOverlay {
         });
         window.addEventListener("keydown", this.key, true);
         document.body.append(root);
+        return this.closed;
     }
 
     close(): void {
         window.removeEventListener("keydown", this.key, true);
         this.root?.remove();
         this.root = null;
+        this.resolveClosed?.();
+        this.resolveClosed = null;
     }
 
     private readonly key = (e: KeyboardEvent): void => {
