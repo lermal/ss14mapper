@@ -38,6 +38,7 @@ export class StartScreen {
         }
         container.querySelector<HTMLElement>(".st-intro")!.lang = language();
         container.querySelector<HTMLAnchorElement>("#start-guide")!.href = language() === "ru" ? "/guide/ru/" : "/guide/";
+        container.querySelector<HTMLAnchorElement>("#start-faq")!.href = language() === "ru" ? "/faq/ru/" : "/faq/";
         this.header = container.querySelector<HTMLElement>(".st-account-slot")!;
         const locale = container.querySelector<HTMLSelectElement>(".st-language")!;
         locale.setAttribute("aria-label", translate("Language"));

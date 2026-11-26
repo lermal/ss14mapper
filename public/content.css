@@ -1,0 +1,40 @@
+:root { color-scheme: dark; --bg: #191c20; --panel: #202429; --raised: #292e34; --border: #353b43; --text: #edf0f3; --text-2: #cbd1d8; --muted: #aab2bc; --accent-text: #a5c5e5; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 "Segoe UI", "Noto Sans", system-ui, sans-serif; }
+a { color: var(--accent-text); text-underline-offset: 4px; overflow-wrap: anywhere; }
+a:hover { color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; }
+.content-header, .content-main, .content-footer { max-width: 800px; padding: 24px; margin: auto; }
+.content-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); }
+.content-header > a { color: var(--text); font-weight: 600; text-decoration: none; }
+.content-header nav { display: flex; flex-wrap: wrap; gap: 16px; }
+.content-header a, .content-footer a, .content-back { display: inline-flex; align-items: center; min-height: 44px; }
+.content-main { padding-top: 40px; padding-bottom: 48px; min-height: 60vh; }
+h1 { margin: 0 0 24px; font-size: clamp(26px, 4vw, 36px); line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+h2 { margin: 32px 0 12px; font-size: 23px; line-height: 1.35; font-weight: 600; }
+h3 { margin: 24px 0 12px; font-size: 19px; }
+p, li { color: var(--text-2); }
+p { max-width: 68ch; }
+.content-back { margin-bottom: 20px; }
+.content-meta { color: var(--muted); font-size: 13px; }
+.content-summary { margin-bottom: 32px; }
+.content-entry { padding: 24px 0; border-top: 1px solid var(--border); }
+.content-entry h2 { margin: 0 0 12px; font-size: 22px; }
+.content-entry > p { margin: 8px 0 0; }
+.content-entry > .content-meta { margin: 0 0 6px; }
+.content-footer { border-top: 1px solid var(--border); }
+.markdown { overflow-wrap: anywhere; }
+.markdown > :first-child { margin-top: 0; }
+.markdown ul, .markdown ol { padding-left: 24px; }
+.markdown li + li { margin-top: 6px; }
+.markdown strong { color: var(--text); }
+.markdown img { display: block; max-width: 100%; height: auto; margin: 24px 0; }
+.markdown pre { overflow-x: auto; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 4px; }
+.markdown code { font: .9em/1.6 ui-monospace, Consolas, monospace; background: var(--raised); padding: 2px 4px; border-radius: 3px; }
+.markdown pre code { background: none; padding: 0; }
+.markdown blockquote { margin: 24px 0; padding: 0 20px; border-left: 2px solid var(--border); }
+.markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown th, .markdown td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+.markdown hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.preview { padding: 20px; }
+@media (max-width: 600px) { .content-header, .content-main, .content-footer { padding-inline: 20px; } }

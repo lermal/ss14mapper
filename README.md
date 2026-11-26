@@ -49,6 +49,16 @@ HTML, canonical and reciprocal `hreflang` links. The page language takes precede
 browser preferences; legacy `?lang=…` links still override it. The language selector moves
 between the canonical home routes while preserving the open map and other query parameters.
 
+## Guides and FAQ
+
+Open **Guides and FAQ…** in the maintainer account menu to write in Markdown,
+preview edits, save drafts and publish. Set the order with Move up and Move down.
+
+Deploy the frontend and Laravel API together. Follow the [setup and authoring
+instructions](docs/content-management.md) to migrate the database, import the
+existing guide, configure nginx and back up content. Replace the static guide
+routes above with the CMS routes from that document.
+
 ## Interface translations
 
 Copy [`src/locales/en.json`](src/locales/en.json) to `src/locales/<language-tag>.json` (for example, `de.json`).

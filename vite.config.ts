@@ -6,6 +6,8 @@ import { defineConfig } from "vitest/config";
 const corpus = process.env.SS14MAPPER_CORPUS ?? path.resolve(import.meta.dirname, "../ss14mapper-corpus");
 const packs = process.env.SS14MAPPER_PACKS ?? path.join(corpus, "packs");
 
+const contentApi = process.env.SS14MAPPER_DEV_API;
+
 const TYPES: Record<string, string> = { ".json": "application/json", ".webp": "image/webp", ".yml": "text/yaml; charset=utf-8" };
 
 /** Serves files under `root` at `prefix` (development only; production serves packs as static files). */
@@ -45,13 +47,19 @@ export default defineConfig({
         target: "es2022",
         sourcemap: true,
         rolldownOptions: {
-            input: [path.resolve(import.meta.dirname, "index.html"), path.resolve(import.meta.dirname, "ru/index.html"), path.resolve(import.meta.dirname, "guide/index.html"), path.resolve(import.meta.dirname, "guide/ru/index.html")],
+            input: [path.resolve(import.meta.dirname, "admin/content/index.html"), path.resolve(import.meta.dirname, "index.html"), path.resolve(import.meta.dirname, "ru/index.html"), path.resolve(import.meta.dirname, "guide/index.html"), path.resolve(import.meta.dirname, "guide/ru/index.html")],
         },
     },
     server: {
         host: "127.0.0.1",
         port: 8767,
         strictPort: true,
+        proxy: contentApi ? {
+            '/api': { target: contentApi, changeOrigin: true, rewrite: (url) => url.replace(/^\/api/, ''), cookieDomainRewrite: '' },
+            '^/(guide|faq)(/|$)': { target: contentApi },
+            '/content-media/': { target: contentApi },
+            '/sitemap.xml': { target: contentApi },
+        } : undefined,
     },
     test: {
         include: ["tests/**/*.test.ts"],

@@ -1,0 +1,9 @@
+# Include in http{} after adapting BOTH values to your existing Laravel HTTP server.
+# This must point to the API, never back to the frontend server (which would loop).
+# PHP-FPM is not an HTTP upstream: use the nginx/Apache vhost that serves Laravel.
+upstream ss14mapper_content {
+    server 127.0.0.1:8081;
+}
+map $host $ss14mapper_content_host {
+    default api.mapper.example.com;
+}

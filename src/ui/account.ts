@@ -1,6 +1,6 @@
 // The account in the headers of the start screen and the editor: Sign in with GitHub, or the user's menu (Your
 // builds, Add a build, Manage builds for the maintainer, Sign out), and the dialogs behind it.
-import { t as translate } from "../i18n";
+import { language, t as translate } from "../i18n";
 import { adminMeta, BUG_TABS, KIND_TABS, bugMeta, MANAGE_TABS, myBuildMeta, SLUG_PATTERN, stateLabel, type StateLabel } from "../api/builds";
 import { ApiError, type AdminFork, type Api, type BugImage, type BugReport, type BugKind, type BugReportInput, type BugStatus, type ForkStatus, type Me, type MyFork } from "../api/client";
 import { addImages, IMAGE_TYPES, MAX_IMAGES } from "../api/feedback-images";
@@ -273,6 +273,7 @@ export class Account {
             { label: translate("Send feedback…"), run: () => void this.reportBug() },
         ];
         if (me.maintainer) {
+            items.push({ label: translate("Guides and FAQ…"), run: () => { window.open(`/admin/content/?lang=${language()}`, "_blank", "noopener,noreferrer"); } });
             const n = me.pending ?? 0;
             items.push({ label: translate("Manage builds…"), ...(n > 0 ? { note: translate("{{1}} waiting for approval", { 1: n }) } : {}), run: () => void this.manageBuilds() });
             const bugs = me.bugs ?? 0;

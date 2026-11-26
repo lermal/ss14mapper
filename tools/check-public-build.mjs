@@ -73,4 +73,8 @@ assert.equal(onlyMatch(robots, /^Sitemap: (.+)$/gm, "robots sitemap"), `${origin
 assert.match(await read("favicon.svg"), /<svg\b/);
 const image = await sharp(await readFile(new URL("social-card.png", dist))).metadata();
 assert.deepEqual([image.format, image.width, image.height], ["png", 1200, 630]);
-console.log("Public HTML, sitemap, robots and share assets verified.");
+const admin = await read("admin/content/index.html");
+assert.match(admin, /<meta name="robots" content="noindex, nofollow">/);
+assert.match(admin, /<script type="module"/);
+assert.ok((await read("content.css")).includes(".markdown"));
+console.log("Public HTML, admin entry, sitemap, robots and share assets verified.");

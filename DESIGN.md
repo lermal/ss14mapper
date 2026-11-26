@@ -58,6 +58,12 @@ Editor refinement: use a flat desktop workbench. Menus and document commands sha
 
 Start page: collapse the file workspace and recent list below 760px. Guide: one readable column. Below 1000px the editor opens on the map, with a bottom navigation for Map, Tools, Palette, Properties and Options. Show one auxiliary panel at a time below the canvas in portrait, alongside it in short landscape viewports. These mobile choices never overwrite desktop panel preferences. Keep all commands reachable through a compact Menu, with undo, redo and save directly available. Keep colour in the map and sprites; use the existing neutral workbench chrome. Use 44px touch controls, 16px form text, safe-area insets and dynamic viewport height. One finger edits with the chosen tool, two fingers pan and pinch; a navigation toggle supports one-finger panning. Defer touch edits until movement or release so a second finger can start navigation without painting. A long press offers objects under the finger. Dialogs scroll within the available viewport; no document-level horizontal overflow.
 
+## Guides and FAQ management
+
+Use the editor's neutral palette and system font. Show language and type filters, publication status and up/down buttons in the content list. Put Markdown and preview in the main column, with address, category and description beside it. Stack the columns on phones.
+
+Keep Save draft and Publish as separate actions. Preserve the author's text after a conflict and explain how to reload. Keep Back to list visible. For public guides, use a text column with linked titles; render FAQ answers as HTML. Let the user write the articles.
+
 ## Motion and constraints
 
 No ambient motion, entrance cascades, glowing surfaces, gradient headlines or marketing cards. Use motion only for loading and direct feedback, and respect reduced motion. No new dependencies. Canvas layers, menus and dialogs retain their necessary positioning. Do not replace legitimate three-item lists or semantic map colours just to satisfy a pattern ban.
