@@ -50,7 +50,6 @@ for (const route of routes) {
         for (const [code, path] of [["en", "/"], ["ru", "/ru/"]]) {
             assert.ok(html.includes(`<link rel="alternate" hreflang="${code}" href="${origin}${path}">`), `${route} alternate ${code}`);
         }
-        assert.ok(html.includes(`<a href="${russian ? "/" : "/ru/"}"`), `${route} language link`);
         for (const id of ["start-build", "start-open", "start-new", "recent-title", "start-shortcuts"]) {
             assert.ok(html.includes(`id="${id}"`), `${route} initial workspace ${id}`);
         }

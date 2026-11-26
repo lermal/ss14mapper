@@ -152,7 +152,7 @@ export class Shell {
     private readonly hint: HTMLElement;
     private readonly measure: HTMLElement;
     private readonly counts: HTMLElement;
-    private readonly build: HTMLAnchorElement;
+    private build: HTMLElement;
     private readonly buildLabel: HTMLElement;
     private readonly missingBtn: HTMLButtonElement;
     private readonly pct: HTMLElement;
@@ -337,10 +337,7 @@ export class Shell {
         this.hint.id = "info";
         this.counts = h("span");
         this.counts.id = "status";
-        this.build = h("a");
-        this.build.target = "_blank";
-        this.build.rel = "noopener noreferrer";
-        this.build.className = "sb-build";
+        this.build = h("span", "sb-build");
         this.missingBtn = button("sb-missing", "", translate("Missing sprites"), (e) => {
             e.stopPropagation();
             this.toggleMissing();
@@ -536,13 +533,20 @@ export class Shell {
             this.missingBtn.hidden = !this.missing.length;
             this.missingBtn.replaceChildren(icon(ICON.warning, 13), translate("{{1}} missing", { 1: this.missing.length }));
             const f = s?.pack.manifest.fork;
-            this.build.textContent = f ? `${this.forks.find((x) => x.id === f.id)?.name ?? f.id} ${f.commit.slice(0, 7)}` : "";
             const repo = (f?.repo || this.forks.find((x) => x.id === f?.id)?.repo || "").replace(/\.git$/, "").replace(/\/$/, "");
+            const tag = f && repo ? "a" : "span";
+            if (this.build.localName !== tag) {
+                const build = h(tag, "sb-build");
+                this.build.replaceWith(build);
+                this.build = build;
+            }
+            this.build.textContent = f ? `${this.forks.find((x) => x.id === f.id)?.name ?? f.id} ${f.commit.slice(0, 7)}` : "";
             if (f && repo) {
-                this.build.href = `${repo}/tree/${f.commit}`;
+                this.build.setAttribute("href", `${repo}/tree/${f.commit}`);
+                this.build.setAttribute("target", "_blank");
+                this.build.setAttribute("rel", "noopener noreferrer");
                 this.build.title = translate("{{1}} at {{2}}", { 1: repo, 2: f.commit.slice(0, 7) });
             } else {
-                this.build.removeAttribute("href");
                 this.build.title = f ? f.commit : "";
             }
         }
